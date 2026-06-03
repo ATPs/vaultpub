@@ -15,6 +15,18 @@
     Object.assign(s, p);
     localStorage.setItem("vaultpub.settings", JSON.stringify(s));
   }
+  function urlPrefix() {
+    var p = (document.body && document.body.getAttribute("data-url-prefix")) || "/";
+    if (p.charAt(0) !== "/") p = "/" + p;
+    if (p.charAt(p.length - 1) !== "/") p += "/";
+    return p;
+  }
+  function withPrefix(path) {
+    if (!path || path.charAt(0) !== "/" || path.indexOf("//") === 0) return path;
+    var p = urlPrefix();
+    if (p === "/" || path.indexOf(p) === 0 || path.indexOf("/static/") === 0) return path;
+    return p.replace(/\/$/, "") + path;
+  }
 
   /* ── theme ── */
   function applyTheme(t) {
@@ -41,8 +53,8 @@
 
   /* ── search ── */
   var searchDocs = [];
-  fetch("/search-index.json").then(function (r) { return r.ok ? r.json() : Promise.reject(); }).then(function (d) { searchDocs = d; }).catch(function () {
-    fetch("/api/search?q=").then(function (r) { return r.ok ? r.json() : []; }).then(function (d) {
+  fetch(withPrefix("/search-index.json")).then(function (r) { return r.ok ? r.json() : Promise.reject(); }).then(function (d) { searchDocs = d; }).catch(function () {
+    fetch(withPrefix("/api/search?q=")).then(function (r) { return r.ok ? r.json() : []; }).then(function (d) {
       searchDocs = (d && d.results) || [];
     });
   });

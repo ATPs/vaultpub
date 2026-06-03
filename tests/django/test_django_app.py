@@ -74,6 +74,9 @@ def test_django_page_uses_packaged_template(django_setup) -> None:
     assert b'class="top-bar"' in response.content
     assert b'class="markdown-body"' in response.content
     assert b"README" in response.content
+    assert b'data-url-prefix="/notes/"' in response.content
+    assert b'href="/notes/README"' in response.content
+    assert b'href="/README"' not in response.content
     assert b"{% toc %}" not in response.content
 
 
@@ -110,3 +113,25 @@ def test_django_template_override_changes_layout(django_setup) -> None:
     assert b"OVERRIDDEN vaultpub" in response.content
     assert b'class="markdown-body"' in response.content
     assert b'class="top-bar"' not in response.content
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_api_urls_include_mount_prefix(django_setup) -> None:
+    views._state_cache.clear()
+    client = Client()
+
+    page = client.get("/notes/api/page/README")
+    assert page.status_code == 200
+    page_data = page.json()
+    assert page_data["url"] == "/notes/README"
+    assert 'href="/notes/A"' in page_data["html"]
+
+    search = client.get("/notes/api/search?q=README")
+    assert search.status_code == 200
+    assert search.json()["results"][0]["url"].startswith("/notes/")
+
+    graph = client.get("/notes/api/graph")
+    assert graph.status_code == 200
+    note_urls = [node["url"] for node in graph.json()["nodes"] if node["group"] == "note"]
+    assert note_urls
+    assert all(url.startswith("/notes/") for url in note_urls)

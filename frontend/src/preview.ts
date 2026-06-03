@@ -2,6 +2,7 @@
  * Hover preview for internal links.
  * Fetches page content via API and shows a popup on hover.
  */
+import { withUrlPrefix, withoutUrlPrefix } from "./urls";
 
 let previewTimer: ReturnType<typeof setTimeout> | null = null;
 let previewBox: HTMLElement | null = null;
@@ -12,7 +13,7 @@ async function fetchPreview(url: string): Promise<string | null> {
   if (cache.has(url)) return cache.get(url)!;
 
   try {
-    const apiUrl = "/api/page" + url;
+    const apiUrl = withUrlPrefix("/api/page" + withoutUrlPrefix(url));
     const resp = await fetch(apiUrl);
     if (!resp.ok) return null;
     const data = await resp.json();
