@@ -1,0 +1,12 @@
+{% extends "vaultpub/base.html" %}
+
+{% block head %}
+<title>{{ title }} - {{ site_name }}</title>
+<meta name="description" content="{{ description }}">
+{% endblock %}
+
+{% block content %}
+<article class="note" data-note-id="{{ note_id }}" data-note-path="{{ url_path }}">
+  <div class="markdown-body">{{ content|safe }}</div>
+</article>
+{% endblock %}

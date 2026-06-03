@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {% block head %}{% endblock %}
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'vaultpub/app.css' %}">
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar-left">
+      {% block sidebar_left %}
+        {% include "vaultpub/partials/nav.html" %}
+      {% endblock %}
+    </aside>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+    <aside class="sidebar-right">
+      {% block sidebar_right %}
+        {% include "vaultpub/partials/toc.html" %}
+        {% include "vaultpub/partials/backlinks.html" %}
+      {% endblock %}
+    </aside>
+  </div>
+  {% block scripts %}
+    <script src="{% static 'vaultpub/app.js' %}"></script>
+  {% endblock %}
+</body>
+</html>
