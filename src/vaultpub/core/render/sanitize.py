@@ -38,7 +38,7 @@ ALLOWED_PROTOCOLS = ["http", "https", "mailto", "ftp"]
 
 def sanitize_html(html: str) -> str:
     """Sanitize HTML, allowing only safe tags and attributes."""
-    return bleach.clean(
+    return bleach.clean(  # type: ignore[no-any-return]
         html,
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRS,

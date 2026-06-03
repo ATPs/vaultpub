@@ -17,6 +17,8 @@ class VaultScanner:
     def __init__(self, config: PublisherConfig) -> None:
         self.config = config
 
+    ALWAYS_FORBIDDEN = {".git", ".obsidian", "metadata.json", ".vaultpub.yml", ".obsidian-publish.yml"}
+
     def scan(self) -> tuple[list[NoteRecord], list[AttachmentRecord], NavNode]:
         notes: list[NoteRecord] = []
         attachments: list[AttachmentRecord] = []
@@ -25,10 +27,17 @@ class VaultScanner:
         for dirpath_str, dirnames, filenames in os.walk(root, followlinks=self.config.follow_symlinks):
             dirpath = Path(dirpath_str)
 
-            dirnames[:] = [
-                d for d in dirnames
-                if not self._is_hidden(d) and d not in self.config.exclude_folders
-            ]
+            # Filter dirnames for os.walk pruning
+            kept_dirs = []
+            for d in dirnames:
+                if d in self.ALWAYS_FORBIDDEN:
+                    continue
+                if self._is_hidden(d) and not self.config.hidden_file_access:
+                    continue
+                # In publish_true mode, don't prune excluded folders (they might contain publish:true notes)
+                if self.config.publish_property_mode == "publish_true" or d not in self.config.exclude_folders:
+                    kept_dirs.append(d)
+            dirnames[:] = kept_dirs
 
             for fname in sorted(filenames):
                 fpath = dirpath / fname
@@ -150,6 +159,18 @@ class VaultScanner:
     def _should_publish(self, note: NoteRecord) -> bool:
         fm = note.frontmatter
         mode = self.config.publish_property_mode
+
+        # Check excluded folders: publish:true can override only in publish_true mode
+        rel = note.rel_path.as_posix()
+        top_dir = rel.split("/")[0] if "/" in rel else ""
+        in_excluded = top_dir in self.config.exclude_folders
+
+        if in_excluded and mode != "publish_true":
+            return False
+        if in_excluded and mode == "publish_true" and fm.get("publish") is True:
+            return True
+        if in_excluded:
+            return False
 
         if mode == "publish_true":
             return fm.get("publish") is True

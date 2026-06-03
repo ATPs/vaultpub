@@ -7,7 +7,14 @@
   {% load static %}
   <link rel="stylesheet" href="{% static 'vaultpub/app.css' %}">
 </head>
-<body>
+<body data-realtime="{% if realtime %}true{% else %}false{% endif %}">
+  <header class="top-bar">
+    <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle navigation">&#9776;</button>
+    {% if site_logo %}<img src="{{ site_logo }}" alt="{{ site_name }}" class="site-logo">{% endif %}
+    <span class="site-name">{{ site_name|default:"vaultpub" }}</span>
+    <button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>
+    {% if show_theme_toggle %}<button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle theme">🌓</button>{% endif %}
+  </header>
   <div class="app-layout">
     <aside class="sidebar-left">
       {% block sidebar_left %}
@@ -19,6 +26,7 @@
     </main>
     <aside class="sidebar-right">
       {% block sidebar_right %}
+        {% if show_graph %}<div id="graph-container" class="graph-container"></div>{% endif %}
         {% include "vaultpub/partials/toc.html" %}
         {% include "vaultpub/partials/backlinks.html" %}
       {% endblock %}
