@@ -4,6 +4,8 @@ Publish a local Obsidian vault as a browsable, searchable web site.
 
 vaultpub is **not** an Obsidian Publish client. It does not require an Obsidian account, subscription, or official servers. It works entirely locally with your vault files.
 
+📖 **[Full User Guide →](help/guide.md)**
+
 ## Quick Start
 
 ```bash
@@ -113,21 +115,7 @@ urlpatterns = [path("notes/", include("vaultpub.django_app.urls"))]
 
 ### Django Template Customization
 
-The Django integration renders `vaultpub/page.html` with Django's template engine. You can override the bundled templates by adding files with the same names under your project's `templates/vaultpub/` directory, such as `templates/vaultpub/base.html`.
-
-Common template context variables:
-
-| Variable | Description |
-|----------|-------------|
-| `content` | Rendered note body HTML |
-| `seo_head` | Complete SEO/OpenGraph `<head>` tags for the current note |
-| `nav_html` | File navigation HTML |
-| `toc_html` | Current note table of contents HTML |
-| `backlinks_html` | Current note backlinks HTML |
-| `note_id` | Stable note id |
-| `url_path` | Canonical public URL path |
-| `site_name`, `site_logo` | Site branding values |
-| `show_search`, `show_graph`, `show_theme_toggle`, `realtime` | Feature flags for layout controls |
+Override any template by placing a file with the same path in your project's `templates/vaultpub/` directory. See the **[User Guide → Django Integration](help/guide.md#template-customization)** for the full context variable reference and examples.
 
 ## Python API
 
