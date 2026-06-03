@@ -1,0 +1,66 @@
+/* Obsidian-style callout blocks */
+
+.callout {
+  margin: 1em 0;
+  padding: 0.75em 1em;
+  border-radius: 6px;
+  border-left: 4px solid var(--callout-border, #999);
+  background: var(--callout-bg, #f8f8f8);
+}
+
+.callout[data-callout="note"] {
+  --callout-bg: var(--callout-note-bg);
+  --callout-border: var(--callout-note-border);
+}
+
+.callout[data-callout="tip"],
+.callout[data-callout="success"] {
+  --callout-bg: var(--callout-tip-bg);
+  --callout-border: var(--callout-tip-border);
+}
+
+.callout[data-callout="warning"],
+.callout[data-callout="danger"] {
+  --callout-bg: var(--callout-warning-bg);
+  --callout-border: var(--callout-warning-border);
+}
+
+.callout[data-callout="danger"],
+.callout[data-callout="failure"],
+.callout[data-callout="bug"] {
+  --callout-bg: var(--callout-danger-bg);
+  --callout-border: var(--callout-danger-border);
+}
+
+.callout-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-weight: 600;
+  margin-bottom: 0.3em;
+  user-select: none;
+}
+
+.callout-icon {
+  font-size: 1.1em;
+}
+
+.callout-content {
+  padding-left: 0.2em;
+}
+
+.callout-content p:first-child {
+  margin-top: 0;
+}
+
+.callout-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Folded callouts */
+.callout[data-callout-fold="closed"] .callout-title::after {
+  content: " (click to expand)";
+  font-size: 0.8em;
+  color: var(--text-muted);
+  font-weight: normal;
+}

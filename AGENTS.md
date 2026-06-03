@@ -2,6 +2,8 @@
 
 `vaultpub` — publish a local Obsidian vault as a browsable, searchable web site.
 
+## python
+use  /data/p/anaconda3/envs/django/bin/python
 ## Dev Records
 
 After each feature, write a record in `dev/YYYYMMDDNN-feature-name.md`:
