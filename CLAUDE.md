@@ -24,3 +24,6 @@ ruff check .
 # Format
 ruff format .
 ```
+
+## AGENTS.md
+AGENTS.md is also a guide.
