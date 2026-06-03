@@ -289,8 +289,8 @@ class Renderer:
 
     def render_page_html(self, note: NoteRecord) -> str:
         body = self.render_note(note)
-        backlinks_html = self._render_backlinks(note)
-        toc_html = self._render_toc(note)
+        backlinks_html = self.render_backlinks_html(note)
+        toc_html = self.render_toc_html(note)
 
         return f"""\
 <article class="note" data-note-id="{note.id}" data-note-path="{note.url_path}">
@@ -299,7 +299,7 @@ class Renderer:
   {backlinks_html}
 </article>"""
 
-    def _render_backlinks(self, note: NoteRecord) -> str:
+    def render_backlinks_html(self, note: NoteRecord) -> str:
         if not note.backlinks:
             return ""
         links = []
@@ -317,7 +317,7 @@ class Renderer:
   <ul>{"".join(links)}</ul>
 </section>"""
 
-    def _render_toc(self, note: NoteRecord) -> str:
+    def render_toc_html(self, note: NoteRecord) -> str:
         if not note.headings:
             return ""
         items = []

@@ -1,8 +1,7 @@
 {% extends "vaultpub/base.html" %}
 
 {% block head %}
-<title>{{ title }} - {{ site_name }}</title>
-<meta name="description" content="{{ description }}">
+{{ seo_head|safe }}
 {% endblock %}
 
 {% block content %}
