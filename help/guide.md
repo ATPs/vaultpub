@@ -417,6 +417,8 @@ urlpatterns = [
 ]
 ```
 
+Set `VAULTPUB["default"]["url_prefix"]` to the same mount path used in `include()`. In the example above, both are `/notes/`; vaultpub uses this prefix when rendering note links and API URLs.
+
 ### URL Routes
 
 | Route | Purpose |
@@ -457,7 +459,10 @@ The Django views use Django's template engine with `vaultpub/page.html` as the e
   {% load static %}
   <link rel="stylesheet" href="{% static 'vaultpub/app.css' %}">
 </head>
-<body data-realtime="{% if realtime %}true{% else %}false{% endif %}">
+<body
+  data-realtime="{% if realtime %}true{% else %}false{% endif %}"
+  data-url-prefix="{{ url_prefix|default:'/' }}"
+>
   <!-- Your custom header -->
   <header class="my-site-header">
     <h1>{{ site_name }}</h1>
@@ -501,7 +506,8 @@ The Django views use Django's template engine with `vaultpub/page.html` as the e
 | `toc_html` | `str` | Table of contents as `<nav>` HTML |
 | `backlinks_html` | `str` | Backlinks as `<section>` HTML |
 | `note_id` | `str` | Stable SHA-1 identifier for the note |
-| `url_path` | `str` | Canonical public URL path (e.g. `/README`) |
+| `url_path` | `str` | Canonical public URL path, including Django prefix (e.g. `/notes/README`) |
+| `url_prefix` | `str` | Django mount prefix (e.g. `/notes/`) |
 | `title` | `str` | Page title (from frontmatter, H1, or filename) |
 | `site_name` | `str` | From config `site.name` |
 | `site_logo` | `str` or `None` | From config `site.logo` |

@@ -2,6 +2,7 @@
  * Interactive graph visualization.
  * Canvas-based force-directed layout rendering graph.json data.
  */
+import { withUrlPrefix } from "./urls";
 
 interface GraphNode {
   id: string;
@@ -25,12 +26,12 @@ let graphData: GraphData | null = null;
 
 async function loadGraphData(): Promise<GraphData | null> {
   try {
-    const resp = await fetch("/graph.json");
+    const resp = await fetch(withUrlPrefix("/graph.json"));
     if (!resp.ok) return null;
     return await resp.json();
   } catch {
     try {
-      const resp = await fetch("/api/graph");
+      const resp = await fetch(withUrlPrefix("/api/graph"));
       if (!resp.ok) return null;
       return await resp.json();
     } catch {

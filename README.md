@@ -113,6 +113,8 @@ from django.urls import include, path
 urlpatterns = [path("notes/", include("vaultpub.django_app.urls"))]
 ```
 
+`url_prefix` should match the `include()` mount path, so rendered note links and API URLs stay under the Django route prefix.
+
 ### Django Template Customization
 
 Override any template by placing a file with the same path in your project's `templates/vaultpub/` directory. See the **[User Guide → Django Integration](help/guide.md#template-customization)** for the full context variable reference and examples.

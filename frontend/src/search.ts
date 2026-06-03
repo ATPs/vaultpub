@@ -2,6 +2,7 @@
  * Full-text search modal using MiniSearch.
  * Loads search-index.json and provides instant search.
  */
+import { withUrlPrefix } from "./urls";
 
 interface SearchDoc {
   id: string;
@@ -20,13 +21,13 @@ let searchIndex: import("minisearch") | null = null;
 
 async function loadSearchIndex(): Promise<void> {
   try {
-    const resp = await fetch("/search-index.json");
+    const resp = await fetch(withUrlPrefix("/search-index.json"));
     if (!resp.ok) return;
     searchDocs = await resp.json();
   } catch {
     // Fallback: try API
     try {
-      const resp = await fetch("/api/search?q=");
+      const resp = await fetch(withUrlPrefix("/api/search?q="));
       if (resp.ok) {
         const data = await resp.json();
         searchDocs = data.results || [];

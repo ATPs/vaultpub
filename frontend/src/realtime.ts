@@ -2,6 +2,7 @@
  * Realtime client via SSE (Server-Sent Events).
  * Listens for index change events and refreshes the page as needed.
  */
+import { withUrlPrefix, withoutUrlPrefix } from "./urls";
 
 interface ChangeItem {
   kind: string;
@@ -24,8 +25,8 @@ let currentVersion = 0;
 
 async function checkSSE(): Promise<void> {
   const container = document.querySelector("[data-sse-url]");
-  const sseUrl = container?.getAttribute("data-sse-url") || "/api/events";
-  const currentUrl = window.location.pathname;
+  const sseUrl = container?.getAttribute("data-sse-url") || withUrlPrefix("/api/events");
+  const currentUrl = withoutUrlPrefix(window.location.pathname);
 
   try {
     const source = new EventSource(sseUrl);
@@ -58,7 +59,7 @@ function startPolling(currentUrl: string): void {
   let lastVersion = 0;
   setInterval(async () => {
     try {
-      const resp = await fetch("/api/events/version");
+      const resp = await fetch(withUrlPrefix("/api/events/version"));
       if (resp.ok) {
         const data = await resp.json();
         if (data.version > lastVersion) {
@@ -107,7 +108,7 @@ function handleEvent(data: IndexChangedEvent, currentUrl: string): void {
 
 async function refreshContent(url: string): Promise<void> {
   try {
-    const resp = await fetch(`/api/page${url}`);
+    const resp = await fetch(withUrlPrefix(`/api/page${withoutUrlPrefix(url)}`));
     if (!resp.ok) return;
     const data = await resp.json();
     const body = document.querySelector(".markdown-body");

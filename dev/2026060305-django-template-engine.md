@@ -27,21 +27,28 @@
 - `src/vaultpub/django_app/templates/vaultpub/page.html` — 改为使用 `seo_head` 上下文变量，添加 `article` 元素包装器
 - `src/vaultpub/django_app/templates/vaultpub/base.html` — 搜索按钮改为 `{% if show_search %}` 条件渲染
 - `tests/django/test_django_app.py` — 增加 Django view 真实渲染和 `vaultpub/base.html` 覆盖机制测试
-- `README.md` — 增加 Django 模板覆盖方法和常用 context 变量说明
+- `src/vaultpub/django_app/views.py` — Django 输出的页面链接、API JSON、graph/search URL 和 redirect Location 统一套用 `url_prefix`
+- `src/vaultpub/django_app/static/vaultpub/app.js` — 预构建前端脚本读取 `body[data-url-prefix]`，在 Django mount 下请求正确 API
+- `frontend/src/urls.ts`、`frontend/src/search.ts`、`frontend/src/preview.ts`、`frontend/src/graph.ts`、`frontend/src/realtime.ts` — TypeScript 源码同步支持 `url_prefix`
+- `README.md`、`help/guide.md` — 增加 Django 模板覆盖方法、常用 context 变量、`url_prefix` 和 include mount path 的说明
 
 ## Tests
 
-- 80 passed
-- Django 测试覆盖 `test_app_config_loads`、`test_conf_parses`、打包模板渲染、项目模板覆盖
+- 81 passed
+- Django 测试覆盖 `test_app_config_loads`、`test_conf_parses`、打包模板渲染、项目模板覆盖、Django mount prefix 下的页面/API/graph URL
 - Lint: ruff clean
 - Type check: mypy clean (0 errors)
 
 ## Manual Verification
 
-补充验证了用户项目覆盖 `templates/vaultpub/base.html` 后，Django 页面输出会使用覆盖后的布局。
+补充验证了：
+
+- 用户项目覆盖 `templates/vaultpub/base.html` 后，Django 页面输出会使用覆盖后的布局。
+- `path("notes/", include(...))` 且 `url_prefix="/notes/"` 时，页面链接和 API 返回 URL 均带 `/notes/` 前缀。
 
 ## Known Limitations
 
 - 静态导出 (`StaticSiteBuilder`) 仍使用 core 的 `base_page_template()`，这是正确的——静态站点不应依赖 Django 模板引擎
 - 独立 ASGI 模式 (`web/routes.py`) 仍使用 `base_page_template()`，其无 Django 依赖
 - Django views 传入模板的常用变量在 README 中有文档说明，但未提供自动生成的模板变量参考页
+- 前端 Vite build 未在本轮执行，因为当前工作区没有 `frontend/node_modules`
