@@ -1,4 +1,11 @@
-"""HTML rendering pipeline."""
+"""HTML rendering pipeline.
+
+Uses a placeholder-based approach so raw HTML survives markdown-it in safe mode:
+1. Replace wikilinks, embeds, callouts, mermaid, math with placeholders
+2. Render markdown to HTML
+3. Replace placeholders with final HTML
+4. Sanitize
+"""
 from __future__ import annotations
 
 import re
@@ -13,6 +20,9 @@ from vaultpub.core.parser.obsidian_links import (
     parse_wikilink_target,
     strip_obsidian_comments,
 )
+from vaultpub.core.render.sanitize import add_external_link_attrs, sanitize_html
+
+_PLACEHOLDER_RE = re.compile(r"<!-- VAULTPUB_(\d+) -->")
 
 
 class Renderer:
@@ -25,26 +35,60 @@ class Renderer:
     def render_note(self, note: NoteRecord, embed_depth: int = 0) -> str:
         content = note.raw_markdown
         content = strip_obsidian_comments(content)
-        content = self._preprocess_wikilinks(content, note)
-        content = self._preprocess_callouts(content)
+        placeholders: dict[int, str] = {}
+        counter = 0
 
+        # Phase 1: Preprocess — replace raw-HTML-producing syntax with placeholders
+        content, counter = self._preprocess_mermaid(content, counter, placeholders)
+        content, counter = self._preprocess_math(content, counter, placeholders)
+        content, counter = self._preprocess_callouts(content, counter, placeholders)
+        content, counter = self._preprocess_wikilinks(content, note, counter, placeholders)
+
+        # Phase 2: Render markdown
         html = render_markdown(
             content,
             strict_line_breaks=self.config.strict_line_breaks,
             html_safe_mode=self.config.html_safe_mode,
         )
+
+        # Phase 3: Restore placeholders
+        html = self._restore_placeholders(html, placeholders)
+
+        # Phase 4: Post-processing
         html = self._add_heading_anchors(html)
+
+        # Phase 5: Sanitize and add external link attrs
+        if self.config.html_safe_mode:
+            html = sanitize_html(html)
+        html = add_external_link_attrs(html)
+
         return html
 
-    def _preprocess_wikilinks(self, content: str, source_note: NoteRecord) -> str:
+    def _placeholder(self, counter: int) -> str:
+        return f"<!-- VAULTPUB_{counter} -->"
+
+    def _restore_placeholders(self, html: str, placeholders: dict[int, str]) -> str:
+        def _replace(m: re.Match) -> str:
+            idx = int(m.group(1))
+            return placeholders.get(idx, m.group(0))
+
+        return _PLACEHOLDER_RE.sub(_replace, html)
+
+    def _preprocess_wikilinks(
+        self, content: str, source_note: NoteRecord, counter: int, placeholders: dict[int, str]
+    ) -> tuple[str, int]:
         replacements: list[tuple[int, int, str]] = []
 
         for start, end, raw_target, is_embed in find_wikilinks(content):
             target_text, anchor, display_text, size = parse_wikilink_target(raw_target)
 
-            # Self-reference
+            # Self-reference anchor
             if target_text == "" and anchor:
-                href = f"#{_slugify(anchor.lstrip('^'))}" if not anchor.startswith("^") else f"#^{anchor.lstrip('^')}"
+                href = (
+                    f"#{_slugify(anchor.lstrip('^'))}"
+                    if not anchor.startswith("^")
+                    else f"#^{anchor.lstrip('^')}"
+                )
                 dtext = display_text or anchor
                 replacements.append((start, end, f"[{dtext}]({href})"))
                 continue
@@ -57,15 +101,10 @@ class Renderer:
             att_ext = PurePosixPath(target_text).suffix.lstrip(".").lower()
             is_attachment = att_ext in self.config.allowed_attachment_types
 
-            if is_attachment and not is_embed:
-                att_url = "/assets/" + target_text
-                dtext = display_text or target_text
-                replacements.append((start, end, f"[{dtext}]({att_url})"))
-                continue
-
+            # Image/audio/video embed: produces raw HTML, use placeholder
             if is_embed and is_attachment:
                 att_url = "/assets/" + target_text
-                if att_ext in ("png", "jpg", "jpeg", "gif", "svg", "webp"):
+                if att_ext in ("png", "jpg", "jpeg", "gif", "svg", "webp", "bmp", "ico"):
                     size_attr = ""
                     if size:
                         parts = size.split("x")
@@ -73,57 +112,94 @@ class Renderer:
                             size_attr = f' width="{parts[0]}"'
                         else:
                             size_attr = f' width="{parts[0]}" height="{parts[1]}"'
-                    replacements.append((start, end, f'<img src="{att_url}" alt="{target_text}"{size_attr}>'))
+                    alt = display_text or target_text
+                    html_str = f'<img src="{att_url}" alt="{alt}"{size_attr} class="embed-image">'
+                elif att_ext in ("mp3", "wav", "ogg", "flac", "m4a"):
+                    html_str = f'<audio controls src="{att_url}" class="embed-audio"></audio>'
+                elif att_ext in ("mp4", "webm", "mov", "avi"):
+                    html_str = f'<video controls src="{att_url}" class="embed-video"></video>'
+                elif att_ext == "pdf":
+                    html_str = f'<iframe src="{att_url}" class="pdf-embed"></iframe>'
                 else:
-                    replacements.append((start, end, f'<a href="{att_url}">{display_text or target_text}</a>'))
+                    html_str = f'<a href="{att_url}">{display_text or target_text}</a>'
+
+                placeholders[counter] = html_str
+                replacements.append((start, end, self._placeholder(counter)))
+                counter += 1
                 continue
 
-            resolved_url = None
-            target_clean = target_text if "." in target_text else target_text + ".md"
-            if target_clean in notes_by_path:
-                resolved_url = notes_by_id[notes_by_path[target_clean]].url_path
-            elif target_text in notes_by_path:
-                resolved_url = notes_by_id[notes_by_path[target_text]].url_path
-            else:
-                note_dir = source_note.rel_path.parent
-                rel_target = (note_dir / target_text).as_posix()
-                if rel_target in notes_by_path:
-                    resolved_url = notes_by_id[notes_by_path[rel_target]].url_path
-                else:
-                    rel_target_md = rel_target + ".md"
-                    if rel_target_md in notes_by_path:
-                        resolved_url = notes_by_id[notes_by_path[rel_target_md]].url_path
-                    else:
-                        stem = PurePosixPath(target_text).stem
-                        if stem in notes_by_stem:
-                            resolved_url = notes_by_id[notes_by_stem[stem][0]].url_path
-                        else:
-                            alias_key = target_text.lower()
-                            if alias_key in notes_by_alias:
-                                resolved_url = notes_by_id[notes_by_alias[alias_key][0]].url_path
+            # Attachment link (no embed): simple markdown link
+            if is_attachment and not is_embed:
+                att_url = "/assets/" + target_text
+                dtext = display_text or target_text
+                replacements.append((start, end, f"[{dtext}]({att_url})"))
+                continue
+
+            # Resolve note link
+            resolved_url = self._resolve_note_url(
+                target_text, source_note, notes_by_id, notes_by_path, notes_by_stem, notes_by_alias
+            )
 
             if resolved_url:
                 if anchor:
-                    resolved_url += "#" + _slugify(anchor) if not anchor.startswith("^") else "#^" + anchor.lstrip("^")
-                dtext = display_text or target_text
+                    sep = "#^" if anchor.startswith("^") else "#"
+                    resolved_url += sep + (anchor.lstrip("^") if anchor.startswith("^") else _slugify(anchor))
+                dtext = display_text or target_text or PurePosixPath(target_text).stem
                 if is_embed:
-                    replacements.append(
-                        (start, end, f'<div class="embed-wrapper"><a href="{resolved_url}">{dtext}</a></div>')
+                    embed_html = (
+                        f'<div class="embed-wrapper">'
+                        f'<a href="{resolved_url}" class="internal-link">{dtext}</a></div>'
                     )
+                    placeholders[counter] = embed_html
+                    replacements.append((start, end, self._placeholder(counter)))
+                    counter += 1
                 else:
+                    # Simple internal link: use markdown syntax, it'll render as <a>
                     replacements.append((start, end, f"[{dtext}]({resolved_url})"))
             else:
-                dtext = display_text or target_text
-                resolved_target = raw_target.rsplit("|", 1)[0] if "|" in raw_target else raw_target
-                link_html = f'<a class="internal-link is-unresolved" data-target="{resolved_target}">{dtext}</a>'
-                replacements.append((start, end, link_html))
+                dtext = display_text or target_text or PurePosixPath(target_text).stem
+                resolved_target = target_text
+                if "|" in raw_target and "#" not in raw_target.split("|")[0]:
+                    resolved_target = raw_target.split("|", 1)[0]
+                placeholders[counter] = (
+                    f'<a class="internal-link is-unresolved" data-target="{resolved_target}">{dtext}</a>'
+                )
+                replacements.append((start, end, self._placeholder(counter)))
+                counter += 1
 
         for start, end, repl in reversed(replacements):
             content = content[:start] + repl + content[end:]
 
-        return content
+        return content, counter
 
-    def _preprocess_callouts(self, content: str) -> str:
+    def _resolve_note_url(
+        self, target_text: str, source_note: NoteRecord,
+        notes_by_id: dict, notes_by_path: dict, notes_by_stem: dict, notes_by_alias: dict,
+    ) -> str | None:
+        target_clean = target_text if "." in target_text else target_text + ".md"
+        if target_clean in notes_by_path:
+            return notes_by_id[notes_by_path[target_clean]].url_path
+        if target_text in notes_by_path:
+            return notes_by_id[notes_by_path[target_text]].url_path
+
+        note_dir = source_note.rel_path.parent
+        rel_target = (note_dir / target_text).as_posix()
+        if rel_target in notes_by_path:
+            return notes_by_id[notes_by_path[rel_target]].url_path
+        if rel_target + ".md" in notes_by_path:
+            return notes_by_id[notes_by_path[rel_target + ".md"]].url_path
+
+        stem = PurePosixPath(target_text).stem
+        if stem in notes_by_stem:
+            return notes_by_id[notes_by_stem[stem][0]].url_path
+
+        alias_key = target_text.lower()
+        if alias_key in notes_by_alias:
+            return notes_by_id[notes_by_alias[alias_key][0]].url_path
+
+        return None
+
+    def _preprocess_callouts(self, content: str, counter: int, placeholders: dict[int, str]) -> tuple[str, int]:
         lines = content.split("\n")
         result_lines: list[str] = []
         i = 0
@@ -132,12 +208,58 @@ class Renderer:
             if line.startswith(">") and "[!" in line:
                 callout, next_i = parse_callout_block(lines, i)
                 if callout:
-                    result_lines.append(render_callout_html(callout))
+                    placeholders[counter] = render_callout_html(callout)
+                    result_lines.append(self._placeholder(counter))
+                    counter += 1
                     i = next_i
                     continue
             result_lines.append(line)
             i += 1
-        return "\n".join(result_lines)
+        return "\n".join(result_lines), counter
+
+    def _preprocess_mermaid(self, content: str, counter: int, placeholders: dict[int, str]) -> tuple[str, int]:
+        """Replace ```mermaid blocks with placeholders."""
+        fence_re = re.compile(r"```mermaid\s*\n(.*?)```", re.DOTALL)
+
+        def _replace(m: re.Match) -> str:
+            nonlocal counter
+            diagram = m.group(1).strip()
+            placeholders[counter] = f'<div class="mermaid">{diagram}</div>'
+            placeholder = self._placeholder(counter)
+            counter += 1
+            return placeholder
+
+        result = fence_re.sub(_replace, content)
+        return result, counter
+
+    def _preprocess_math(self, content: str, counter: int, placeholders: dict[int, str]) -> tuple[str, int]:
+        """Replace $$math$$ and $math$ with placeholders."""
+        # Block math first ($$...$$)
+        block_re = re.compile(r"\$\$(.+?)\$\$", re.DOTALL)
+
+        def _replace_block(m: re.Match) -> str:
+            nonlocal counter
+            formula = m.group(1).strip()
+            placeholders[counter] = f'<div class="math block">{formula}</div>'
+            placeholder = self._placeholder(counter)
+            counter += 1
+            return placeholder
+
+        result = block_re.sub(_replace_block, content)
+
+        # Inline math ($...$)
+        inline_re = re.compile(r"\$(.+?)\$")
+
+        def _replace_inline(m: re.Match) -> str:
+            nonlocal counter
+            formula = m.group(1).strip()
+            placeholders[counter] = f'<span class="math inline">{formula}</span>'
+            placeholder = self._placeholder(counter)
+            counter += 1
+            return placeholder
+
+        result = inline_re.sub(_replace_inline, result)
+        return result, counter
 
     def _add_heading_anchors(self, html: str) -> str:
         def _add_anchor(match: re.Match) -> str:
@@ -167,7 +289,7 @@ class Renderer:
         for bid in sorted(note.backlinks):
             bl_note = self.index.notes_by_id.get(bid)
             if bl_note:
-                links.append(f'<li><a href="{bl_note.url_path}">{bl_note.title}</a></li>')
+                links.append(f'<li><a href="{bl_note.url_path}" class="internal-link">{bl_note.title}</a></li>')
         if not links:
             return ""
         return f"""\

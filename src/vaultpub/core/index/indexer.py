@@ -103,7 +103,13 @@ class VaultIndexer:
 
         for match in re.finditer(r"\^([a-zA-Z0-9_-]+)", visible):
             block_id = match.group(1)
-            note.blocks[block_id] = None
+            note.blocks[block_id] = None  # type: ignore[assignment]
+
+        # Merge inline tags
+        from vaultpub.core.parser.obsidian_links import find_inline_tags
+
+        for tag_name, _pos in find_inline_tags(visible):
+            note.tags.add(tag_name)
 
         for _start, _end, raw_target, is_embed in find_wikilinks(visible):
             target_text, anchor, display_text, size = parse_wikilink_target(raw_target)
@@ -210,6 +216,7 @@ class VaultIndexer:
         nodes: list[GraphNode] = []
         edges: list[GraphEdge] = []
         seen_nodes: set[str] = set()
+        seen_tags: set[str] = set()
 
         for note in notes:
             nid = f"note:{note.id}"
@@ -224,6 +231,11 @@ class VaultIndexer:
 
             for tag in note.tags:
                 tid = f"tag:{tag.lower()}"
+                if tid not in seen_tags:
+                    seen_tags.add(tid)
+                    nodes.append(
+                        GraphNode(id=tid, label=f"#{tag}", title=f"#{tag}", url=f"/tags/{tag.lower()}", group="tag")
+                    )
                 edges.append(GraphEdge(source=nid, target=tid, kind="tag"))
 
         return GraphData(nodes=nodes, edges=edges)

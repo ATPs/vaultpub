@@ -8,7 +8,7 @@ from starlette.responses import HTMLResponse, JSONResponse, Response
 
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
-from vaultpub.core.models import VaultIndex
+from vaultpub.core.models import NoteRecord, VaultIndex
 from vaultpub.core.paths import safe_join
 from vaultpub.core.render.renderer import Renderer
 from vaultpub.core.render.seo import build_meta_tags
@@ -23,10 +23,21 @@ class AppState:
     renderer: Renderer
     indexer: VaultIndexer
     event_bus: object | None = None
+    rt_state: object | None = None
 
 
 def _get_state(request: Request) -> AppState:
-    return request.app.state.vaultpub_state
+    state: AppState = request.app.state.vaultpub_state
+    # Use live index from realtime state if available
+    rt = state.rt_state
+    if rt is not None:
+        live_index = getattr(rt, "index", None)
+        live_renderer = getattr(rt, "renderer", None)
+        if live_index is not None:
+            state.index = live_index
+        if live_renderer is not None:
+            state.renderer = live_renderer
+    return state
 
 
 async def index_page(request: Request) -> HTMLResponse:
@@ -42,16 +53,33 @@ async def page(request: Request) -> HTMLResponse:
     path = request.path_params.get("path", "")
     rel_path = "/" + path
 
-    for note in state.index.notes_by_id.values():
-        if note.url_path == rel_path:
-            if not is_path_public(note.rel_path.as_posix(), state.config):
-                return HTMLResponse("Not found", status_code=404)
-            return _render_note_page(request, note)
+    # Build URL resolution: canonical_url -> note, plus redirects
+    url_to_note: dict[str, NoteRecord] = {}
+    redirect_map: dict[str, str] = {}
 
-    if rel_path in state.index.redirects:
+    for note in state.index.notes_by_id.values():
+        permalink = note.frontmatter.get("permalink")
+        canonical = "/" + str(permalink).lstrip("/") if permalink else note.url_path
+
+        if permalink and note.url_path != canonical:
+            redirect_map[note.url_path] = canonical
+        url_to_note[canonical] = note
+
+        for alias in note.aliases:
+            alias_path = "/" + alias.lstrip("/")
+            if alias_path != canonical:
+                redirect_map[alias_path] = canonical
+
+    if rel_path in url_to_note:
+        note = url_to_note[rel_path]
+        if not is_path_public(note.rel_path.as_posix(), state.config):
+            return HTMLResponse("Not found", status_code=404)
+        return _render_note_page(request, note)
+
+    if rel_path in redirect_map:
         return HTMLResponse(
             status_code=301,
-            headers={"Location": state.index.redirects[rel_path]},
+            headers={"Location": redirect_map[rel_path]},
         )
 
     return HTMLResponse("Not found", status_code=404)
@@ -105,8 +133,8 @@ async def api_search(request: Request) -> JSONResponse:
     for doc in state.index.search_documents:
         title = str(doc.get("title", ""))
         content = str(doc.get("content", ""))
-        tags = doc.get("tags", [])
-        aliases = doc.get("aliases", [])
+        tags: list[str] = doc.get("tags", [])  # type: ignore[assignment]
+        aliases: list[str] = doc.get("aliases", [])  # type: ignore[assignment]
 
         if (q_lower in title.lower() or
             q_lower in content.lower() or
@@ -151,7 +179,7 @@ async def api_graph(request: Request) -> JSONResponse:
     })
 
 
-def _render_note_page(request: Request, note: object) -> HTMLResponse:
+def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:
     state = _get_state(request)
     body_html = state.renderer.render_page_html(note)
     nav_html = ""

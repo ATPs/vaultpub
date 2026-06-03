@@ -4,6 +4,7 @@ from __future__ import annotations
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 
 from vaultpub.core.index.indexer import VaultIndexer
+from vaultpub.core.models import NoteRecord
 from vaultpub.core.render import Renderer
 from vaultpub.core.render.seo import build_meta_tags
 from vaultpub.core.render.templates import base_page_template, nav_tree_html
@@ -128,7 +129,7 @@ def api_local_graph(request: HttpRequest, note_path: str) -> JsonResponse:
     })
 
 
-def _render_note(request: HttpRequest, note: object) -> HttpResponse:
+def _render_note(request: HttpRequest, note: NoteRecord) -> HttpResponse:
     state = _get_state()
     body_html = state["renderer"].render_page_html(note)
     nav_html = ""

@@ -2,21 +2,31 @@
 from __future__ import annotations
 
 import asyncio
-import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.paths import normalize_rel_path, rel_path_to_url_path
 from vaultpub.core.realtime.events import ChangeRecord, EventBus, IndexChangedEvent
 
-SKIP_PATTERNS = (".swp", ".swx", "~", ".tmp", ".DS_Store", ".swp", ".swo")
-SKIP_DIRS = (".obsidian", ".git", ".trash")
+SKIP_PATTERNS = (".swp", ".swx", "~", ".tmp", ".DS_Store", ".swo")
+
+
+@dataclass
+class RealtimeState:
+    """Mutable state container that can be replaced atomically after rebuild."""
+
+    index: object  # VaultIndex
+    renderer: object  # Renderer
 
 
 async def watch_vault(
     config: PublisherConfig,
     indexer: VaultIndexer,
     bus: EventBus,
+    state: RealtimeState,
     debounce_ms: int = 150,
 ) -> None:
     """Watch vault for file changes and emit index update events."""
@@ -28,44 +38,73 @@ async def watch_vault(
     root = config.vault_path.resolve()
 
     async for changes in awatch(str(root)):
-        affected = _classify_changes(changes, root, config)
-        if not affected.changed and not affected.deleted:
+        event = _classify_changes(changes, root, config)
+        if not event.changed and not event.deleted:
             continue
 
-        # Debounce
+        # Debounce: wait for a quiet period
         await asyncio.sleep(debounce_ms / 1000.0)
 
-        # Rebuild affected parts of the index
+        # Rebuild index and update state atomically
         try:
-            await _apply_changes(indexer, affected, config)
+            new_index = indexer.build()
+            from vaultpub.core.render.renderer import Renderer
+
+            new_renderer = Renderer(config, new_index)
+            state.index = new_index
+            state.renderer = new_renderer
         except Exception:
             continue
 
-        await bus.publish(affected)
+        await bus.publish(event)
+
+
+_CHANGE_MAP: dict[Any, str] = {}
+
+
+def _get_change_map() -> dict[Any, str]:
+    if not _CHANGE_MAP:
+        try:
+            from watchfiles import Change
+        except ImportError:
+            return {}
+        _CHANGE_MAP.update({
+            Change.added: "created",
+            Change.modified: "modified",
+            Change.deleted: "deleted",
+        })
+    return _CHANGE_MAP
 
 
 def _classify_changes(
-    raw_changes: set[tuple[int, str]],
-    root: os.PathLike[str],
+    raw_changes: set[tuple[Any, str]],
+    root: Path,
     config: PublisherConfig,
 ) -> IndexChangedEvent:
     event = IndexChangedEvent()
+    change_map = _get_change_map()
 
     for change_type, path_str in raw_changes:
+        change_name = change_map.get(change_type, "modified")
+        fpath = Path(path_str)
+
+        # Skip temp/swap files
+        if any(str(fpath).endswith(p) for p in SKIP_PATTERNS):
+            continue
+
         try:
-            rel = normalize_rel_path(os.PathLike(path_str), os.PathLike(str(root)))
+            rel = normalize_rel_path(fpath, root)
         except Exception:
             continue
 
-        # Skip hidden and excluded
-        if any(part.startswith(".") for part in rel.split("/")):
+        # Skip hidden and excluded directories
+        parts = rel.split("/")
+        if any(part.startswith(".") for part in parts):
             continue
-        if any(d in rel.split("/") for d in config.exclude_folders):
-            continue
-        if any(path_str.endswith(p) for p in SKIP_PATTERNS):
+        if any(d in parts for d in config.exclude_folders):
             continue
 
-        ext = os.path.splitext(path_str)[1].lower()
+        ext = fpath.suffix.lower()
 
         if ext == ".md":
             url = rel_path_to_url_path(rel)
@@ -73,9 +112,9 @@ def _classify_changes(
                 kind="note",
                 path=rel,
                 url=url,
-                change={1: "modified", 2: "created", 3: "deleted"}.get(change_type, "modified"),
+                change=change_name,
             )
-            if change_type == 3:  # deleted
+            if change_name == "deleted":
                 event.deleted.append(rec)
                 event.nav_changed = True
                 event.search_changed = True
@@ -89,19 +128,8 @@ def _classify_changes(
                 kind="attachment",
                 path=rel,
                 url="/assets/" + rel,
-                change={1: "modified", 2: "created", 3: "deleted"}.get(change_type, "modified"),
+                change=change_name,
             )
             event.changed.append(rec)
 
     return event
-
-
-async def _apply_changes(
-    indexer: VaultIndexer,
-    event: IndexChangedEvent,
-    config: PublisherConfig,
-) -> None:
-    """Rebuild the index incrementally. For simplicity, do a full rebuild on any change."""
-    # Full rebuild for correctness (optimize later for performance targets)
-    indexer.build()
-    # The index is updated in-place via the rebuild

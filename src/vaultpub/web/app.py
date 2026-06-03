@@ -12,7 +12,7 @@ from starlette.staticfiles import StaticFiles
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.realtime.events import EventBus
-from vaultpub.core.realtime.watcher import watch_vault
+from vaultpub.core.realtime.watcher import RealtimeState, watch_vault
 from vaultpub.core.render.renderer import Renderer
 from vaultpub.web.routes import (
     AppState,
@@ -23,7 +23,7 @@ from vaultpub.web.routes import (
     index_page,
     page,
 )
-from vaultpub.web.sse import sse_endpoint
+from vaultpub.web.sse import events_version, sse_endpoint
 
 
 def create_app(config: PublisherConfig) -> Starlette:
@@ -31,6 +31,7 @@ def create_app(config: PublisherConfig) -> Starlette:
     vault_index = indexer.build()
     renderer = Renderer(config, vault_index)
     event_bus = EventBus()
+    rt_state = RealtimeState(index=vault_index, renderer=renderer)
 
     state = AppState(
         config=config,
@@ -38,15 +39,15 @@ def create_app(config: PublisherConfig) -> Starlette:
         renderer=renderer,
         indexer=indexer,
         event_bus=event_bus,
+        rt_state=rt_state,
     )
 
     @asynccontextmanager
-    async def lifespan(app: Starlette):
-        # Start watcher in background if realtime enabled
+    async def lifespan(app: Starlette):  # type: ignore[no-untyped-def]
         watcher_task = None
         if config.realtime:
             watcher_task = asyncio.create_task(
-                watch_vault(config, indexer, event_bus, debounce_ms=config.debounce_ms)
+                watch_vault(config, indexer, event_bus, rt_state, debounce_ms=config.debounce_ms)
             )
         try:
             yield
@@ -64,13 +65,13 @@ def create_app(config: PublisherConfig) -> Starlette:
         Route("/api/graph", endpoint=api_graph, methods=["GET"]),
         Route("/api/graph/local/{path:path}", endpoint=api_graph, methods=["GET"]),
         Route("/api/events", endpoint=sse_endpoint, methods=["GET"]),
+        Route("/api/events/version", endpoint=events_version, methods=["GET"]),
         Route("/{path:path}", endpoint=page, methods=["GET"]),
     ]
 
     app = Starlette(debug=False, routes=routes, lifespan=lifespan)
     app.state.vaultpub_state = state
 
-    # Frontend static files
     frontend_static = os.path.join(os.path.dirname(__file__), "..", "django_app", "static", "vaultpub")
     if os.path.isdir(frontend_static):
         app.mount("/static/vaultpub", StaticFiles(directory=frontend_static), name="static")

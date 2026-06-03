@@ -82,9 +82,9 @@ class PublisherConfig:
 
     def __post_init__(self) -> None:
         if not isinstance(self.vault_path, Path):
-            object.__setattr__(self, "vault_path", Path(self.vault_path).expanduser().resolve())
+            object.__setattr__(self, "vault_path", Path(self.vault_path).expanduser().resolve())  # type: ignore[unreachable]
         if self.max_attachment_size_bytes is not None and self.max_attachment_size_bytes <= 0:
-            object.__setattr__(self, "max_attachment_size_bytes", None)
+            object.__setattr__(self, "max_attachment_size_bytes", None)  # type: ignore[unreachable]
 
 
 def load_config_from_yaml(yaml_path: Path) -> dict:
