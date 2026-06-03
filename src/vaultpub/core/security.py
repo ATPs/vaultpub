@@ -21,9 +21,12 @@ def is_path_public(rel_path: str, config: object) -> bool:
     pp = rel_path.replace("\\", "/")
     parts = pp.split("/")
 
-    for part in parts:
-        if part.startswith(".") and part not in (".", ".."):
-            return False
+    forbidden = {".git", ".obsidian", "metadata.json", ".vaultpub.yml", ".obsidian-publish.yml"}
+    if pp in forbidden or parts[-1] in forbidden or any(part in forbidden for part in parts):
+        return False
 
-    forbidden = {"metadata.json", ".vaultpub.yml", ".obsidian-publish.yml"}
-    return not (pp in forbidden or parts[-1] in forbidden)
+    hidden_file_access = bool(getattr(config, "hidden_file_access", False))
+    return all(
+        not (part.startswith(".") and part not in (".", "..") and not hidden_file_access)
+        for part in parts
+    )

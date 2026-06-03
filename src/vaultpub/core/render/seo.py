@@ -26,7 +26,8 @@ def build_meta_tags(note: NoteRecord, config: PublisherConfig) -> str:
     title = build_page_title(note, config)
     desc = build_page_description(note, config)
     url = config.site_url or ""
-    page_url = f"{url.rstrip('/')}{note.url_path}" if url else ""
+    public_path = _note_public_url(note)
+    page_url = f"{url.rstrip('/')}{public_path}" if url else ""
 
     tags = [
         f"<title>{title}</title>",
@@ -49,3 +50,10 @@ def build_meta_tags(note: NoteRecord, config: PublisherConfig) -> str:
         tags.append(f'<meta property="og:image" content="{img_url}">')
 
     return "\n".join(tags)
+
+
+def _note_public_url(note: NoteRecord) -> str:
+    permalink = note.frontmatter.get("permalink")
+    if permalink:
+        return "/" + str(permalink).lstrip("/")
+    return note.url_path

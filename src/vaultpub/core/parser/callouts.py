@@ -61,6 +61,8 @@ def parse_callout_block(lines: list[str], start_idx: int) -> tuple[dict, int]:
         else:
             # Empty line within callout?
             if lines[i].strip() == "" and i + 1 < len(lines):
+                if _CALLOUT_RE.match(lines[i + 1]):
+                    break
                 nmatch = _CALLOUT_CONTENT_RE.match(lines[i + 1])
                 if nmatch:
                     content_lines.append("")

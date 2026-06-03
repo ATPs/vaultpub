@@ -40,6 +40,36 @@ def _get_state(request: Request) -> AppState:
     return state
 
 
+def _note_public_url(note: NoteRecord) -> str:
+    permalink = note.frontmatter.get("permalink")
+    if permalink:
+        return "/" + str(permalink).lstrip("/")
+    return note.url_path
+
+
+def _build_url_maps(index: VaultIndex) -> tuple[dict[str, NoteRecord], dict[str, str], dict[str, NoteRecord]]:
+    canonical_to_note: dict[str, NoteRecord] = {}
+    redirect_map: dict[str, str] = {}
+    all_urls_to_note: dict[str, NoteRecord] = {}
+
+    for note in index.notes_by_id.values():
+        canonical = _note_public_url(note)
+        canonical_to_note[canonical] = note
+        all_urls_to_note[canonical] = note
+        all_urls_to_note[note.url_path] = note
+
+        if note.url_path != canonical:
+            redirect_map[note.url_path] = canonical
+
+        for alias in note.aliases:
+            alias_path = "/" + alias.lstrip("/")
+            all_urls_to_note[alias_path] = note
+            if alias_path != canonical:
+                redirect_map[alias_path] = canonical
+
+    return canonical_to_note, redirect_map, all_urls_to_note
+
+
 async def index_page(request: Request) -> HTMLResponse:
     state = _get_state(request)
     home_note = state.indexer.scanner.resolve_home(list(state.index.notes_by_id.values()))
@@ -53,22 +83,7 @@ async def page(request: Request) -> HTMLResponse:
     path = request.path_params.get("path", "")
     rel_path = "/" + path
 
-    # Build URL resolution: canonical_url -> note, plus redirects
-    url_to_note: dict[str, NoteRecord] = {}
-    redirect_map: dict[str, str] = {}
-
-    for note in state.index.notes_by_id.values():
-        permalink = note.frontmatter.get("permalink")
-        canonical = "/" + str(permalink).lstrip("/") if permalink else note.url_path
-
-        if permalink and note.url_path != canonical:
-            redirect_map[note.url_path] = canonical
-        url_to_note[canonical] = note
-
-        for alias in note.aliases:
-            alias_path = "/" + alias.lstrip("/")
-            if alias_path != canonical:
-                redirect_map[alias_path] = canonical
+    url_to_note, redirect_map, _all_urls_to_note = _build_url_maps(state.index)
 
     if rel_path in url_to_note:
         note = url_to_note[rel_path]
@@ -106,18 +121,19 @@ async def api_page(request: Request) -> JSONResponse:
     path = request.path_params.get("path", "")
     rel_path = "/" + path
 
-    for note in state.index.notes_by_id.values():
-        if note.url_path == rel_path:
-            html = state.renderer.render_note(note)
-            return JSONResponse({
-                "id": note.id,
-                "title": note.title,
-                "url": note.url_path,
-                "html": html,
-                "tags": list(note.tags),
-                "headings": [{"level": h.level, "text": h.text, "slug": h.slug} for h in note.headings],
-                "backlinks": list(note.backlinks),
-            })
+    _canonical_to_note, _redirect_map, all_urls_to_note = _build_url_maps(state.index)
+    note = all_urls_to_note.get(rel_path)
+    if note:
+        html = state.renderer.render_note(note)
+        return JSONResponse({
+            "id": note.id,
+            "title": note.title,
+            "url": _note_public_url(note),
+            "html": html,
+            "tags": list(note.tags),
+            "headings": [{"level": h.level, "text": h.text, "slug": h.slug} for h in note.headings],
+            "backlinks": list(note.backlinks),
+        })
 
     return JSONResponse({"error": "Not found"}, status_code=404)
 
@@ -159,10 +175,10 @@ async def api_graph(request: Request) -> JSONResponse:
 
     if path:
         note_id = None
-        for note in state.index.notes_by_id.values():
-            if note.url_path == "/" + path:
-                note_id = note.id
-                break
+        _canonical_to_note, _redirect_map, all_urls_to_note = _build_url_maps(state.index)
+        note = all_urls_to_note.get("/" + path)
+        if note:
+            note_id = note.id
         if note_id:
             nid = f"note:{note_id}"
             local_edges = [e for e in graph.edges if e.source == nid or e.target == nid]
