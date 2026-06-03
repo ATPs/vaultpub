@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
+from django.shortcuts import render
 
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import NoteRecord, VaultIndex
 from vaultpub.core.render import Renderer
-from vaultpub.core.render.seo import build_meta_tags
-from vaultpub.core.render.templates import base_page_template, nav_tree_html
+from vaultpub.core.render.seo import build_meta_tags, build_page_description, build_page_title
+from vaultpub.core.render.templates import nav_tree_html
 from vaultpub.core.security import is_path_public
 from vaultpub.django_app.conf import get_default_config
 
@@ -60,6 +61,12 @@ def _build_url_maps(index: VaultIndex) -> tuple[dict[str, NoteRecord], dict[str,
                 redirect_map[alias_path] = canonical
 
     return canonical_to_note, redirect_map, all_urls_to_note
+
+
+def _build_nav_html(index: VaultIndex) -> str:
+    if index.nav_tree:
+        return "<ul>" + nav_tree_html(index.nav_tree) + "</ul>"
+    return ""
 
 
 def index(request: HttpRequest) -> HttpResponse:
@@ -166,10 +173,25 @@ def api_local_graph(request: HttpRequest, note_path: str) -> JsonResponse:
 
 def _render_note(request: HttpRequest, note: NoteRecord) -> HttpResponse:
     state = _get_state()
-    body_html = state["renderer"].render_page_html(note)
-    nav_html = ""
-    if state["index"].nav_tree:
-        nav_html = "<ul>" + nav_tree_html(state["index"].nav_tree) + "</ul>"
-    head = build_meta_tags(note, state["config"])
-    page = base_page_template(body_html, nav_html, head, state["config"])
-    return HttpResponse(page)
+    config = state["config"]
+    index: VaultIndex = state["index"]
+    renderer: Renderer = state["renderer"]
+
+    context = {
+        "content": renderer.render_note(note),
+        "title": build_page_title(note, config),
+        "site_name": config.site_name,
+        "description": build_page_description(note, config),
+        "note_id": note.id,
+        "url_path": _note_public_url(note),
+        "nav_html": _build_nav_html(index),
+        "toc_html": renderer.render_toc_html(note),
+        "backlinks_html": renderer.render_backlinks_html(note),
+        "realtime": config.realtime,
+        "site_logo": config.site_logo,
+        "show_theme_toggle": config.show_theme_toggle,
+        "show_graph": config.show_graph or config.show_local_graph,
+        "show_search": config.show_search,
+        "seo_head": build_meta_tags(note, config),
+    }
+    return render(request, "vaultpub/page.html", context)

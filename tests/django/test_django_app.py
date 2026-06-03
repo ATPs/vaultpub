@@ -5,10 +5,17 @@ from pathlib import Path
 
 import pytest
 from django.conf import settings
+from django.test import Client, override_settings
+from django.urls import include, path
 
 import django
+from vaultpub.django_app import views
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
+
+urlpatterns = [
+    path("notes/", include("vaultpub.django_app.urls")),
+]
 
 
 @pytest.fixture(scope="module")
@@ -56,3 +63,50 @@ def test_conf_parses(django_setup) -> None:
     assert config is not None
     assert config.url_prefix == "/notes/"
     assert config.home_file == "README"
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_page_uses_packaged_template(django_setup) -> None:
+    views._state_cache.clear()
+    response = Client().get("/notes/")
+
+    assert response.status_code == 200
+    assert b'class="top-bar"' in response.content
+    assert b'class="markdown-body"' in response.content
+    assert b"README" in response.content
+    assert b"{% toc %}" not in response.content
+
+
+@override_settings(
+    ROOT_URLCONF=__name__,
+    TEMPLATES=[
+        {
+            "BACKEND": "django.template.backends.django.DjangoTemplates",
+            "DIRS": [],
+            "APP_DIRS": False,
+            "OPTIONS": {
+                "context_processors": [],
+                "loaders": [
+                    (
+                        "django.template.loaders.locmem.Loader",
+                        {
+                            "vaultpub/base.html": (
+                                "<html><body>OVERRIDDEN {{ site_name }}"
+                                "{% block content %}{% endblock %}</body></html>"
+                            ),
+                        },
+                    ),
+                    "django.template.loaders.app_directories.Loader",
+                ],
+            },
+        }
+    ],
+)
+def test_django_template_override_changes_layout(django_setup) -> None:
+    views._state_cache.clear()
+    response = Client().get("/notes/")
+
+    assert response.status_code == 200
+    assert b"OVERRIDDEN vaultpub" in response.content
+    assert b'class="markdown-body"' in response.content
+    assert b'class="top-bar"' not in response.content

@@ -111,6 +111,24 @@ from django.urls import include, path
 urlpatterns = [path("notes/", include("vaultpub.django_app.urls"))]
 ```
 
+### Django Template Customization
+
+The Django integration renders `vaultpub/page.html` with Django's template engine. You can override the bundled templates by adding files with the same names under your project's `templates/vaultpub/` directory, such as `templates/vaultpub/base.html`.
+
+Common template context variables:
+
+| Variable | Description |
+|----------|-------------|
+| `content` | Rendered note body HTML |
+| `seo_head` | Complete SEO/OpenGraph `<head>` tags for the current note |
+| `nav_html` | File navigation HTML |
+| `toc_html` | Current note table of contents HTML |
+| `backlinks_html` | Current note backlinks HTML |
+| `note_id` | Stable note id |
+| `url_path` | Canonical public URL path |
+| `site_name`, `site_logo` | Site branding values |
+| `show_search`, `show_graph`, `show_theme_toggle`, `realtime` | Feature flags for layout controls |
+
 ## Python API
 
 ```python
