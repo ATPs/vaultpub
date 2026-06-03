@@ -222,7 +222,9 @@ class VaultIndexer:
             nid = f"note:{note.id}"
             if nid not in seen_nodes:
                 seen_nodes.add(nid)
-                nodes.append(GraphNode(id=nid, label=note.title, title=note.title, url=note.url_path, group="note"))
+                nodes.append(
+                    GraphNode(id=nid, label=note.title, title=note.title, url=_note_public_url(note), group="note")
+                )
 
             for link in note.outgoing_links:
                 if link.is_resolved and link.target_id and not link.target_text.startswith("http"):
@@ -247,7 +249,7 @@ class VaultIndexer:
                 "id": note.content_hash,
                 "title": note.title,
                 "path": note.rel_path.as_posix(),
-                "url": note.url_path,
+                "url": _note_public_url(note),
                 "content": note.plain_text[:5000],
                 "tags": list(note.tags),
                 "headings": [h.text for h in note.headings],
@@ -263,3 +265,10 @@ def _slugify(text: str) -> str:
     slug = re.sub(r"\s+", "-", slug)
     slug = re.sub(r"-+", "-", slug)
     return slug[:100]
+
+
+def _note_public_url(note: NoteRecord) -> str:
+    permalink = note.frontmatter.get("permalink")
+    if permalink:
+        return "/" + str(permalink).lstrip("/")
+    return note.url_path

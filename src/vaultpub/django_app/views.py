@@ -4,7 +4,7 @@ from __future__ import annotations
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 
 from vaultpub.core.index.indexer import VaultIndexer
-from vaultpub.core.models import NoteRecord
+from vaultpub.core.models import NoteRecord, VaultIndex
 from vaultpub.core.render import Renderer
 from vaultpub.core.render.seo import build_meta_tags
 from vaultpub.core.render.templates import base_page_template, nav_tree_html
@@ -33,6 +33,35 @@ def _get_state():
     return _state_cache[config_key]
 
 
+def _note_public_url(note: NoteRecord) -> str:
+    permalink = note.frontmatter.get("permalink")
+    if permalink:
+        return "/" + str(permalink).lstrip("/")
+    return note.url_path
+
+
+def _build_url_maps(index: VaultIndex) -> tuple[dict[str, NoteRecord], dict[str, str], dict[str, NoteRecord]]:
+    canonical_to_note: dict[str, NoteRecord] = {}
+    redirect_map: dict[str, str] = {}
+    all_urls_to_note: dict[str, NoteRecord] = {}
+
+    for note in index.notes_by_id.values():
+        canonical = _note_public_url(note)
+        canonical_to_note[canonical] = note
+        all_urls_to_note[canonical] = note
+        all_urls_to_note[note.url_path] = note
+        if note.url_path != canonical:
+            redirect_map[note.url_path] = canonical
+
+        for alias in note.aliases:
+            alias_path = "/" + alias.lstrip("/")
+            all_urls_to_note[alias_path] = note
+            if alias_path != canonical:
+                redirect_map[alias_path] = canonical
+
+    return canonical_to_note, redirect_map, all_urls_to_note
+
+
 def index(request: HttpRequest) -> HttpResponse:
     state = _get_state()
     home_note = state["indexer"].scanner.resolve_home(list(state["index"].notes_by_id.values()))
@@ -44,11 +73,16 @@ def index(request: HttpRequest) -> HttpResponse:
 def page(request: HttpRequest, note_path: str) -> HttpResponse:
     state = _get_state()
     rel_path = "/" + note_path
-    for note in state["index"].notes_by_id.values():
-        if note.url_path == rel_path:
-            if not is_path_public(note.rel_path.as_posix(), state["config"]):
-                raise Http404("Not found")
-            return _render_note(request, note)
+    canonical_to_note, redirect_map, _all_urls_to_note = _build_url_maps(state["index"])
+    note = canonical_to_note.get(rel_path)
+    if note:
+        if not is_path_public(note.rel_path.as_posix(), state["config"]):
+            raise Http404("Not found")
+        return _render_note(request, note)
+    if rel_path in redirect_map:
+        response = HttpResponse(status=301)
+        response["Location"] = redirect_map[rel_path]
+        return response
     raise Http404("Note not found")
 
 
@@ -67,18 +101,19 @@ def attachment(request: HttpRequest, asset_path: str) -> HttpResponse:
 def api_page(request: HttpRequest, note_path: str) -> JsonResponse:
     state = _get_state()
     rel_path = "/" + note_path
-    for note in state["index"].notes_by_id.values():
-        if note.url_path == rel_path:
-            html = state["renderer"].render_note(note)
-            return JsonResponse({
-                "id": note.id,
-                "title": note.title,
-                "url": note.url_path,
-                "html": html,
-                "tags": list(note.tags),
-                "headings": [{"level": h.level, "text": h.text, "slug": h.slug} for h in note.headings],
-                "backlinks": list(note.backlinks),
-            })
+    _canonical_to_note, _redirect_map, all_urls_to_note = _build_url_maps(state["index"])
+    note = all_urls_to_note.get(rel_path)
+    if note:
+        html = state["renderer"].render_note(note)
+        return JsonResponse({
+            "id": note.id,
+            "title": note.title,
+            "url": _note_public_url(note),
+            "html": html,
+            "tags": list(note.tags),
+            "headings": [{"level": h.level, "text": h.text, "slug": h.slug} for h in note.headings],
+            "backlinks": list(note.backlinks),
+        })
     return JsonResponse({"error": "Not found"}, status=404)
 
 
@@ -113,10 +148,10 @@ def api_local_graph(request: HttpRequest, note_path: str) -> JsonResponse:
     state = _get_state()
     graph = state["index"].graph
     note_id = None
-    for note in state["index"].notes_by_id.values():
-        if note.url_path == "/" + note_path:
-            note_id = note.id
-            break
+    _canonical_to_note, _redirect_map, all_urls_to_note = _build_url_maps(state["index"])
+    note = all_urls_to_note.get("/" + note_path)
+    if note:
+        note_id = note.id
     if not note_id:
         return JsonResponse({"nodes": [], "edges": []})
     nid = f"note:{note_id}"

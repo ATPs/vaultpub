@@ -18,7 +18,10 @@ ALLOWED_TAGS = [
 ]
 
 ALLOWED_ATTRS: dict[str, list[str]] = {
-    "*": ["class", "id", "style", "data-*"],
+    "*": [
+        "class", "id", "style",
+        "data-target", "data-callout", "data-callout-fold", "data-embed-source", "data-note-id", "data-note-path",
+    ],
     "a": ["href", "title", "target", "rel", "data-target"],
     "img": ["src", "alt", "title", "width", "height", "loading"],
     "audio": ["src", "controls", "preload"],

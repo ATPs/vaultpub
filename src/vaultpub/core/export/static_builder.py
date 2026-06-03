@@ -45,8 +45,8 @@ class StaticSiteBuilder:
         # Note pages
         for note in vault_index.notes_by_id.values():
             page_html = self._render_page(renderer, vault_index, note)
-            url_path = note.url_path.lstrip("/")
-            page_dir = out_dir / url_path
+            canonical = _note_public_url(note)
+            page_dir = out_dir / canonical.lstrip("/")
             page_dir.mkdir(parents=True, exist_ok=True)
             (page_dir / "index.html").write_text(page_html)
             result.pages_written += 1
@@ -59,26 +59,14 @@ class StaticSiteBuilder:
 
         # Permalink/alias redirect pages
         for note in vault_index.notes_by_id.values():
-            permalink = note.frontmatter.get("permalink")
-            if permalink:
-                p = "/" + str(permalink).lstrip("/")
-                redirect_html = (
-                    f'<meta http-equiv="refresh" content="0;url={note.url_path}">'
-                    f'<a href="{note.url_path}">Redirect</a>'
-                )
-                pd = out_dir / p.lstrip("/")
-                pd.mkdir(parents=True, exist_ok=True)
-                (pd / "index.html").write_text(redirect_html)
+            canonical = _note_public_url(note)
+            if note.url_path != canonical:
+                self._write_redirect_page(out_dir, note.url_path, canonical)
 
             for alias in note.aliases:
                 alias_path = "/" + alias.lstrip("/")
-                redirect_html = (
-                    f'<meta http-equiv="refresh" content="0;url={note.url_path}">'
-                    f'<a href="{note.url_path}">Redirect</a>'
-                )
-                ad = out_dir / alias_path.lstrip("/")
-                ad.mkdir(parents=True, exist_ok=True)
-                (ad / "index.html").write_text(redirect_html)
+                if alias_path != canonical:
+                    self._write_redirect_page(out_dir, alias_path, canonical)
 
         # Tag pages
         result.tag_pages_written = self._write_tag_pages(out_dir, vault_index, renderer)
@@ -145,7 +133,7 @@ class StaticSiteBuilder:
                 note = vault_index.notes_by_id.get(nid)
                 if note:
                     note_items.append(
-                        f'<li><a href="{note.url_path}" class="internal-link">{note.title}</a></li>'
+                        f'<li><a href="{_note_public_url(note)}" class="internal-link">{note.title}</a></li>'
                     )
 
             tag_page = f"""\
@@ -174,7 +162,7 @@ class StaticSiteBuilder:
         base = (self.config.site_url or "").rstrip("/")
         urls = []
         for note in vault_index.notes_by_id.values():
-            urls.append(f"  <url><loc>{base}{note.url_path}</loc></url>")
+            urls.append(f"  <url><loc>{base}{_note_public_url(note)}</loc></url>")
         sitemap = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
@@ -205,10 +193,10 @@ class StaticSiteBuilder:
             items.append(f"""\
     <item>
       <title>{note.title}</title>
-      <link>{base}{note.url_path}</link>
+      <link>{base}{_note_public_url(note)}</link>
       <description>{note.excerpt}</description>
       <pubDate>{pub_date}</pubDate>
-      <guid isPermaLink="true">{base}{note.url_path}</guid>
+      <guid isPermaLink="true">{base}{_note_public_url(note)}</guid>
     </item>""")
 
         rss = f"""\
@@ -236,3 +224,19 @@ class StaticSiteBuilder:
             src = pkg_static / fname
             if src.exists():
                 shutil.copy2(src, static_dst / fname)
+
+    def _write_redirect_page(self, out_dir: Path, source_url: str, target_url: str) -> None:
+        redirect_html = (
+            f'<meta http-equiv="refresh" content="0;url={target_url}">'
+            f'<a href="{target_url}">Redirect</a>'
+        )
+        redirect_dir = out_dir / source_url.lstrip("/")
+        redirect_dir.mkdir(parents=True, exist_ok=True)
+        (redirect_dir / "index.html").write_text(redirect_html)
+
+
+def _note_public_url(note: NoteRecord) -> str:
+    permalink = note.frontmatter.get("permalink")
+    if permalink:
+        return "/" + str(permalink).lstrip("/")
+    return note.url_path

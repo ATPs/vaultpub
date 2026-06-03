@@ -1,6 +1,8 @@
 """Tests for the HTML renderer."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.render import Renderer
@@ -45,3 +47,57 @@ def test_render_wikilinks_to_links(vault_basic) -> None:
     html = renderer.render_note(a_note)
     # Should have transformed [[Folder/B]] to a link
     assert 'href=' in html
+    assert 'class="internal-link"' in html
+
+
+def test_render_obsidian_syntax_outputs_real_html(vault_obsidian_syntax) -> None:
+    config = PublisherConfig(vault_path=vault_obsidian_syntax)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+
+    def render(stem: str) -> str:
+        note = next(n for n in vault_index.notes_by_id.values() if n.stem == stem)
+        return renderer.render_note(note)
+
+    embeds = render("Embeds")
+    assert '<img src="/assets/image.png"' in embeds
+    assert "&lt;!-- VAULTPUB" not in embeds
+
+    callouts = render("Callouts")
+    assert callouts.count('class="callout"') == 4
+    assert 'data-callout="tip"' in callouts
+
+    mermaid = render("Mermaid")
+    assert '<div class="mermaid">' in mermaid
+    assert "language-mermaid" not in mermaid
+
+    math = render("Math")
+    assert 'class="math inline"' in math
+    assert 'class="math block"' in math
+
+
+def test_render_strips_frontmatter(vault_links) -> None:
+    config = PublisherConfig(vault_path=vault_links)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = next(n for n in vault_index.notes_by_id.values() if n.stem == "Alias Target")
+
+    html = renderer.render_note(note)
+
+    assert "aliases:" not in html
+    assert "project/demo" not in html
+    assert "This note has aliases." in html
+
+
+def test_render_note_embed_renders_target_body(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# Home\n\n![[Child]]", encoding="utf-8")
+    (tmp_path / "Child.md").write_text("# Child\n\nEmbedded content.", encoding="utf-8")
+    config = PublisherConfig(vault_path=tmp_path)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    readme = next(n for n in vault_index.notes_by_id.values() if n.stem == "README")
+
+    html = renderer.render_note(readme)
+
+    assert 'class="embed-wrapper"' in html
+    assert "Embedded content." in html
