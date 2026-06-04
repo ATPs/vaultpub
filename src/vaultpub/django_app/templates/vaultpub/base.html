@@ -12,10 +12,17 @@
     <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle navigation">&#9776;</button>
     {% if site_logo %}<img src="{{ site_logo }}" alt="{{ site_name }}" class="site-logo">{% endif %}
     <span class="site-name">{{ site_name|default:"vaultpub" }}</span>
-    {% if show_search %}<button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>{% endif %}
+    {% if topbar_context_html %}{{ topbar_context_html|safe }}{% endif %}
+    <div class="topbar-actions">
+      {% if show_search %}<button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>{% endif %}
+    </div>
   </header>
   <div class="app-layout">
     <aside class="sidebar-left">
+      <div class="sidebar-top">
+        {% if site_logo %}<img src="{{ site_logo }}" alt="{{ site_name }}" class="site-logo">{% endif %}
+        <span class="site-name">{{ site_name|default:"vaultpub" }}</span>
+      </div>
       <div class="sidebar-header">
         <div class="sidebar-title">Navigation</div>
         <button class="sidebar-toggle" type="button" data-sidebar-toggle="left" aria-label="Hide navigation">&lt;</button>
@@ -28,6 +35,9 @@
       {% block content %}{% endblock %}
     </main>
     <aside class="sidebar-right">
+      <div class="sidebar-top">
+        {% if show_search %}<button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>{% endif %}
+      </div>
       <div class="sidebar-header">
         <div class="sidebar-title">Page</div>
         <button class="sidebar-toggle" type="button" data-sidebar-toggle="right" aria-label="Hide page sidebar">&gt;</button>

@@ -60,6 +60,22 @@ class NoteRecord:
 
 
 @dataclass
+class TextPageRecord:
+    id: str
+    rel_path: PurePosixPath
+    url_path: str
+    title: str
+    stem: str
+    language: str
+    raw_text: str
+    plain_text: str
+    excerpt: str
+    size: int
+    mtime_ns: int
+    ctime_ns: int
+
+
+@dataclass
 class AttachmentRecord:
     id: str
     rel_path: PurePosixPath
@@ -108,6 +124,8 @@ class VaultIndex:
     notes_by_stem: dict[str, list[str]] = field(default_factory=dict)
     notes_by_alias: dict[str, list[str]] = field(default_factory=dict)
     attachments_by_path: dict[str, AttachmentRecord] = field(default_factory=dict)
+    text_pages_by_path: dict[str, TextPageRecord] = field(default_factory=dict)
+    text_pages_by_id: dict[str, TextPageRecord] = field(default_factory=dict)
     nav_tree: NavNode | None = None
     tags: dict[str, set[str]] = field(default_factory=dict)
     graph: GraphData = field(default_factory=GraphData)

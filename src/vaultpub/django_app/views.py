@@ -2,16 +2,22 @@
 from __future__ import annotations
 
 import re
+from html import escape
 
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 
 from vaultpub.core.index.indexer import VaultIndexer
-from vaultpub.core.models import NoteRecord, VaultIndex
+from vaultpub.core.models import NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.render import Renderer
 from vaultpub.core.render.seo import build_meta_tags, build_page_description, build_page_title
-from vaultpub.core.render.templates import nav_tree_html, sidebar_graph_state
-from vaultpub.core.security import is_path_public
+from vaultpub.core.render.templates import (
+    nav_tree_html,
+    sidebar_graph_state,
+    topbar_context_html_for_note,
+    topbar_context_html_for_text_page,
+)
+from vaultpub.core.security import is_path_excluded, is_path_public
 from vaultpub.django_app.conf import get_default_config
 
 _state_cache: dict = {}
@@ -124,6 +130,14 @@ def page(request: HttpRequest, note_path: str) -> HttpResponse:
         response = HttpResponse(status=301)
         response["Location"] = _prefix_url(state["config"], redirect_map[rel_path]) or redirect_map[rel_path]
         return response
+
+    # Check text pages
+    tp = state["index"].text_pages_by_path.get(note_path)
+    if tp is not None:
+        if is_path_excluded(tp.rel_path.as_posix(), state["config"]):
+            raise Http404("Not found")
+        return _render_text_page(request, tp)
+
     raise Http404("Note not found")
 
 
@@ -131,6 +145,8 @@ def attachment(request: HttpRequest, asset_path: str) -> HttpResponse:
     state = _get_state()
     att = state["index"].attachments_by_path.get(asset_path)
     if att is None:
+        raise Http404("Attachment not found")
+    if is_path_excluded(asset_path, state["config"]):
         raise Http404("Attachment not found")
     fpath = state["config"].vault_path / asset_path
     if not fpath.exists():
@@ -155,6 +171,21 @@ def api_page(request: HttpRequest, note_path: str) -> JsonResponse:
             "headings": [{"level": h.level, "text": h.text, "slug": h.slug} for h in note.headings],
             "backlinks": list(note.backlinks),
         })
+
+    # Check text pages
+    tp = state["index"].text_pages_by_path.get(note_path)
+    if tp is not None:
+        code_html = _render_text_page_content(tp)
+        return JsonResponse({
+            "id": tp.id,
+            "title": tp.title,
+            "url": _prefix_url(state["config"], tp.url_path),
+            "html": _prefix_html_urls(code_html, state["config"]),
+            "tags": [],
+            "headings": [],
+            "backlinks": [],
+        })
+
     return JsonResponse({"error": "Not found"}, status=404)
 
 
@@ -238,8 +269,49 @@ def _render_note(request: HttpRequest, note: NoteRecord) -> HttpResponse:
         "show_search": config.show_search,
         "url_prefix": _url_prefix(config),
         "seo_head": build_meta_tags(note, config),
+        "topbar_context_html": topbar_context_html_for_note(note, home_url=_url_prefix(config)),
     }
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, note)
     context["show_graph"] = show_graph
     context["graph_note_id"] = graph_note_id
     return render(request, "vaultpub/page.html", context)
+
+
+def _render_text_page(request: HttpRequest, tp: TextPageRecord) -> HttpResponse:
+    state = _get_state()
+    config = state["config"]
+    index = state["index"]
+
+    context = {
+        "content": _prefix_html_urls(_render_text_page_content(tp), config),
+        "title": tp.title,
+        "site_name": config.site_name,
+        "description": tp.excerpt,
+        "note_id": tp.id,
+        "url_path": _prefix_url(config, tp.url_path),
+        "nav_html": _build_nav_html(index, config),
+        "toc_html": "",
+        "backlinks_html": "",
+        "realtime": config.realtime,
+        "site_logo": config.site_logo,
+        "show_theme_toggle": config.show_theme_toggle,
+        "show_search": config.show_search,
+        "url_prefix": _url_prefix(config),
+        "seo_head": f"<title>{escape(tp.title)} - {escape(config.site_name)}</title>",
+        "topbar_context_html": topbar_context_html_for_text_page(tp, home_url=_url_prefix(config)),
+    }
+    show_graph, graph_note_id = sidebar_graph_state(config, index.graph, None)
+    context["show_graph"] = show_graph
+    context["graph_note_id"] = graph_note_id
+    return render(request, "vaultpub/page.html", context)
+
+
+def _render_text_page_content(tp: TextPageRecord) -> str:
+    lang_class = f"language-{tp.language}" if tp.language else ""
+    return f"""\
+<article class="text-page" data-page-id="{tp.id}" data-page-path="{escape(tp.url_path)}">
+  <h1>{escape(tp.title)}</h1>
+  <div class="code-block">
+    <pre><code class="{lang_class}">{escape(tp.raw_text)}</code></pre>
+  </div>
+</article>"""

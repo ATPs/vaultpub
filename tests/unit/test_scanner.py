@@ -8,7 +8,7 @@ from vaultpub.core.scanner import VaultScanner
 def test_scan_basic_vault(vault_basic) -> None:
     config = PublisherConfig(vault_path=vault_basic)
     scanner = VaultScanner(config)
-    notes, attachments, nav = scanner.scan()
+    notes, attachments, _text_pages, nav = scanner.scan()
 
     assert len(notes) == 3  # README, A, Folder/B
     assert len(attachments) == 0
@@ -31,7 +31,7 @@ def test_scan_excludes_hidden() -> None:
 
         config = PublisherConfig(vault_path=vault)
         scanner = VaultScanner(config)
-        notes, _, _ = scanner.scan()
+        notes, _, _, _ = scanner.scan()
 
         rel_paths = {n.rel_path.as_posix() for n in notes}
         assert "README.md" in rel_paths
@@ -41,7 +41,7 @@ def test_scan_excludes_hidden() -> None:
 def test_scan_publish_false_hides(vault_publish_filters) -> None:
     config = PublisherConfig(vault_path=vault_publish_filters)
     scanner = VaultScanner(config)
-    notes, _, _ = scanner.scan()
+    notes, _, _, _ = scanner.scan()
 
     titles = {n.title for n in notes}
     assert "README" in titles
@@ -53,7 +53,7 @@ def test_scan_publish_false_hides(vault_publish_filters) -> None:
 def test_resolve_home(vault_basic) -> None:
     config = PublisherConfig(vault_path=vault_basic)
     scanner = VaultScanner(config)
-    notes, _, _ = scanner.scan()
+    notes, _, _, _ = scanner.scan()
     home = scanner.resolve_home(notes)
     assert home is not None
     assert home.stem == "README"

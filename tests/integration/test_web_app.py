@@ -31,6 +31,10 @@ def test_note_page(client) -> None:
     assert 'data-sidebar-toggle="right"' in response.text
     assert "Navigation" in response.text
     assert "Page" in response.text
+    assert 'class="topbar-context topbar-context-note"' in response.text
+    assert 'data-current-heading' in response.text
+    assert "Home" in response.text
+    assert "README.md" in response.text
 
 
 def test_note_page_renders_toc_in_right_sidebar(client) -> None:
@@ -118,6 +122,23 @@ def test_api_page(client) -> None:
     data = response.json()
     assert "html" in data
     assert "title" in data
+
+
+def test_force_included_text_page_renders_topbar_code_tools(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# README\n", encoding="utf-8")
+    tools_dir = tmp_path / "tools"
+    tools_dir.mkdir()
+    (tools_dir / "example.py").write_text("print('hello')\n", encoding="utf-8")
+
+    app = create_app(PublisherConfig(vault_path=tmp_path, realtime=False, force_include_regexes=(r".*\.py$",)))
+    client = TestClient(app)
+
+    response = client.get("/tools/example.py")
+    assert response.status_code == 200
+    assert 'class="topbar-context topbar-context-code"' in response.text
+    assert 'data-code-action="copy-path"' in response.text
+    assert 'data-code-action="toggle-wrap"' in response.text
+    assert "tools/example.py" in response.text
 
 
 def test_permalink_and_alias_routes_and_api(tmp_path: Path) -> None:

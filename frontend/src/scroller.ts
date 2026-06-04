@@ -18,8 +18,10 @@ export function initScroller(): void {
 
       if (y > lastScrollY && y > THRESHOLD) {
         topbar.classList.add("top-bar-hidden");
+        document.body.classList.add("top-bar-hidden");
       } else {
         topbar.classList.remove("top-bar-hidden");
+        document.body.classList.remove("top-bar-hidden");
       }
       lastScrollY = y;
     },

@@ -72,9 +72,13 @@ def test_django_page_uses_packaged_template(django_setup) -> None:
 
     assert response.status_code == 200
     assert b'class="top-bar"' in response.content
+    assert b'class="topbar-context topbar-context-note"' in response.content
+    assert b'data-current-heading' in response.content
     assert b'class="markdown-body"' in response.content
     assert b"README" in response.content
     assert b'data-url-prefix="/notes/"' in response.content
+    assert b'href="/notes/"' in response.content
+    assert b"README.md" in response.content
     assert b'href="/notes/README"' in response.content
     assert b'href="/README"' not in response.content
     assert b"{% toc %}" not in response.content

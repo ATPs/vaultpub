@@ -64,7 +64,7 @@ body {
   transition: background-color 0.35s ease, border-color 0.35s ease, transform 0.3s ease;
 }
 
-.top-bar-hidden {
+.top-bar.top-bar-hidden {
   transform: translateY(-100%);
 }
 
@@ -81,8 +81,102 @@ body {
   border-radius: 4px;
 }
 
-.top-bar .search-trigger {
+.topbar-actions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  flex-shrink: 0;
+}
+
+.topbar-context {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.9em;
+  overflow: hidden;
+}
+
+.topbar-breadcrumbs {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0.84em;
+  color: var(--text-muted);
+}
+
+.topbar-breadcrumb-link,
+.topbar-breadcrumb-sep {
+  flex-shrink: 0;
+}
+
+.topbar-breadcrumb-link {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.topbar-breadcrumb-link:hover {
+  color: var(--link-color);
+  text-decoration: none;
+}
+
+.topbar-breadcrumb-segment,
+.topbar-breadcrumb-current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-breadcrumb-current {
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+.topbar-breadcrumb-sep {
+  color: var(--border-color);
+}
+
+.topbar-current-heading {
+  min-width: 0;
+  max-width: 42%;
+  padding: 0.28em 0.7em;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--code-bg);
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.8em;
+  transition: all var(--transition-fast);
+}
+
+.topbar-current-heading:hover {
+  border-color: var(--link-color);
+  color: var(--link-color);
+  text-decoration: none;
+}
+
+.topbar-code-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  flex-shrink: 0;
+}
+
+.topbar-code-meta {
+  font-size: 0.78em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.topbar-code-btn,
+.top-bar .search-trigger {
   padding: 0.35em 0.85em;
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -94,6 +188,17 @@ body {
   white-space: nowrap;
 }
 
+.topbar-code-btn {
+  padding: 0.32em 0.72em;
+}
+
+.topbar-code-btn.is-active {
+  border-color: var(--link-color);
+  color: var(--link-color);
+  background: var(--code-bg);
+}
+
+.topbar-code-btn:hover,
 .top-bar .search-trigger:hover {
   border-color: var(--link-color);
   color: var(--link-color);
@@ -354,8 +459,69 @@ main.content {
 }
 
 /* ============================================================
-   Glass effects — sidebars and topbar
+   Sidebar top bar replacement — visible when top bar is hidden
    ============================================================ */
+.sidebar-top {
+  display: none;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0 0.2em 0.7em;
+  margin-bottom: 0.5em;
+  border-bottom: 1px solid var(--border-color);
+  min-height: var(--topbar-height);
+}
+
+.sidebar-top .site-logo {
+  height: 24px;
+  width: auto;
+  border-radius: 4px;
+}
+
+.sidebar-top .site-name {
+  font-weight: 650;
+  font-size: 1em;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.sidebar-top .search-trigger {
+  width: 100%;
+  padding: 0.4em 0.85em;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.85em;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  text-align: left;
+}
+
+.sidebar-top .search-trigger:hover {
+  border-color: var(--link-color);
+  color: var(--link-color);
+}
+
+/* When top bar is hidden, stretch sidebars to top and show sidebar-top */
+body.top-bar-hidden .sidebar-left,
+body.top-bar-hidden .sidebar-right {
+  height: 100vh;
+  top: 0;
+}
+
+body.top-bar-hidden .sidebar-top {
+  display: flex;
+}
+
+body.top-bar-hidden .sidebar-peek {
+  top: 1rem;
+}
+
+body.top-bar-hidden .app-layout.sidebar-left-collapsed.sidebar-left-peeking .sidebar-left,
+body.top-bar-hidden .app-layout.sidebar-right-collapsed.sidebar-right-peeking .sidebar-right {
+  max-height: 100vh;
+}
 .theme-glass-light .top-bar,
 .theme-glass-dark .top-bar,
 .theme-glass-light .sidebar-left,
@@ -603,9 +769,27 @@ main.content {
   margin-top: 0;
 }
 
+body.code-wrap-enabled .text-page pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ============================================================
    Responsive: mobile
    ============================================================ */
+@media (max-width: 1100px) {
+  .topbar-current-heading,
+  .topbar-code-meta {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar-context {
+    display: none;
+  }
+}
+
 @media (max-width: 768px) {
   .app-layout {
     flex-direction: column;
@@ -649,6 +833,10 @@ main.content {
   .sidebar-right.mobile-tabs {
     display: block;
     border-top: 1px solid var(--border-color);
+  }
+
+  body.top-bar-hidden .sidebar-right.mobile-tabs {
+    height: auto;
   }
 
   main.content {

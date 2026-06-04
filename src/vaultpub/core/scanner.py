@@ -3,12 +3,19 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import os
+import re
 from pathlib import Path, PurePosixPath
 
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.exceptions import PathTraversalError
-from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord
+from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord, TextPageRecord
 from vaultpub.core.paths import generate_note_id, normalize_rel_path, rel_path_to_url_path
+from vaultpub.core.security import (
+    ALWAYS_FORBIDDEN,
+    is_force_included,
+    is_text_file,
+    infer_language,
+)
 
 
 class VaultScanner:
@@ -17,12 +24,12 @@ class VaultScanner:
     def __init__(self, config: PublisherConfig) -> None:
         self.config = config
 
-    ALWAYS_FORBIDDEN = {".git", ".obsidian", "metadata.json", ".vaultpub.yml", ".obsidian-publish.yml"}
-
-    def scan(self) -> tuple[list[NoteRecord], list[AttachmentRecord], NavNode]:
+    def scan(self) -> tuple[list[NoteRecord], list[AttachmentRecord], list[TextPageRecord], NavNode]:
         notes: list[NoteRecord] = []
         attachments: list[AttachmentRecord] = []
+        text_pages: list[TextPageRecord] = []
         root = self.config.vault_path.resolve()
+        compiled_exclude = getattr(self.config, "_compiled_force_exclude", [])
 
         for dirpath_str, dirnames, filenames in os.walk(root, followlinks=self.config.follow_symlinks):
             dirpath = Path(dirpath_str)
@@ -30,13 +37,25 @@ class VaultScanner:
             # Filter dirnames for os.walk pruning
             kept_dirs = []
             for d in dirnames:
-                if d in self.ALWAYS_FORBIDDEN:
+                if d in ALWAYS_FORBIDDEN:
                     continue
                 if self._is_hidden(d) and not self.config.hidden_file_access:
                     continue
                 # In publish_true mode, don't prune excluded folders (they might contain publish:true notes)
-                if self.config.publish_property_mode == "publish_true" or d not in self.config.exclude_folders:
+                if self.config.publish_property_mode == "publish_true":
                     kept_dirs.append(d)
+                    continue
+                if d in self.config.exclude_folders:
+                    continue
+                # Prune directories matching force_exclude_regexes
+                if compiled_exclude:
+                    try:
+                        dir_rel = normalize_rel_path(dirpath / d, root)
+                    except PathTraversalError:
+                        continue
+                    if any(pat.search(dir_rel) for pat in compiled_exclude):
+                        continue
+                kept_dirs.append(d)
             dirnames[:] = kept_dirs
 
             for fname in sorted(filenames):
@@ -54,6 +73,10 @@ class VaultScanner:
                 except PathTraversalError:
                     continue
 
+                # Force-exclude regex check
+                if compiled_exclude and any(pat.search(rel) for pat in compiled_exclude):
+                    continue
+
                 stat = fpath.stat()
                 ext = fpath.suffix.lower()
 
@@ -63,14 +86,17 @@ class VaultScanner:
                     note = self._read_note(fpath, rel, stat)
                     if self._should_publish(note):
                         notes.append(note)
+                elif self._is_force_included_text(fpath, rel):
+                    tp = self._read_text_page(fpath, rel, ext, stat)
+                    text_pages.append(tp)
                 elif ext.lstrip(".") in self.config.allowed_attachment_types:
                     if self.config.max_attachment_size_bytes and stat.st_size > self.config.max_attachment_size_bytes:
                         continue
                     att = self._read_attachment(fpath, rel, stat)
                     attachments.append(att)
 
-        nav = self._build_nav_tree(notes)
-        return notes, attachments, nav
+        nav = self._build_nav_tree(notes, text_pages)
+        return notes, attachments, text_pages, nav
 
     def _is_hidden(self, name: str) -> bool:
         return name.startswith(".")
@@ -83,6 +109,14 @@ class VaultScanner:
         except ValueError:
             return True
         return any(fnmatch.fnmatch(rel, pattern) for pattern in self.config.exclude_globs)
+
+    def _is_force_included_text(self, fpath: Path, rel: str) -> bool:
+        """Check if a non-.md file should be included as a text page."""
+        if not is_force_included(rel, self.config):
+            return False
+        if fpath.stat().st_size > self.config.max_markdown_size_bytes:
+            return False
+        return is_text_file(fpath)
 
     def _read_note(self, fpath: Path, rel: str, stat: os.stat_result) -> NoteRecord:
         content = fpath.read_text(encoding="utf-8-sig")
@@ -134,6 +168,30 @@ class VaultScanner:
             content_hash=content_hash,
         )
 
+    def _read_text_page(self, fpath: Path, rel: str, ext: str, stat: os.stat_result) -> TextPageRecord:
+        content = fpath.read_text(encoding="utf-8-sig")
+        stem = fpath.stem
+        url_path = "/" + PurePosixPath(rel).as_posix()
+        page_id = generate_note_id(rel)
+        language = infer_language(ext)
+        plain = content[:2000]
+        excerpt = content[:300].replace("\n", " ").strip()
+
+        return TextPageRecord(
+            id=page_id,
+            rel_path=PurePosixPath(rel),
+            url_path=url_path,
+            title=stem,
+            stem=stem,
+            language=language,
+            raw_text=content,
+            plain_text=plain,
+            excerpt=excerpt,
+            size=stat.st_size,
+            mtime_ns=int(stat.st_mtime_ns),
+            ctime_ns=int(stat.st_ctime_ns),
+        )
+
     def _read_attachment(self, fpath: Path, rel: str, stat: os.stat_result) -> AttachmentRecord:
         ext = fpath.suffix.lower().lstrip(".")
         mime_map = {
@@ -178,7 +236,7 @@ class VaultScanner:
         # mode "all": publish everything
         return not (mode == "publish_false_hides" and fm.get("publish") is False)
 
-    def _build_nav_tree(self, notes: list[NoteRecord]) -> NavNode:
+    def _build_nav_tree(self, notes: list[NoteRecord], text_pages: list[TextPageRecord]) -> NavNode:
         root = NavNode(label="/", path=".", url="/", is_dir=True)
         nav_hidden = set(self.config.nav_hidden)
 
@@ -196,6 +254,21 @@ class VaultScanner:
                 label=note.title,
                 path=note.rel_path.as_posix(),
                 url=note.url_path,
+            ))
+
+        # Add text pages to nav
+        for tp in sorted(text_pages, key=lambda t: t.rel_path.as_posix()):
+            if tp.stem in nav_hidden or tp.rel_path.as_posix() in nav_hidden:
+                continue
+            parts = tp.rel_path.parts
+            current = root
+            for _i, part in enumerate(parts[:-1]):
+                child = _find_or_create_dir(current, part)
+                current = child
+            current.children.append(NavNode(
+                label=tp.title,
+                path=tp.rel_path.as_posix(),
+                url=tp.url_path,
             ))
 
         # Sort: dirs first, then files, both alphabetically

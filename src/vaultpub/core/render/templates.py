@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from html import escape
+from pathlib import PurePosixPath
 
-from vaultpub.core.models import GraphData, NoteRecord
+from vaultpub.core.models import GraphData, Heading, NoteRecord, TextPageRecord
 
 
 def build_local_graph(graph: GraphData, note: NoteRecord) -> GraphData:
@@ -48,6 +49,86 @@ def graph_container_html(show_graph: bool, graph_note_id: str | None = None) -> 
     return f'<div id="graph-container" class="graph-container"{note_attr}></div>'
 
 
+def _breadcrumbs_html(rel_path: PurePosixPath, home_url: str = "/") -> str:
+    segments = [f'<a href="{escape(home_url, quote=True)}" class="topbar-breadcrumb-link">Home</a>']
+    parts = list(rel_path.parts)
+
+    for part in parts[:-1]:
+        segments.append('<span class="topbar-breadcrumb-sep">/</span>')
+        segments.append(f'<span class="topbar-breadcrumb-segment">{escape(part)}</span>')
+
+    if parts:
+        segments.append('<span class="topbar-breadcrumb-sep">/</span>')
+        segments.append(f'<span class="topbar-breadcrumb-current">{escape(parts[-1])}</span>')
+
+    return "".join(segments)
+
+
+def _preferred_heading(note: NoteRecord) -> Heading | None:
+    if not note.headings:
+        return None
+    for heading in note.headings:
+        if heading.level > 1:
+            return heading
+    return note.headings[0]
+
+
+def _format_size(size: int) -> str:
+    value = float(size)
+    units = ("B", "KB", "MB", "GB")
+    unit = units[0]
+    for candidate in units:
+        unit = candidate
+        if value < 1024 or candidate == units[-1]:
+            break
+        value /= 1024
+
+    if unit == "B":
+        return f"{int(value)} {unit}"
+    if value >= 10:
+        return f"{value:.0f} {unit}"
+    return f"{value:.1f} {unit}"
+
+
+def _language_label(text_page: TextPageRecord) -> str:
+    if text_page.language:
+        normalized = text_page.language.replace("-", " ").replace("_", " ")
+        return " ".join(part.capitalize() for part in normalized.split())
+
+    suffix = text_page.rel_path.suffix.lstrip(".")
+    return suffix.upper() if suffix else "Text"
+
+
+def topbar_context_html_for_note(note: NoteRecord, home_url: str = "/") -> str:
+    heading = _preferred_heading(note)
+    heading_href = f' href="#{escape(heading.slug, quote=True)}"' if heading is not None else ""
+    heading_hidden = "" if heading is not None else " hidden"
+    heading_text = escape(heading.text) if heading is not None else ""
+
+    return f"""\
+<div class="topbar-context topbar-context-note" data-topbar-context="note">
+  <nav class="topbar-breadcrumbs" aria-label="Current location">
+    {_breadcrumbs_html(note.rel_path, home_url)}
+  </nav>
+  <a class="topbar-current-heading" data-current-heading aria-live="polite"{heading_href}{heading_hidden}>{heading_text}</a>
+</div>"""
+
+
+def topbar_context_html_for_text_page(text_page: TextPageRecord, home_url: str = "/") -> str:
+    return f"""\
+<div class="topbar-context topbar-context-code" data-topbar-context="code">
+  <nav class="topbar-breadcrumbs" aria-label="Current location">
+    {_breadcrumbs_html(text_page.rel_path, home_url)}
+  </nav>
+  <div class="topbar-code-tools">
+    <span class="topbar-code-meta">{escape(_language_label(text_page))} &middot; {_format_size(text_page.size)}</span>
+    <button class="topbar-code-btn" type="button" data-code-action="copy-path"
+            data-code-path="{escape(text_page.rel_path.as_posix(), quote=True)}">Copy path</button>
+    <button class="topbar-code-btn" type="button" data-code-action="toggle-wrap" aria-pressed="false">Wrap</button>
+  </div>
+</div>"""
+
+
 def base_page_template(
     content_html: str,
     nav_html: str = "",
@@ -55,6 +136,7 @@ def base_page_template(
     config: object | None = None,
     sidebar_right_html: str = "",
     graph_html: str = "",
+    topbar_context_html: str = "",
 ) -> str:
     """Wrap content in a basic HTML page template."""
     site_name = getattr(config, "site_name", "vaultpub") if config else "vaultpub"
@@ -78,10 +160,17 @@ def base_page_template(
     <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle navigation">&#9776;</button>
     {logo_html}
     <span class="site-name">{site_name}</span>
-    {search_trigger}
+    {topbar_context_html}
+    <div class="topbar-actions">
+      {search_trigger}
+    </div>
   </header>
   <div class="app-layout">
     <aside class="sidebar-left">
+      <div class="sidebar-top">
+        {logo_html}
+        <span class="site-name">{site_name}</span>
+      </div>
       <div class="sidebar-header">
         <div class="sidebar-title">Navigation</div>
         <button class="sidebar-toggle" type="button" data-sidebar-toggle="left"
@@ -93,6 +182,9 @@ def base_page_template(
       {content_html}
     </main>
     <aside class="sidebar-right">
+      <div class="sidebar-top">
+        {search_trigger}
+      </div>
       <div class="sidebar-header">
         <div class="sidebar-title">Page</div>
         <button class="sidebar-toggle" type="button" data-sidebar-toggle="right"

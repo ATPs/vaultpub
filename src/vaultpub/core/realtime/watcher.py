@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.paths import normalize_rel_path, rel_path_to_url_path
 from vaultpub.core.realtime.events import ChangeRecord, EventBus, IndexChangedEvent
+from vaultpub.core.security import is_force_included, is_text_file, infer_language
 
 SKIP_PATTERNS = (".swp", ".swx", "~", ".tmp", ".DS_Store", ".swo")
 
@@ -83,6 +85,7 @@ def _classify_changes(
 ) -> IndexChangedEvent:
     event = IndexChangedEvent()
     change_map = _get_change_map()
+    compiled_exclude = getattr(config, "_compiled_force_exclude", [])
 
     for change_type, path_str in raw_changes:
         change_name = change_map.get(change_type, "modified")
@@ -97,11 +100,17 @@ def _classify_changes(
         except Exception:
             continue
 
-        # Skip hidden and excluded directories
+        # Skip hidden directories/files
         parts = rel.split("/")
         if any(part.startswith(".") for part in parts):
             continue
+
+        # Skip excluded folders
         if any(d in parts for d in config.exclude_folders):
+            continue
+
+        # Skip force-excluded paths
+        if compiled_exclude and any(pat.search(rel) for pat in compiled_exclude):
             continue
 
         ext = fpath.suffix.lower()
@@ -123,6 +132,20 @@ def _classify_changes(
                 event.changed.append(rec)
                 event.search_changed = True
                 event.graph_changed = True
+        elif is_force_included(rel, config) and fpath.exists() and is_text_file(fpath):
+            rec = ChangeRecord(
+                kind="textpage",
+                path=rel,
+                url="/" + rel,
+                change=change_name,
+            )
+            if change_name == "deleted":
+                event.deleted.append(rec)
+                event.nav_changed = True
+                event.search_changed = True
+            else:
+                event.changed.append(rec)
+                event.search_changed = True
         elif ext.lstrip(".") in config.allowed_attachment_types:
             rec = ChangeRecord(
                 kind="attachment",

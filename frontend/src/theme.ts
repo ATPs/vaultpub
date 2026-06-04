@@ -78,6 +78,7 @@ function createSwatchSpans(preview: string[]): string {
 function buildThemeSelector(): void {
   const topbar = document.querySelector(".top-bar");
   if (!topbar) return;
+  const actions = topbar.querySelector(".topbar-actions") || topbar;
 
   // Remove any existing theme-toggle button
   const existingBtn = document.getElementById("theme-toggle");
@@ -170,11 +171,11 @@ function buildThemeSelector(): void {
   document.addEventListener("click", () => wrapper.classList.remove("open"));
 
   // Insert before search trigger (or at end)
-  const searchTrigger = topbar.querySelector(".search-trigger");
+  const searchTrigger = actions.querySelector(".search-trigger");
   if (searchTrigger) {
-    topbar.insertBefore(wrapper, searchTrigger);
+    actions.insertBefore(wrapper, searchTrigger);
   } else {
-    topbar.appendChild(wrapper);
+    actions.appendChild(wrapper);
   }
 }
 
