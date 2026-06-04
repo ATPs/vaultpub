@@ -1,0 +1,514 @@
+/* vaultpub theme definitions — 10 hand-crafted color schemes */
+
+/* ============================================================
+   Common defaults for heading and accent colors
+   ============================================================ */
+:root {
+  --h1-color: var(--text-color);
+  --h2-color: var(--text-color);
+  --h3-color: var(--text-color);
+  --h4-color: var(--text-color);
+  --h5-color: var(--text-color);
+  --h6-color: var(--text-color);
+  --accent-1: var(--link-color);
+  --accent-2: var(--link-hover-color);
+  --accent-3: var(--blockquote-border);
+  --accent-4: var(--graph-tag-color);
+  --accent-5: var(--graph-attachment-color);
+  --accent-6: var(--graph-note-color);
+}
+
+/* ============================================================
+   Theme 1: Light — Clean modern light (default)
+   ============================================================ */
+:root,
+.theme-light {
+  --bg-color: #fafbfc;
+  --text-color: #1a1a2e;
+  --text-muted: #6b7280;
+  --link-color: #2563eb;
+  --link-hover-color: #1d4ed8;
+  --border-color: #e5e7eb;
+  --code-bg: #f3f4f6;
+  --blockquote-border: #d1d5db;
+  --blockquote-color: #4b5563;
+  --th-bg: #f9fafb;
+  --broken-link-color: #dc2626;
+  --sidebar-bg: #f8f9fa;
+  --topbar-bg: #ffffff;
+  --search-overlay-bg: rgba(0, 0, 0, 0.35);
+  --search-modal-bg: #ffffff;
+  --graph-edge-color: #d1d5db;
+  --graph-note-color: #3b82f6;
+  --graph-tag-color: #f59e0b;
+  --graph-attachment-color: #10b981;
+  --graph-label-color: #374151;
+  --callout-note-bg: #eff6ff;
+  --callout-note-border: #3b82f6;
+  --callout-tip-bg: #f0fdf4;
+  --callout-tip-border: #10b981;
+  --callout-warning-bg: #fffbeb;
+  --callout-warning-border: #f59e0b;
+  --callout-danger-bg: #fef2f2;
+  --callout-danger-border: #ef4444;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --glass-blur: 0px;
+  --glass-opacity: 1;
+  --surface-bg: #ffffff;
+}
+
+/* ============================================================
+   Theme 2: Dark — Deep modern dark (default dark)
+   ============================================================ */
+.theme-dark {
+  --bg-color: #1a1b1e;
+  --text-color: #e4e4e7;
+  --text-muted: #9ca3af;
+  --link-color: #60a5fa;
+  --link-hover-color: #93bbfd;
+  --border-color: #2d2d30;
+  --code-bg: #252628;
+  --blockquote-border: #4b5563;
+  --blockquote-color: #9ca3af;
+  --th-bg: #252628;
+  --broken-link-color: #f87171;
+  --sidebar-bg: #1e1f22;
+  --topbar-bg: #16171a;
+  --search-overlay-bg: rgba(0, 0, 0, 0.6);
+  --search-modal-bg: #252628;
+  --graph-edge-color: #3f3f46;
+  --graph-note-color: #60a5fa;
+  --graph-tag-color: #fbbf24;
+  --graph-attachment-color: #34d399;
+  --graph-label-color: #d1d5db;
+  --callout-note-bg: #1e293b;
+  --callout-note-border: #60a5fa;
+  --callout-tip-bg: #1a2d1a;
+  --callout-tip-border: #34d399;
+  --callout-warning-bg: #2d251a;
+  --callout-warning-border: #fbbf24;
+  --callout-danger-bg: #2d1a1a;
+  --callout-danger-border: #f87171;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+  --glass-blur: 0px;
+  --glass-opacity: 1;
+  --surface-bg: #252628;
+}
+
+/* ============================================================
+   Theme 3: Nord — Arctic blue-gray cool tones
+   ============================================================ */
+.theme-nord {
+  --bg-color: #2e3440;
+  --text-color: #d8dee9;
+  --text-muted: #81a1c1;
+  --link-color: #88c0d0;
+  --link-hover-color: #8fbcbb;
+  --border-color: #4c566a;
+  --code-bg: #3b4252;
+  --blockquote-border: #5e81ac;
+  --blockquote-color: #b0bec5;
+  --th-bg: #3b4252;
+  --broken-link-color: #bf616a;
+  --sidebar-bg: #242933;
+  --topbar-bg: #242933;
+  --search-overlay-bg: rgba(0, 0, 0, 0.55);
+  --search-modal-bg: #3b4252;
+  --graph-edge-color: #4c566a;
+  --graph-note-color: #88c0d0;
+  --graph-tag-color: #d08770;
+  --graph-attachment-color: #a3be8c;
+  --graph-label-color: #d8dee9;
+  --callout-note-bg: #2a3441;
+  --callout-note-border: #88c0d0;
+  --callout-tip-bg: #2a352a;
+  --callout-tip-border: #a3be8c;
+  --callout-warning-bg: #352e26;
+  --callout-warning-border: #d08770;
+  --callout-danger-bg: #352626;
+  --callout-danger-border: #bf616a;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+  --glass-blur: 0px;
+  --glass-opacity: 1;
+  --surface-bg: #3b4252;
+}
+
+/* ============================================================
+   Theme 4: Solarized — Warm amber reading theme
+   ============================================================ */
+.theme-solarized {
+  --bg-color: #fdf6e3;
+  --text-color: #586e75;
+  --text-muted: #93a1a1;
+  --link-color: #268bd2;
+  --link-hover-color: #1a6fb5;
+  --border-color: #eee8d5;
+  --code-bg: #eee8d5;
+  --blockquote-border: #b58900;
+  --blockquote-color: #657b83;
+  --th-bg: #f5eeda;
+  --broken-link-color: #dc322f;
+  --sidebar-bg: #f5eeda;
+  --topbar-bg: #fdf6e3;
+  --search-overlay-bg: rgba(0, 0, 0, 0.3);
+  --search-modal-bg: #fdf6e3;
+  --graph-edge-color: #d5cbb0;
+  --graph-note-color: #268bd2;
+  --graph-tag-color: #cb4b16;
+  --graph-attachment-color: #859900;
+  --graph-label-color: #586e75;
+  --callout-note-bg: #f0f0e6;
+  --callout-note-border: #268bd2;
+  --callout-tip-bg: #f0f5e6;
+  --callout-tip-border: #859900;
+  --callout-warning-bg: #f5efe0;
+  --callout-warning-border: #cb4b16;
+  --callout-danger-bg: #f5e8e8;
+  --callout-danger-border: #dc322f;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --glass-blur: 0px;
+  --glass-opacity: 1;
+  --surface-bg: #fdf6e3;
+}
+
+/* ============================================================
+   Theme 5: Dracula — Bold purple/cyan/pink dark
+   ============================================================ */
+.theme-dracula {
+  --bg-color: #282a36;
+  --text-color: #f8f8f2;
+  --text-muted: #6272a4;
+  --link-color: #bd93f9;
+  --link-hover-color: #d6acff;
+  --border-color: #44475a;
+  --code-bg: #383a46;
+  --blockquote-border: #bd93f9;
+  --blockquote-color: #b4b4c4;
+  --th-bg: #323444;
+  --broken-link-color: #ff5555;
+  --sidebar-bg: #21222c;
+  --topbar-bg: #21222c;
+  --search-overlay-bg: rgba(0, 0, 0, 0.6);
+  --search-modal-bg: #323444;
+  --graph-edge-color: #44475a;
+  --graph-note-color: #bd93f9;
+  --graph-tag-color: #ffb86c;
+  --graph-attachment-color: #50fa7b;
+  --graph-label-color: #f8f8f2;
+  --callout-note-bg: #2a2b3d;
+  --callout-note-border: #bd93f9;
+  --callout-tip-bg: #2a362a;
+  --callout-tip-border: #50fa7b;
+  --callout-warning-bg: #362d26;
+  --callout-warning-border: #ffb86c;
+  --callout-danger-bg: #362627;
+  --callout-danger-border: #ff5555;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.35);
+  --glass-blur: 0px;
+  --glass-opacity: 1;
+  --surface-bg: #323444;
+}
+
+/* ============================================================
+   Theme 6: Forest — Calm nature-inspired green
+   ============================================================ */
+.theme-forest {
+  --bg-color: #1a2a1a;
+  --text-color: #d4e4d4;
+  --text-muted: #7a9a7a;
+  --link-color: #6fcf6f;
+  --link-hover-color: #8ee88e;
+  --border-color: #2d452d;
+  --code-bg: #243624;
+  --blockquote-border: #4a7c4a;
+  --blockquote-color: #9ab89a;
+  --th-bg: #1e3020;
+  --broken-link-color: #e57373;
+  --sidebar-bg: #142214;
+  --topbar-bg: #142214;
+  --search-overlay-bg: rgba(0, 0, 0, 0.55);
+  --search-modal-bg: #243624;
+  --graph-edge-color: #2d452d;
+  --graph-note-color: #6fcf6f;
+  --graph-tag-color: #d4a843;
+  --graph-attachment-color: #4db380;
+  --graph-label-color: #d4e4d4;
+  --callout-note-bg: #1e3026;
+  --callout-note-border: #6fcf6f;
+  --callout-tip-bg: #1e3020;
+  --callout-tip-border: #4db380;
+  --callout-warning-bg: #30281e;
+  --callout-warning-border: #d4a843;
+  --callout-danger-bg: #301e1e;
+  --callout-danger-border: #e57373;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.35);
+  --glass-blur: 0px;
+  --glass-opacity: 1;
+  --surface-bg: #1e3020;
+}
+
+/* ============================================================
+   Theme 7: Glass Light — Frosted glass transparency, light base
+   ============================================================ */
+.theme-glass-light {
+  --bg-color: rgba(250, 251, 252, 0.55);
+  --text-color: #1a1a2e;
+  --text-muted: #5a5f6e;
+  --link-color: #2563eb;
+  --link-hover-color: #1d4ed8;
+  --border-color: rgba(0, 0, 0, 0.08);
+  --code-bg: rgba(0, 0, 0, 0.04);
+  --blockquote-border: rgba(0, 0, 0, 0.15);
+  --blockquote-color: #4b5563;
+  --th-bg: rgba(0, 0, 0, 0.02);
+  --broken-link-color: #dc2626;
+  --sidebar-bg: rgba(248, 249, 250, 0.45);
+  --topbar-bg: rgba(255, 255, 255, 0.7);
+  --search-overlay-bg: rgba(0, 0, 0, 0.3);
+  --search-modal-bg: rgba(255, 255, 255, 0.92);
+  --graph-edge-color: rgba(0, 0, 0, 0.12);
+  --graph-note-color: #3b82f6;
+  --graph-tag-color: #f59e0b;
+  --graph-attachment-color: #10b981;
+  --graph-label-color: #374151;
+  --callout-note-bg: rgba(59, 130, 246, 0.08);
+  --callout-note-border: #3b82f6;
+  --callout-tip-bg: rgba(16, 185, 129, 0.08);
+  --callout-tip-border: #10b981;
+  --callout-warning-bg: rgba(245, 158, 11, 0.08);
+  --callout-warning-border: #f59e0b;
+  --callout-danger-bg: rgba(239, 68, 68, 0.08);
+  --callout-danger-border: #ef4444;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 8px 32px rgba(0,0,0,0.08);
+  --glass-blur: 20px;
+  --glass-opacity: 0.7;
+  --surface-bg: rgba(255, 255, 255, 0.6);
+}
+
+/* ============================================================
+   Theme 8: Glass Dark — Frosted glass transparency, dark base
+   ============================================================ */
+.theme-glass-dark {
+  --bg-color: rgba(26, 27, 30, 0.6);
+  --text-color: #e4e4e7;
+  --text-muted: #9095a0;
+  --link-color: #60a5fa;
+  --link-hover-color: #93bbfd;
+  --border-color: rgba(255, 255, 255, 0.06);
+  --code-bg: rgba(255, 255, 255, 0.05);
+  --blockquote-border: rgba(255, 255, 255, 0.1);
+  --blockquote-color: #9ca3af;
+  --th-bg: rgba(255, 255, 255, 0.03);
+  --broken-link-color: #f87171;
+  --sidebar-bg: rgba(30, 31, 34, 0.5);
+  --topbar-bg: rgba(22, 23, 26, 0.75);
+  --search-overlay-bg: rgba(0, 0, 0, 0.5);
+  --search-modal-bg: rgba(37, 38, 40, 0.94);
+  --graph-edge-color: rgba(255, 255, 255, 0.08);
+  --graph-note-color: #60a5fa;
+  --graph-tag-color: #fbbf24;
+  --graph-attachment-color: #34d399;
+  --graph-label-color: #d1d5db;
+  --callout-note-bg: rgba(96, 165, 250, 0.1);
+  --callout-note-border: #60a5fa;
+  --callout-tip-bg: rgba(52, 211, 153, 0.1);
+  --callout-tip-border: #34d399;
+  --callout-warning-bg: rgba(251, 191, 36, 0.1);
+  --callout-warning-border: #fbbf24;
+  --callout-danger-bg: rgba(248, 113, 113, 0.1);
+  --callout-danger-border: #f87171;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+  --shadow-md: 0 8px 32px rgba(0,0,0,0.3);
+  --glass-blur: 20px;
+  --glass-opacity: 0.65;
+  --surface-bg: rgba(37, 38, 40, 0.6);
+}
+
+/* ============================================================
+   Theme 9: Obsidian — True to the Obsidian app look
+   ============================================================ */
+.theme-obsidian {
+  --bg-color: #1e1e1e;
+  --text-color: #cccccc;
+  --text-muted: #7a7a7a;
+  --link-color: #7f6df2;
+  --link-hover-color: #9b8ef5;
+  --border-color: #3c3c3c;
+  --code-bg: #2d2d2d;
+  --blockquote-border: #4a4a4a;
+  --blockquote-color: #999999;
+  --th-bg: #2a2a2a;
+  --broken-link-color: #e06c75;
+  --sidebar-bg: #252525;
+  --topbar-bg: #252525;
+  --search-overlay-bg: rgba(0, 0, 0, 0.55);
+  --search-modal-bg: #2d2d2d;
+  --graph-edge-color: #4a4a4a;
+  --graph-note-color: #7f6df2;
+  --graph-tag-color: #e06c75;
+  --graph-attachment-color: #98c379;
+  --graph-label-color: #cccccc;
+  --callout-note-bg: #262440;
+  --callout-note-border: #7f6df2;
+  --callout-tip-bg: #1e3323;
+  --callout-tip-border: #98c379;
+  --callout-warning-bg: #352a1d;
+  --callout-warning-border: #d19a66;
+  --callout-danger-bg: #352222;
+  --callout-danger-border: #e06c75;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.35);
+  --glass-blur: 0px;
+  --glass-opacity: 1;
+  --surface-bg: #2d2d2d;
+}
+
+/* ============================================================
+   Theme 10: Catppuccin Latte — Soft warm pastel light
+   ============================================================ */
+.theme-catppuccin {
+  --bg-color: #eff1f5;
+  --text-color: #4c4f69;
+  --text-muted: #9ca0b0;
+  --link-color: #1e66f5;
+  --link-hover-color: #1852cf;
+  --border-color: #ccd0da;
+  --code-bg: #e6e9ef;
+  --blockquote-border: #ea76cb;
+  --blockquote-color: #5c5f77;
+  --th-bg: #e6e9ef;
+  --broken-link-color: #d20f39;
+  --sidebar-bg: #e6e9ef;
+  --topbar-bg: #dce0e8;
+  --search-overlay-bg: rgba(0, 0, 0, 0.3);
+  --search-modal-bg: #eff1f5;
+  --graph-edge-color: #ccd0da;
+  --graph-note-color: #1e66f5;
+  --graph-tag-color: #fe640b;
+  --graph-attachment-color: #40a02b;
+  --graph-label-color: #4c4f69;
+  --callout-note-bg: #e6eaf0;
+  --callout-note-border: #1e66f5;
+  --callout-tip-bg: #e6f0e6;
+  --callout-tip-border: #40a02b;
+  --callout-warning-bg: #f0ebe0;
+  --callout-warning-border: #fe640b;
+  --callout-danger-bg: #f0e4e6;
+  --callout-danger-border: #d20f39;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --glass-blur: 0px;
+  --glass-opacity: 1;
+  --surface-bg: #eff1f5;
+}
+
+/* ============================================================
+   Theme 11: Colorful — rainbow heading colors, vibrant light
+   ============================================================ */
+.theme-colorful {
+  --bg-color: #fefefe;
+  --text-color: #1e1e2e;
+  --text-muted: #6c6c7c;
+  --link-color: #6366f1;
+  --link-hover-color: #4f46e5;
+  --border-color: #e4e4ec;
+  --code-bg: #f5f5fa;
+  --blockquote-border: #f59e0b;
+  --blockquote-color: #4b5563;
+  --th-bg: #fafafe;
+  --broken-link-color: #ef4444;
+  --sidebar-bg: #fafafe;
+  --topbar-bg: #ffffff;
+  --search-overlay-bg: rgba(0, 0, 0, 0.35);
+  --search-modal-bg: #ffffff;
+  --graph-edge-color: #d4d4e0;
+  --graph-note-color: #6366f1;
+  --graph-tag-color: #f59e0b;
+  --graph-attachment-color: #10b981;
+  --graph-label-color: #374151;
+  --callout-note-bg: #eef2ff;
+  --callout-note-border: #6366f1;
+  --callout-tip-bg: #ecfdf5;
+  --callout-tip-border: #10b981;
+  --callout-warning-bg: #fffbeb;
+  --callout-warning-border: #f59e0b;
+  --callout-danger-bg: #fef2f2;
+  --callout-danger-border: #ef4444;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --glass-blur: 0px;
+  --glass-opacity: 1;
+  --surface-bg: #ffffff;
+  /* Rainbow headings */
+  --h1-color: #e11d48;
+  --h2-color: #7c3aed;
+  --h3-color: #2563eb;
+  --h4-color: #0891b2;
+  --h5-color: #059669;
+  --h6-color: #d97706;
+  --accent-1: #e11d48;
+  --accent-2: #7c3aed;
+  --accent-3: #f59e0b;
+  --accent-4: #f97316;
+  --accent-5: #10b981;
+  --accent-6: #6366f1;
+}
+
+/* ============================================================
+   Theme 12: Colorful Dark — rainbow heading colors, vibrant dark
+   ============================================================ */
+.theme-colorful-dark {
+  --bg-color: #18181b;
+  --text-color: #e4e4ec;
+  --text-muted: #9090a0;
+  --link-color: #818cf8;
+  --link-hover-color: #a5b4fc;
+  --border-color: #2d2d38;
+  --code-bg: #22222a;
+  --blockquote-border: #fbbf24;
+  --blockquote-color: #a1a1aa;
+  --th-bg: #22222a;
+  --broken-link-color: #f87171;
+  --sidebar-bg: #1b1b20;
+  --topbar-bg: #141418;
+  --search-overlay-bg: rgba(0, 0, 0, 0.6);
+  --search-modal-bg: #22222a;
+  --graph-edge-color: #3f3f50;
+  --graph-note-color: #818cf8;
+  --graph-tag-color: #fbbf24;
+  --graph-attachment-color: #34d399;
+  --graph-label-color: #d1d1dc;
+  --callout-note-bg: #1e1e38;
+  --callout-note-border: #818cf8;
+  --callout-tip-bg: #1a2e22;
+  --callout-tip-border: #34d399;
+  --callout-warning-bg: #2e2618;
+  --callout-warning-border: #fbbf24;
+  --callout-danger-bg: #2e1a1a;
+  --callout-danger-border: #f87171;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.35);
+  --glass-blur: 0px;
+  --glass-opacity: 1;
+  --surface-bg: #22222a;
+  /* Rainbow headings */
+  --h1-color: #fb7185;
+  --h2-color: #a78bfa;
+  --h3-color: #60a5fa;
+  --h4-color: #22d3ee;
+  --h5-color: #34d399;
+  --h6-color: #fbbf24;
+  --accent-1: #fb7185;
+  --accent-2: #a78bfa;
+  --accent-3: #fbbf24;
+  --accent-4: #fb923c;
+  --accent-5: #34d399;
+  --accent-6: #818cf8;
+}
