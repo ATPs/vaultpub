@@ -3,13 +3,15 @@ from __future__ import annotations
 
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.models import NoteRecord
+from vaultpub.core.paths import file_display_name
 
 
 def build_page_title(note: NoteRecord, config: PublisherConfig) -> str:
     """Build the <title> for a page."""
     site = config.site_title or config.site_name
-    if note.title:
-        return f"{note.title} - {site}"
+    display_name = file_display_name(note.rel_path)
+    if display_name:
+        return f"{display_name} - {site}"
     return site
 
 
@@ -53,7 +55,4 @@ def build_meta_tags(note: NoteRecord, config: PublisherConfig) -> str:
 
 
 def _note_public_url(note: NoteRecord) -> str:
-    permalink = note.frontmatter.get("permalink")
-    if permalink:
-        return "/" + str(permalink).lstrip("/")
     return note.url_path

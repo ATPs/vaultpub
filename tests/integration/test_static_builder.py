@@ -17,15 +17,18 @@ def test_build_static_site(vault_basic) -> None:
         result = builder.build(out)
         assert result.pages_written > 0
         assert (out / "index.html").exists()
+        assert (out / "README.md.html").exists()
+        assert (out / "Folder" / "index.html").exists()
         assert (out / "search-index.json").exists()
         assert (out / "graph.json").exists()
         assert (out / "robots.txt").exists()
-        home_html = (out / "README" / "index.html").read_text(encoding="utf-8")
+        home_html = (out / "README.md.html").read_text(encoding="utf-8")
         assert 'class="topbar-context topbar-context-note"' in home_html
         assert 'data-current-heading' in home_html
+        assert 'href="/A.md.html"' in home_html
 
 
-def test_build_static_site_uses_permalink_as_canonical(tmp_path: Path) -> None:
+def test_build_static_site_ignores_permalink_and_alias_routes(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     vault.mkdir()
     (vault / "README.md").write_text(
@@ -38,16 +41,13 @@ def test_build_static_site_uses_permalink_as_canonical(tmp_path: Path) -> None:
 
     builder.build(out, clean=True)
 
-    canonical = (out / "about" / "index.html").read_text(encoding="utf-8")
-    default_redirect = (out / "README" / "index.html").read_text(encoding="utf-8")
-    alias_redirect = (out / "Old Home" / "index.html").read_text(encoding="utf-8")
+    canonical = (out / "README.md.html").read_text(encoding="utf-8")
     sitemap = (out / "sitemap.xml").read_text(encoding="utf-8")
 
     assert "<h1" in canonical
-    assert 'content="0;url=/about"' in default_redirect
-    assert 'content="0;url=/about"' in alias_redirect
-    assert "https://notes.example.com/about" in sitemap
-    assert "https://notes.example.com/README" not in sitemap
+    assert not (out / "about").exists()
+    assert not (out / "Old Home").exists()
+    assert "https://notes.example.com/README.md.html" in sitemap
 
 
 def test_build_static_site_renders_topbar_code_tools_for_text_pages(tmp_path: Path) -> None:
@@ -64,7 +64,7 @@ def test_build_static_site_renders_topbar_code_tools_for_text_pages(tmp_path: Pa
 
     builder.build(out, clean=True)
 
-    code_html = (out / "tools" / "example.py" / "index.html").read_text(encoding="utf-8")
+    code_html = (out / "tools" / "example.py.html").read_text(encoding="utf-8")
     assert 'class="topbar-context topbar-context-code"' in code_html
     assert 'data-code-action="copy-path"' in code_html
     assert 'data-code-action="toggle-wrap"' in code_html

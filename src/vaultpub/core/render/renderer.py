@@ -22,6 +22,7 @@ from vaultpub.core.parser.obsidian_links import (
     parse_wikilink_target,
     strip_obsidian_comments,
 )
+from vaultpub.core.paths import file_display_name
 from vaultpub.core.render.sanitize import add_external_link_attrs, sanitize_html
 
 _PLACEHOLDER_RE = re.compile(r"VAULTPUB_PLACEHOLDER_(\d+)")
@@ -147,7 +148,7 @@ class Renderer:
                 if anchor:
                     sep = "#^" if anchor.startswith("^") else "#"
                     resolved_url += sep + (anchor.lstrip("^") if anchor.startswith("^") else _slugify(anchor))
-                dtext = display_text or target_text or PurePosixPath(target_text).stem
+                dtext = display_text or file_display_name(target_note.rel_path)
                 if is_embed:
                     if embed_depth >= 5:
                         embed_html = '<div class="embed-error">Maximum embed depth exceeded</div>'
@@ -171,7 +172,7 @@ class Renderer:
                     replacements.append((start, end, self._placeholder(counter)))
                     counter += 1
             else:
-                dtext = display_text or target_text or PurePosixPath(target_text).stem
+                dtext = display_text or _default_file_label(target_text)
                 resolved_target = target_text
                 if "|" in raw_target and "#" not in raw_target.split("|")[0]:
                     resolved_target = raw_target.split("|", 1)[0]
@@ -287,11 +288,12 @@ class Renderer:
 
         return re.sub(r"<h([1-6])>(.+?)</h\1>", _add_anchor, html)
 
-    def render_article_html(self, note: NoteRecord) -> str:
+    def render_article_html(self, note: NoteRecord, current_path: str | None = None) -> str:
         body = self.render_note(note)
+        page_path = escape(current_path or note.url_path, quote=True)
 
         return f"""\
-<article class="note" data-note-id="{note.id}" data-note-path="{note.url_path}">
+<article class="note" data-note-id="{note.id}" data-note-path="{page_path}" data-current-path="{page_path}">
   <div class="markdown-body">{body}</div>
 </article>"""
 
@@ -312,7 +314,9 @@ class Renderer:
             bl_note = self.index.notes_by_id.get(bid)
             if bl_note:
                 links.append(
-                    f'<li><a href="{_note_public_url(bl_note)}" class="internal-link">{escape(bl_note.title)}</a></li>'
+                    '<li><a href="'
+                    f'{_note_public_url(bl_note)}" class="internal-link">{escape(file_display_name(bl_note.rel_path))}'
+                    "</a></li>"
                 )
         if not links:
             return ""
@@ -345,7 +349,13 @@ def _slugify(text: str) -> str:
 
 
 def _note_public_url(note: NoteRecord) -> str:
-    permalink = note.frontmatter.get("permalink")
-    if permalink:
-        return "/" + str(permalink).lstrip("/")
     return note.url_path
+
+
+def _default_file_label(target_text: str) -> str:
+    if not target_text:
+        return ""
+    target_path = PurePosixPath(target_text)
+    if target_path.suffix:
+        return target_path.name
+    return f"{target_path.name}.md"

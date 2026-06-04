@@ -13,13 +13,13 @@ def test_build_page_title() -> None:
     note = NoteRecord(
         id="1",
         rel_path=Path("Test.md"),
-        url_path="/Test",
+        url_path="/Test.md",
         title="Test Page",
         stem="Test",
         excerpt="excerpt",
     )
     title = build_page_title(note, config)
-    assert title == "Test Page - My KB"
+    assert title == "Test.md - My KB"
 
 
 def test_build_page_description_from_frontmatter() -> None:
@@ -27,7 +27,7 @@ def test_build_page_description_from_frontmatter() -> None:
     note = NoteRecord(
         id="1",
         rel_path=Path("Test.md"),
-        url_path="/Test",
+        url_path="/Test.md",
         title="Test",
         stem="Test",
         frontmatter={"description": "Custom SEO description"},

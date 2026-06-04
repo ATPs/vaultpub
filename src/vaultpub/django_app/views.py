@@ -3,17 +3,21 @@ from __future__ import annotations
 
 import re
 from html import escape
+from pathlib import PurePosixPath
 
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 
 from vaultpub.core.index.indexer import VaultIndexer
-from vaultpub.core.models import NoteRecord, TextPageRecord, VaultIndex
+from vaultpub.core.models import NavNode, NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.render import Renderer
 from vaultpub.core.render.seo import build_meta_tags, build_page_description, build_page_title
 from vaultpub.core.render.templates import (
+    directory_page_html,
+    find_nav_directory,
     nav_tree_html,
     sidebar_graph_state,
+    topbar_context_html_for_directory,
     topbar_context_html_for_note,
     topbar_context_html_for_text_page,
 )
@@ -45,9 +49,6 @@ def _get_state():
 
 
 def _note_public_url(note: NoteRecord) -> str:
-    permalink = note.frontmatter.get("permalink")
-    if permalink:
-        return "/" + str(permalink).lstrip("/")
     return note.url_path
 
 
@@ -81,26 +82,13 @@ def _prefix_html_urls(html: str, config: object) -> str:
     return _ABSOLUTE_ATTR_RE.sub(_replace, html)
 
 
-def _build_url_maps(index: VaultIndex) -> tuple[dict[str, NoteRecord], dict[str, str], dict[str, NoteRecord]]:
+def _build_url_maps(index: VaultIndex) -> tuple[dict[str, NoteRecord], dict[str, NoteRecord]]:
     canonical_to_note: dict[str, NoteRecord] = {}
-    redirect_map: dict[str, str] = {}
-    all_urls_to_note: dict[str, NoteRecord] = {}
 
     for note in index.notes_by_id.values():
         canonical = _note_public_url(note)
         canonical_to_note[canonical] = note
-        all_urls_to_note[canonical] = note
-        all_urls_to_note[note.url_path] = note
-        if note.url_path != canonical:
-            redirect_map[note.url_path] = canonical
-
-        for alias in note.aliases:
-            alias_path = "/" + alias.lstrip("/")
-            all_urls_to_note[alias_path] = note
-            if alias_path != canonical:
-                redirect_map[alias_path] = canonical
-
-    return canonical_to_note, redirect_map, all_urls_to_note
+    return canonical_to_note, canonical_to_note
 
 
 def _build_nav_html(index: VaultIndex, config: object) -> str:
@@ -120,16 +108,17 @@ def index(request: HttpRequest) -> HttpResponse:
 def page(request: HttpRequest, note_path: str) -> HttpResponse:
     state = _get_state()
     rel_path = "/" + note_path
-    canonical_to_note, redirect_map, _all_urls_to_note = _build_url_maps(state["index"])
+    canonical_to_note, _all_urls_to_note = _build_url_maps(state["index"])
+    if note_path.endswith("/"):
+        directory = _resolve_directory(state["index"].nav_tree, note_path)
+        if directory is not None and directory.path not in ("", "."):
+            return _render_directory_page(request, directory)
+        raise Http404("Not found")
     note = canonical_to_note.get(rel_path)
     if note:
         if not is_path_public(note.rel_path.as_posix(), state["config"]):
             raise Http404("Not found")
         return _render_note(request, note)
-    if rel_path in redirect_map:
-        response = HttpResponse(status=301)
-        response["Location"] = _prefix_url(state["config"], redirect_map[rel_path]) or redirect_map[rel_path]
-        return response
 
     # Check text pages
     tp = state["index"].text_pages_by_path.get(note_path)
@@ -158,13 +147,13 @@ def attachment(request: HttpRequest, asset_path: str) -> HttpResponse:
 def api_page(request: HttpRequest, note_path: str) -> JsonResponse:
     state = _get_state()
     rel_path = "/" + note_path
-    _canonical_to_note, _redirect_map, all_urls_to_note = _build_url_maps(state["index"])
+    _canonical_to_note, all_urls_to_note = _build_url_maps(state["index"])
     note = all_urls_to_note.get(rel_path)
     if note:
         html = _prefix_html_urls(state["renderer"].render_note(note), state["config"])
         return JsonResponse({
             "id": note.id,
-            "title": note.title,
+            "title": note.rel_path.name,
             "url": _prefix_url(state["config"], _note_public_url(note)),
             "html": html,
             "tags": list(note.tags),
@@ -228,7 +217,7 @@ def api_local_graph(request: HttpRequest, note_path: str) -> JsonResponse:
     state = _get_state()
     graph = state["index"].graph
     note_id = None
-    _canonical_to_note, _redirect_map, all_urls_to_note = _build_url_maps(state["index"])
+    _canonical_to_note, all_urls_to_note = _build_url_maps(state["index"])
     note = all_urls_to_note.get("/" + note_path)
     if note:
         note_id = note.id
@@ -252,9 +241,10 @@ def _render_note(request: HttpRequest, note: NoteRecord) -> HttpResponse:
     config = state["config"]
     index: VaultIndex = state["index"]
     renderer: Renderer = state["renderer"]
+    current_path = _prefix_url(config, _note_public_url(note)) or _note_public_url(note)
 
     context = {
-        "content": _prefix_html_urls(renderer.render_note(note), config),
+        "page_body_html": _prefix_html_urls(renderer.render_article_html(note, current_path), config),
         "title": build_page_title(note, config),
         "site_name": config.site_name,
         "description": build_page_description(note, config),
@@ -281,9 +271,10 @@ def _render_text_page(request: HttpRequest, tp: TextPageRecord) -> HttpResponse:
     state = _get_state()
     config = state["config"]
     index = state["index"]
+    current_path = _prefix_url(config, tp.url_path) or tp.url_path
 
     context = {
-        "content": _prefix_html_urls(_render_text_page_content(tp), config),
+        "page_body_html": _prefix_html_urls(_render_text_page_content(tp, current_path), config),
         "title": tp.title,
         "site_name": config.site_name,
         "description": tp.excerpt,
@@ -306,12 +297,52 @@ def _render_text_page(request: HttpRequest, tp: TextPageRecord) -> HttpResponse:
     return render(request, "vaultpub/page.html", context)
 
 
-def _render_text_page_content(tp: TextPageRecord) -> str:
+def _render_directory_page(request: HttpRequest, directory: NavNode) -> HttpResponse:
+    state = _get_state()
+    config = state["config"]
+    index: VaultIndex = state["index"]
+
+    page_body_html = directory_page_html(directory, current_path=_prefix_url(config, directory.url) or directory.url)
+    context = {
+        "page_body_html": _prefix_html_urls(page_body_html, config),
+        "title": f"{directory.label}/ - {config.site_name}",
+        "site_name": config.site_name,
+        "description": f"{directory.label}/",
+        "note_id": directory.path,
+        "url_path": _prefix_url(config, directory.url),
+        "nav_html": _build_nav_html(index, config),
+        "toc_html": "",
+        "backlinks_html": "",
+        "realtime": config.realtime,
+        "site_logo": config.site_logo,
+        "show_theme_toggle": config.show_theme_toggle,
+        "show_search": config.show_search,
+        "url_prefix": _url_prefix(config),
+        "seo_head": f"<title>{escape(directory.label)}/ - {escape(config.site_name)}</title>",
+        "topbar_context_html": topbar_context_html_for_directory(
+            PurePosixPath(directory.path),
+            home_url=_url_prefix(config),
+        ),
+    }
+    show_graph, graph_note_id = sidebar_graph_state(config, index.graph, None)
+    context["show_graph"] = show_graph
+    context["graph_note_id"] = graph_note_id
+    return render(request, "vaultpub/page.html", context)
+
+
+def _render_text_page_content(tp: TextPageRecord, current_path: str | None = None) -> str:
     lang_class = f"language-{tp.language}" if tp.language else ""
+    page_path = escape(current_path or tp.url_path, quote=True)
     return f"""\
-<article class="text-page" data-page-id="{tp.id}" data-page-path="{escape(tp.url_path)}">
+<article class="text-page" data-page-id="{tp.id}" data-page-path="{page_path}" data-current-path="{page_path}">
   <h1>{escape(tp.title)}</h1>
   <div class="code-block">
     <pre><code class="{lang_class}">{escape(tp.raw_text)}</code></pre>
   </div>
 </article>"""
+
+
+def _resolve_directory(nav_tree: NavNode | None, request_path: str) -> NavNode | None:
+    if nav_tree is None:
+        return None
+    return find_nav_directory(nav_tree, request_path.rstrip("/"))

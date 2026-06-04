@@ -24,7 +24,7 @@ def test_root_returns_home(client) -> None:
 
 
 def test_note_page(client) -> None:
-    response = client.get("/README")
+    response = client.get("/README.md")
     assert response.status_code == 200
     assert "README" in response.text
     assert 'data-sidebar-toggle="left"' in response.text
@@ -38,14 +38,14 @@ def test_note_page(client) -> None:
 
 
 def test_note_page_renders_toc_in_right_sidebar(client) -> None:
-    response = client.get("/A")
+    response = client.get("/A.md")
     assert response.status_code == 200
     assert '<aside class="sidebar-right">' in response.text
     assert "<h3>Contents</h3>" in response.text
 
 
 def test_note_page_uses_local_graph_placeholder(client) -> None:
-    response = client.get("/A")
+    response = client.get("/A.md")
     assert response.status_code == 200
     assert 'id="graph-container"' in response.text
     assert 'data-graph-note-id="note:' in response.text
@@ -64,7 +64,7 @@ def test_search_index_json(client) -> None:
     assert response.status_code == 200
     data = response.json()
     assert isinstance(data, list)
-    assert any(doc["title"] == "README" for doc in data)
+    assert any(doc["title"] == "README.md" for doc in data)
 
 
 def test_api_graph(client) -> None:
@@ -82,7 +82,7 @@ def test_note_page_omits_graph_when_local_graph_is_too_small(tmp_path: Path) -> 
     app = create_app(PublisherConfig(vault_path=tmp_path, realtime=False))
     client = TestClient(app)
 
-    response = client.get("/README")
+    response = client.get("/README.md")
     assert response.status_code == 200
     assert 'id="graph-container"' not in response.text
 
@@ -111,17 +111,29 @@ def test_note_not_found(client) -> None:
 
 
 def test_folder_note(client) -> None:
-    response = client.get("/Folder/B")
+    response = client.get("/Folder/B.md")
     assert response.status_code == 200
     assert "Note B" in response.text or "B" in response.text
 
 
 def test_api_page(client) -> None:
-    response = client.get("/api/page/README")
+    response = client.get("/api/page/README.md")
     assert response.status_code == 200
     data = response.json()
     assert "html" in data
     assert "title" in data
+
+
+def test_directory_page(client) -> None:
+    response = client.get("/Folder/")
+    assert response.status_code == 200
+    assert 'class="directory-page"' in response.text
+    assert 'href="/Folder/B.md"' in response.text
+
+
+def test_old_extensionless_note_route_is_not_supported(client) -> None:
+    response = client.get("/Folder/B")
+    assert response.status_code == 404
 
 
 def test_force_included_text_page_renders_topbar_code_tools(tmp_path: Path) -> None:
@@ -149,18 +161,15 @@ def test_permalink_and_alias_routes_and_api(tmp_path: Path) -> None:
     app = create_app(PublisherConfig(vault_path=tmp_path, realtime=False))
     client = TestClient(app)
 
-    default_response = client.get("/README", follow_redirects=False)
-    assert default_response.status_code == 301
-    assert default_response.headers["location"] == "/about"
+    default_response = client.get("/README.md")
+    assert default_response.status_code == 200
 
     canonical_response = client.get("/about")
-    assert canonical_response.status_code == 200
-    assert "Home" in canonical_response.text
+    assert canonical_response.status_code == 404
 
-    alias_response = client.get("/Old%20Home", follow_redirects=False)
-    assert alias_response.status_code == 301
-    assert alias_response.headers["location"] == "/about"
+    alias_response = client.get("/Old%20Home")
+    assert alias_response.status_code == 404
 
-    api_response = client.get("/api/page/about")
+    api_response = client.get("/api/page/README.md")
     assert api_response.status_code == 200
-    assert api_response.json()["url"] == "/about"
+    assert api_response.json()["url"] == "/README.md"

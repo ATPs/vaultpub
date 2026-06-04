@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from html import escape
 from pathlib import PurePosixPath
+from typing import Callable
 
-from vaultpub.core.models import GraphData, Heading, NoteRecord, TextPageRecord
+from vaultpub.core.models import GraphData, Heading, NavNode, NoteRecord, TextPageRecord
+from vaultpub.core.paths import directory_display_name
 
 
 def build_local_graph(graph: GraphData, note: NoteRecord) -> GraphData:
@@ -129,6 +131,17 @@ def topbar_context_html_for_text_page(text_page: TextPageRecord, home_url: str =
 </div>"""
 
 
+def topbar_context_html_for_directory(dir_path: PurePosixPath, home_url: str = "/") -> str:
+    directory_name = escape(directory_display_name(dir_path))
+    return f"""\
+<div class="topbar-context topbar-context-note" data-topbar-context="directory">
+  <nav class="topbar-breadcrumbs" aria-label="Current location">
+    {_breadcrumbs_html(dir_path, home_url)}
+  </nav>
+  <span class="topbar-current-heading" data-current-heading>{directory_name}/</span>
+</div>"""
+
+
 def base_page_template(
     content_html: str,
     nav_html: str = "",
@@ -198,7 +211,63 @@ def base_page_template(
 </html>"""
 
 
-def nav_tree_html(node: object, path: tuple[str, ...] = ()) -> str:
+def find_nav_directory(node: NavNode | None, dir_path: str) -> NavNode | None:
+    """Return the nav directory node for a relative directory path."""
+    if node is None:
+        return None
+    normalized = dir_path.strip("/")
+    if normalized in ("", "."):
+        return node
+    if node.is_dir and node.path == normalized:
+        return node
+    for child in node.children:
+        if child.is_dir:
+            found = find_nav_directory(child, normalized)
+            if found is not None:
+                return found
+    return None
+
+
+def directory_page_html(
+    node: NavNode,
+    current_path: str,
+    url_transform: Callable[[str], str] | None = None,
+) -> str:
+    """Render a directory landing page with cards for its direct children."""
+    items: list[str] = []
+    for child in node.children:
+        child_url = _transform_url(child.url, url_transform)
+        child_title = f"{child.label}/" if child.is_dir else child.label
+        child_meta = "Folder" if child.is_dir else child.path
+        item_class = "directory-card is-folder" if child.is_dir else "directory-card is-file"
+        items.append(
+            f'<a href="{escape(child_url, quote=True)}" class="{item_class}">'
+            f'<span class="directory-card-title">{escape(child_title)}</span>'
+            f'<span class="directory-card-meta">{escape(child_meta)}</span>'
+            "</a>"
+        )
+
+    directory_title = "Home" if node.path in (".", "") else f"{directory_display_name(node.path)}/"
+    item_count = f"{len(node.children)} item" if len(node.children) == 1 else f"{len(node.children)} items"
+    empty_state = '<p class="directory-empty">This folder has no published children.</p>' if not items else ""
+    grid = f'<div class="directory-grid">{"".join(items)}</div>' if items else ""
+    current_attr = escape(current_path, quote=True)
+    return f"""\
+<article class="directory-page" data-current-path="{current_attr}">
+  <header class="directory-page-header">
+    <h1>{escape(directory_title)}</h1>
+    <p>{escape(item_count)}</p>
+  </header>
+  {empty_state}
+  {grid}
+</article>"""
+
+
+def nav_tree_html(
+    node: object,
+    path: tuple[str, ...] = (),
+    url_transform: Callable[[str], str] | None = None,
+) -> str:
     """Render a nav tree node to HTML."""
     if node is None:
         return ""
@@ -210,16 +279,28 @@ def nav_tree_html(node: object, path: tuple[str, ...] = ()) -> str:
     node_path = path if label == "/" and not path else (*path, label)
 
     if label == "/" and is_dir and not path:
-        return "".join(nav_tree_html(c, node_path) for c in children)
+        return "".join(nav_tree_html(c, node_path, url_transform) for c in children)
 
     if is_dir:
         if not children:
             return ""
-        child_html = "".join(nav_tree_html(c, node_path) for c in children)
+        child_html = "".join(nav_tree_html(c, node_path, url_transform) for c in children)
         nav_key = escape("/".join(node_path) or "/", quote=True)
+        folder_url = escape(_transform_url(str(url), url_transform), quote=True)
+        folder_path = escape(str(getattr(node, "path", "")), quote=True)
         return (
             f'<li><details open data-nav-key="{nav_key}">'
-            f"<summary>{escape(label)}</summary><ul>{child_html}</ul></details></li>"
+            f'<summary class="nav-folder-summary" data-folder-path="{folder_path}">'
+            f'<a href="{folder_url}" class="nav-folder-link">{escape(label)}/</a>'
+            '<button type="button" class="nav-folder-toggle" aria-label="Toggle folder">'
+            '<span class="nav-folder-toggle-icon" aria-hidden="true"></span>'
+            "</button>"
+            f"</summary><ul>{child_html}</ul></details></li>"
         )
     else:
-        return f'<li><a href="{escape(str(url), quote=True)}" class="internal-link">{escape(label)}</a></li>'
+        file_url = escape(_transform_url(str(url), url_transform), quote=True)
+        return f'<li><a href="{file_url}" class="internal-link">{escape(label)}</a></li>'
+
+
+def _transform_url(url: str, url_transform: Callable[[str], str] | None) -> str:
+    return url_transform(url) if url_transform is not None else url

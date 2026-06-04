@@ -25,6 +25,7 @@ def test_build_index(vault_basic) -> None:
 
     # Check search documents
     assert len(vault_index.search_documents) == 3
+    assert any(doc["title"] == "README.md" for doc in vault_index.search_documents)
 
 
 def test_link_resolution(vault_basic) -> None:

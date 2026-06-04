@@ -33,8 +33,8 @@ def test_normalize_rel_path() -> None:
 
 
 def test_rel_path_to_url_path() -> None:
-    assert rel_path_to_url_path("README.md") == "/README"
-    assert rel_path_to_url_path("Folder/My Note.md") == "/Folder/My Note"
+    assert rel_path_to_url_path("README.md") == "/README.md"
+    assert rel_path_to_url_path("Folder/My Note.md") == "/Folder/My Note.md"
     assert rel_path_to_url_path("image.png") == "/image.png"
 
 

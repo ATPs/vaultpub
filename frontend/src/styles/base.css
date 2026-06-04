@@ -305,18 +305,82 @@ h6:hover .heading-anchor {
 }
 
 .file-tree details > summary {
-  cursor: pointer;
-  padding: 0.25em 0;
+  list-style: none;
+  padding: 0;
   line-height: 1.4;
-  overflow-wrap: anywhere;
-  word-break: break-word;
   font-size: 0.93em;
   border-radius: 4px;
-  transition: background var(--transition-fast);
 }
 
-.file-tree details > summary:hover {
+.file-tree details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.file-tree .nav-folder-summary {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35em;
+}
+
+.file-tree .nav-folder-link,
+.file-tree .nav-folder-toggle {
+  line-height: 1.4;
+  font-size: 0.93em;
+  border-radius: 4px;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.file-tree .nav-folder-link {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  padding: 0.25em 0.4em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: var(--text-color);
+}
+
+.file-tree .nav-folder-link:hover {
   background: var(--code-bg);
+  text-decoration: none;
+}
+
+.file-tree .nav-folder-link.active,
+.file-tree details.has-active-descendant > summary .nav-folder-link,
+.file-tree .nav-folder-link.active-parent {
+  background: color-mix(in srgb, var(--link-color) 12%, transparent);
+  color: var(--link-color);
+}
+
+.file-tree .nav-folder-toggle {
+  flex: 0 0 auto;
+  width: 30px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.file-tree .nav-folder-toggle:hover {
+  background: var(--code-bg);
+  border-color: var(--border-color);
+}
+
+.file-tree .nav-folder-toggle-icon {
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform var(--transition-fast);
+}
+
+.file-tree details[open] > summary .nav-folder-toggle-icon {
+  transform: rotate(135deg);
 }
 
 .file-tree a {
@@ -346,6 +410,69 @@ h6:hover .heading-anchor {
 .file-tree a.active:hover {
   background: var(--link-hover-color);
   text-decoration: none;
+}
+
+.file-tree .nav-folder-link.active,
+.file-tree .nav-folder-link.active:hover,
+.file-tree details.has-active-descendant > summary .nav-folder-link,
+.file-tree details.has-active-descendant > summary .nav-folder-link:hover,
+.file-tree .nav-folder-link.active-parent,
+.file-tree .nav-folder-link.active-parent:hover {
+  background: color-mix(in srgb, var(--link-color) 12%, transparent);
+  color: var(--link-color);
+  font-weight: 600;
+}
+
+.directory-page-header {
+  margin-bottom: 1.6em;
+}
+
+.directory-page-header h1 {
+  margin-top: 0;
+  margin-bottom: 0.25em;
+}
+
+.directory-page-header p,
+.directory-empty,
+.directory-card-meta {
+  color: var(--text-muted);
+}
+
+.directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.9em;
+}
+
+.directory-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  min-height: 108px;
+  padding: 1em 1.05em;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-bg);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+  transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.directory-card:hover {
+  text-decoration: none;
+  border-color: var(--link-color);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.directory-card-title {
+  color: var(--text-color);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.directory-card.is-folder .directory-card-title {
+  color: var(--link-color);
 }
 
 /* Mobile menu button */

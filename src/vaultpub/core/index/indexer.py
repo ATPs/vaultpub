@@ -16,6 +16,7 @@ from vaultpub.core.models import (
     TextPageRecord,
     VaultIndex,
 )
+from vaultpub.core.paths import file_display_name
 from vaultpub.core.parser.obsidian_links import (
     find_wikilinks,
     parse_wikilink_target,
@@ -70,15 +71,6 @@ class VaultIndexer:
                 key = tag.lower()
                 tags.setdefault(key, set()).add(note.id)
 
-        permalinks: dict[str, str] = {}
-        redirects: dict[str, str] = {}
-        for note in notes:
-            permalink = note.frontmatter.get("permalink")
-            if permalink:
-                p = "/" + str(permalink).lstrip("/")
-                permalinks[p] = note.id
-                redirects[note.url_path] = p
-
         return VaultIndex(
             notes_by_id=notes_by_id,
             notes_by_path=notes_by_path,
@@ -91,8 +83,8 @@ class VaultIndexer:
             tags=tags,
             graph=graph,
             search_documents=search_docs,
-            permalinks=permalinks,
-            redirects=redirects,
+            permalinks={},
+            redirects={},
         )
 
     def _parse_note_body(self, note: NoteRecord) -> None:
@@ -228,7 +220,13 @@ class VaultIndexer:
             if nid not in seen_nodes:
                 seen_nodes.add(nid)
                 nodes.append(
-                    GraphNode(id=nid, label=note.title, title=note.title, url=_note_public_url(note), group="note")
+                    GraphNode(
+                        id=nid,
+                        label=file_display_name(note.rel_path),
+                        title=file_display_name(note.rel_path),
+                        url=_note_public_url(note),
+                        group="note",
+                    )
                 )
 
             for link in note.outgoing_links:
@@ -241,7 +239,13 @@ class VaultIndexer:
                 if tid not in seen_tags:
                     seen_tags.add(tid)
                     nodes.append(
-                        GraphNode(id=tid, label=f"#{tag}", title=f"#{tag}", url=f"/tags/{tag.lower()}", group="tag")
+                        GraphNode(
+                            id=tid,
+                            label=f"#{tag}",
+                            title=f"#{tag}",
+                            url=f"/tags/{tag.lower()}/",
+                            group="tag",
+                        )
                     )
                 edges.append(GraphEdge(source=nid, target=tid, kind="tag"))
 
@@ -254,7 +258,7 @@ class VaultIndexer:
         for note in notes:
             docs.append({
                 "id": note.content_hash,
-                "title": note.title,
+                "title": file_display_name(note.rel_path),
                 "path": note.rel_path.as_posix(),
                 "url": _note_public_url(note),
                 "content": note.plain_text[:5000],
@@ -266,7 +270,7 @@ class VaultIndexer:
         for tp in text_pages:
             docs.append({
                 "id": tp.id,
-                "title": tp.title,
+                "title": file_display_name(tp.rel_path),
                 "path": tp.rel_path.as_posix(),
                 "url": tp.url_path,
                 "content": tp.plain_text[:5000],
@@ -287,7 +291,4 @@ def _slugify(text: str) -> str:
 
 
 def _note_public_url(note: NoteRecord) -> str:
-    permalink = note.frontmatter.get("permalink")
-    if permalink:
-        return "/" + str(permalink).lstrip("/")
     return note.url_path

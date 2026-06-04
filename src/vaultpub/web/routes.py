@@ -3,21 +3,25 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from html import escape
+from pathlib import PurePosixPath
 
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
 
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
-from vaultpub.core.models import NoteRecord, TextPageRecord, VaultIndex
+from vaultpub.core.models import NavNode, NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.paths import safe_join
 from vaultpub.core.render.renderer import Renderer
 from vaultpub.core.render.seo import build_meta_tags
 from vaultpub.core.render.templates import (
     base_page_template,
+    directory_page_html,
+    find_nav_directory,
     graph_container_html,
     nav_tree_html,
     sidebar_graph_state,
+    topbar_context_html_for_directory,
     topbar_context_html_for_note,
     topbar_context_html_for_text_page,
 )
@@ -49,33 +53,16 @@ def _get_state(request: Request) -> AppState:
 
 
 def _note_public_url(note: NoteRecord) -> str:
-    permalink = note.frontmatter.get("permalink")
-    if permalink:
-        return "/" + str(permalink).lstrip("/")
     return note.url_path
 
 
-def _build_url_maps(index: VaultIndex) -> tuple[dict[str, NoteRecord], dict[str, str], dict[str, NoteRecord]]:
+def _build_url_maps(index: VaultIndex) -> tuple[dict[str, NoteRecord], dict[str, NoteRecord]]:
     canonical_to_note: dict[str, NoteRecord] = {}
-    redirect_map: dict[str, str] = {}
-    all_urls_to_note: dict[str, NoteRecord] = {}
 
     for note in index.notes_by_id.values():
         canonical = _note_public_url(note)
         canonical_to_note[canonical] = note
-        all_urls_to_note[canonical] = note
-        all_urls_to_note[note.url_path] = note
-
-        if note.url_path != canonical:
-            redirect_map[note.url_path] = canonical
-
-        for alias in note.aliases:
-            alias_path = "/" + alias.lstrip("/")
-            all_urls_to_note[alias_path] = note
-            if alias_path != canonical:
-                redirect_map[alias_path] = canonical
-
-    return canonical_to_note, redirect_map, all_urls_to_note
+    return canonical_to_note, canonical_to_note
 
 
 async def index_page(request: Request) -> HTMLResponse:
@@ -91,7 +78,13 @@ async def page(request: Request) -> HTMLResponse:
     path = request.path_params.get("path", "")
     rel_path = "/" + path
 
-    url_to_note, redirect_map, _all_urls_to_note = _build_url_maps(state.index)
+    url_to_note, all_urls_to_note = _build_url_maps(state.index)
+
+    if path.endswith("/"):
+        directory = _resolve_directory(state.index.nav_tree, path)
+        if directory is not None and directory.path not in ("", "."):
+            return _render_directory_page(request, directory)
+        return HTMLResponse("Not found", status_code=404)
 
     # Check note pages first
     if rel_path in url_to_note:
@@ -99,13 +92,6 @@ async def page(request: Request) -> HTMLResponse:
         if not is_path_public(note.rel_path.as_posix(), state.config):
             return HTMLResponse("Not found", status_code=404)
         return _render_note_page(request, note)
-
-    # Check redirects
-    if rel_path in redirect_map:
-        return HTMLResponse(
-            status_code=301,
-            headers={"Location": redirect_map[rel_path]},
-        )
 
     # Check text pages
     tp = state.index.text_pages_by_path.get(path)
@@ -141,13 +127,13 @@ async def api_page(request: Request) -> JSONResponse:
     path = request.path_params.get("path", "")
     rel_path = "/" + path
 
-    _canonical_to_note, _redirect_map, all_urls_to_note = _build_url_maps(state.index)
+    _canonical_to_note, all_urls_to_note = _build_url_maps(state.index)
     note = all_urls_to_note.get(rel_path)
     if note:
         html = state.renderer.render_note(note)
         return JSONResponse({
             "id": note.id,
-            "title": note.title,
+            "title": note.rel_path.name,
             "url": _note_public_url(note),
             "html": html,
             "tags": list(note.tags),
@@ -214,7 +200,7 @@ async def api_graph(request: Request) -> JSONResponse:
 
     if path:
         note_id = None
-        _canonical_to_note, _redirect_map, all_urls_to_note = _build_url_maps(state.index)
+        _canonical_to_note, all_urls_to_note = _build_url_maps(state.index)
         note = all_urls_to_note.get("/" + path)
         if note:
             note_id = note.id
@@ -259,6 +245,29 @@ def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:
     return HTMLResponse(page_str)
 
 
+def _render_directory_page(request: Request, directory: NavNode) -> HTMLResponse:
+    state = _get_state(request)
+    body_html = directory_page_html(directory, current_path=directory.url)
+    nav_html = ""
+    if state.index.nav_tree:
+        nav_html = "<ul>" + nav_tree_html(state.index.nav_tree) + "</ul>"
+    show_graph, graph_note_id = sidebar_graph_state(state.config, state.index.graph, None)
+    graph_html = graph_container_html(show_graph, graph_note_id)
+    title = "Home" if directory.path in ("", ".") else f"{directory.label}/"
+    head = f"<title>{escape(title)} - {escape(state.config.site_name)}</title>"
+    topbar_context_html = topbar_context_html_for_directory(PurePosixPath(directory.path), home_url="/")
+    page_str = base_page_template(
+        body_html,
+        nav_html,
+        head,
+        state.config,
+        "",
+        graph_html,
+        topbar_context_html=topbar_context_html,
+    )
+    return HTMLResponse(page_str)
+
+
 def _render_text_page(request: Request, tp: TextPageRecord) -> HTMLResponse:
     state = _get_state(request)
     body_html = _render_text_page_content(tp)
@@ -281,12 +290,19 @@ def _render_text_page(request: Request, tp: TextPageRecord) -> HTMLResponse:
     return HTMLResponse(page_str)
 
 
-def _render_text_page_content(tp: TextPageRecord) -> str:
+def _render_text_page_content(tp: TextPageRecord, current_path: str | None = None) -> str:
     lang_class = f"language-{tp.language}" if tp.language else ""
+    page_path = escape(current_path or tp.url_path, quote=True)
     return f"""\
-<article class="text-page" data-page-id="{tp.id}" data-page-path="{escape(tp.url_path)}">
+<article class="text-page" data-page-id="{tp.id}" data-page-path="{page_path}" data-current-path="{page_path}">
   <h1>{escape(tp.title)}</h1>
   <div class="code-block">
     <pre><code class="{lang_class}">{escape(tp.raw_text)}</code></pre>
   </div>
 </article>"""
+
+
+def _resolve_directory(nav_tree: NavNode | None, request_path: str) -> NavNode | None:
+    if nav_tree is None:
+        return None
+    return find_nav_directory(nav_tree, request_path.rstrip("/"))

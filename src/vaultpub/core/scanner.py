@@ -9,7 +9,13 @@ from pathlib import Path, PurePosixPath
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.exceptions import PathTraversalError
 from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord, TextPageRecord
-from vaultpub.core.paths import generate_note_id, normalize_rel_path, rel_path_to_url_path
+from vaultpub.core.paths import (
+    directory_path_to_url_path,
+    file_display_name,
+    generate_note_id,
+    normalize_rel_path,
+    rel_path_to_url_path,
+)
 from vaultpub.core.security import (
     ALWAYS_FORBIDDEN,
     is_force_included,
@@ -181,7 +187,7 @@ class VaultScanner:
             id=page_id,
             rel_path=PurePosixPath(rel),
             url_path=url_path,
-            title=stem,
+            title=file_display_name(rel),
             stem=stem,
             language=language,
             raw_text=content,
@@ -251,7 +257,7 @@ class VaultScanner:
                 current = child
             # Add note as leaf
             current.children.append(NavNode(
-                label=note.title,
+                label=file_display_name(note.rel_path),
                 path=note.rel_path.as_posix(),
                 url=note.url_path,
             ))
@@ -266,7 +272,7 @@ class VaultScanner:
                 child = _find_or_create_dir(current, part)
                 current = child
             current.children.append(NavNode(
-                label=tp.title,
+                label=file_display_name(tp.rel_path),
                 path=tp.rel_path.as_posix(),
                 url=tp.url_path,
             ))
@@ -305,7 +311,9 @@ def _find_or_create_dir(parent: NavNode, name: str) -> NavNode:
     for child in parent.children:
         if child.is_dir and child.label == name:
             return child
-    dir_node = NavNode(label=name, path=name, url="/", is_dir=True)
+    parent_path = "" if parent.path in ("", ".") else parent.path
+    dir_path = f"{parent_path}/{name}" if parent_path else name
+    dir_node = NavNode(label=name, path=dir_path, url=directory_path_to_url_path(dir_path), is_dir=True)
     parent.children.append(dir_node)
     return dir_node
 
