@@ -13,6 +13,7 @@ from vaultpub.core.models import (
     Heading,
     InternalLink,
     NoteRecord,
+    TextPageRecord,
     VaultIndex,
 )
 from vaultpub.core.parser.obsidian_links import (
@@ -31,7 +32,7 @@ class VaultIndexer:
         self.scanner = VaultScanner(config)
 
     def build(self) -> VaultIndex:
-        notes, attachments, nav_tree = self.scanner.scan()
+        notes, attachments, text_pages, nav_tree = self.scanner.scan()
 
         for note in notes:
             self._parse_note_body(note)
@@ -41,6 +42,8 @@ class VaultIndexer:
         notes_by_stem: dict[str, list[str]] = {}
         notes_by_alias: dict[str, list[str]] = {}
         attachments_by_path: dict[str, AttachmentRecord] = {a.rel_path.as_posix(): a for a in attachments}
+        text_pages_by_path: dict[str, TextPageRecord] = {t.rel_path.as_posix(): t for t in text_pages}
+        text_pages_by_id: dict[str, TextPageRecord] = {t.id: t for t in text_pages}
 
         for note in notes:
             notes_by_path[note.rel_path.as_posix()] = note.id
@@ -59,7 +62,7 @@ class VaultIndexer:
                         target.backlinks.add(note.id)
 
         graph = self._build_graph(notes)
-        search_docs = self._build_search_documents(notes)
+        search_docs = self._build_search_documents(notes, text_pages)
 
         tags: dict[str, set[str]] = {}
         for note in notes:
@@ -82,6 +85,8 @@ class VaultIndexer:
             notes_by_stem=notes_by_stem,
             notes_by_alias=notes_by_alias,
             attachments_by_path=attachments_by_path,
+            text_pages_by_path=text_pages_by_path,
+            text_pages_by_id=text_pages_by_id,
             nav_tree=nav_tree,
             tags=tags,
             graph=graph,
@@ -242,7 +247,9 @@ class VaultIndexer:
 
         return GraphData(nodes=nodes, edges=edges)
 
-    def _build_search_documents(self, notes: list[NoteRecord]) -> list[dict[str, object]]:
+    def _build_search_documents(
+        self, notes: list[NoteRecord], text_pages: list[TextPageRecord]
+    ) -> list[dict[str, object]]:
         docs: list[dict[str, object]] = []
         for note in notes:
             docs.append({
@@ -255,6 +262,18 @@ class VaultIndexer:
                 "headings": [h.text for h in note.headings],
                 "aliases": note.aliases,
                 "excerpt": note.excerpt,
+            })
+        for tp in text_pages:
+            docs.append({
+                "id": tp.id,
+                "title": tp.title,
+                "path": tp.rel_path.as_posix(),
+                "url": tp.url_path,
+                "content": tp.plain_text[:5000],
+                "tags": [],
+                "headings": [],
+                "aliases": [],
+                "excerpt": tp.excerpt,
             })
         return docs
 

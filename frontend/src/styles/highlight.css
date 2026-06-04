@@ -1,0 +1,121 @@
+/* Syntax highlighting — VS Code-inspired token colors */
+
+/* ---- Light theme defaults (VS Code Light+) ---- */
+:root,
+.theme-light,
+.theme-solarized,
+.theme-glass-light,
+.theme-catppuccin,
+.theme-colorful {
+  --hl-keyword: #0000ff;
+  --hl-string: #a31515;
+  --hl-number: #098658;
+  --hl-comment: #008000;
+  --hl-function: #795e26;
+  --hl-type: #267f99;
+  --hl-literal: #0000ff;
+  --hl-regexp: #811f3f;
+  --hl-meta: #808000;
+  --hl-builtin: #0070c1;
+  --hl-variable: #001080;
+  --hl-attr: #0451a5;
+  --hl-params: #001080;
+  --hl-title: #795e26;
+  --hl-section: #800000;
+  --hl-selector: #d16969;
+  --hl-addition: #098658;
+  --hl-deletion: #a31515;
+}
+
+/* ---- Dark theme overrides (VS Code Dark+) ---- */
+.theme-dark,
+.theme-nord,
+.theme-dracula,
+.theme-forest,
+.theme-glass-dark,
+.theme-obsidian,
+.theme-colorful-dark {
+  --hl-keyword: #569cd6;
+  --hl-string: #ce9178;
+  --hl-number: #b5cea8;
+  --hl-comment: #6a9955;
+  --hl-function: #dcdcaa;
+  --hl-type: #4ec9b0;
+  --hl-literal: #569cd6;
+  --hl-regexp: #d16969;
+  --hl-meta: #808080;
+  --hl-builtin: #4ec9b0;
+  --hl-variable: #9cdcfe;
+  --hl-attr: #9cdcfe;
+  --hl-params: #9cdcfe;
+  --hl-title: #dcdcaa;
+  --hl-section: #569cd6;
+  --hl-selector: #d7ba7d;
+  --hl-addition: #4ec9b0;
+  --hl-deletion: #ce9178;
+}
+
+/* ---- Token styles ---- */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag,
+.hljs-subst { color: var(--hl-keyword); }
+
+.hljs-string,
+.hljs-addition,
+.hljs-attribute,
+.hljs-symbol,
+.hljs-bullet { color: var(--hl-string); }
+
+.hljs-number { color: var(--hl-number); }
+
+.hljs-comment,
+.hljs-quote { color: var(--hl-comment); font-style: italic; }
+
+.hljs-title,
+.hljs-function > .hljs-title,
+.hljs-title.class_,
+.hljs-title.class_.inherited__ { color: var(--hl-function); }
+
+.hljs-type,
+.hljs-built_in,
+.hljs-title.class_ { color: var(--hl-type); }
+
+.hljs-regexp { color: var(--hl-regexp); }
+
+.hljs-meta,
+.hljs-meta .hljs-keyword,
+.hljs-meta .hljs-string { color: var(--hl-meta); }
+
+.hljs-attr,
+.hljs-name { color: var(--hl-attr); }
+
+.hljs-params,
+.hljs-variable,
+.hljs-template-variable { color: var(--hl-params); }
+
+.hljs-selector-class,
+.hljs-selector-id,
+.hljs-selector-attr,
+.hljs-selector-pseudo { color: var(--hl-selector); }
+
+.hljs-section { color: var(--hl-section); }
+
+.hljs-deletion { color: var(--hl-deletion); }
+
+/* Emphasis */
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }
+
+/* Ensure code blocks inherit the right background and text color */
+pre code.hljs {
+  color: var(--text-color);
+  background: transparent;
+}
+
+/* Inline code inside highlighted blocks should not be restyled */
+code.hljs {
+  padding: 0;
+  background: transparent;
+}

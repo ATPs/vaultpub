@@ -272,6 +272,23 @@ h6:hover .heading-anchor {
   text-decoration: none;
 }
 
+.toc a.active {
+  color: var(--link-color);
+  font-weight: 650;
+  position: relative;
+}
+
+.toc a.active::before {
+  content: "";
+  position: absolute;
+  left: -0.6em;
+  top: 0.15em;
+  bottom: 0.15em;
+  width: 3px;
+  background: var(--link-color);
+  border-radius: 2px;
+}
+
 /* File tree nav */
 .file-tree ul {
   list-style: none;
@@ -316,6 +333,18 @@ h6:hover .heading-anchor {
 
 .file-tree a:hover {
   background: var(--code-bg);
+  text-decoration: none;
+}
+
+.file-tree a.active {
+  background: var(--link-color);
+  color: #fff;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+.file-tree a.active:hover {
+  background: var(--link-hover-color);
   text-decoration: none;
 }
 

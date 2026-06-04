@@ -22,18 +22,41 @@ def serve(
     home: str | None = typer.Option(None, "--home", help="Home file (e.g. README)"),
     reload: bool = typer.Option(False, "--reload", help="Auto-reload on changes"),
     config: str | None = typer.Option(None, "--config", help="Path to config YAML"),
+    force_include_regex: list[str] | None = typer.Option(
+        None, "--force-include-regex",
+        help=(
+            "Regex pattern to force-include non-Markdown text files. Repeatable. "
+            "Default: none. Example: --force-include-regex '.*\\.py$' publishes .py files as code pages. "
+            "Use regex search semantics (not full-string match). Hidden/always-forbidden paths are never included."
+        ),
+    ),
+    force_exclude_regex: list[str] | None = typer.Option(
+        None, "--force-exclude-regex",
+        help=(
+            "Regex pattern to force-exclude paths from publishing. Repeatable. "
+            "Default: none. Example: --force-exclude-regex '(^|/)secret(/|$)' hides files/folders named 'secret'. "
+            "Wins over --force-include-regex when both match. Hidden/always-forbidden paths remain excluded regardless."
+        ),
+    ),
 ) -> None:
     """Start the vaultpub web server."""
     from pathlib import Path
 
     import uvicorn
 
-    from vaultpub.core.config import load_config
+    from vaultpub.core.config import _config_fields, load_config
     from vaultpub.web import create_app
 
     cfg = load_config(vault_path=Path(vault), yaml_path=config)
+    overrides: dict[str, object] = {}
     if home:
-        cfg = cfg.__class__(**{**cfg.__dict__, "home_file": home})
+        overrides["home_file"] = home
+    if force_include_regex:
+        overrides["force_include_regexes"] = tuple(force_include_regex)
+    if force_exclude_regex:
+        overrides["force_exclude_regexes"] = tuple(force_exclude_regex)
+    if overrides:
+        cfg = cfg.__class__(**{**_config_fields(cfg), **overrides})
 
     asgi_app = create_app(cfg)
     uvicorn.run(asgi_app, host=host, port=port, reload=reload)  # type: ignore[arg-type]
@@ -46,16 +69,37 @@ def build(
     clean: bool = typer.Option(False, "--clean", help="Clean output dir before build"),
     base_url: str | None = typer.Option(None, "--base-url", help="Base URL for generated links"),
     config: str | None = typer.Option(None, "--config", help="Path to config YAML"),
+    force_include_regex: list[str] | None = typer.Option(
+        None, "--force-include-regex",
+        help=(
+            "Regex pattern to force-include non-Markdown text files. Repeatable. "
+            "Default: none. Example: --force-include-regex '.*\\.py$' publishes .py files as code pages."
+        ),
+    ),
+    force_exclude_regex: list[str] | None = typer.Option(
+        None, "--force-exclude-regex",
+        help=(
+            "Regex pattern to force-exclude paths from publishing. Repeatable. "
+            "Default: none. Example: --force-exclude-regex '(^|/)secret(/|$)' hides files/folders named 'secret'."
+        ),
+    ),
 ) -> None:
     """Build a static site from the vault."""
     from pathlib import Path
 
-    from vaultpub.core.config import load_config
+    from vaultpub.core.config import _config_fields, load_config
     from vaultpub.export import StaticSiteBuilder
 
     cfg = load_config(vault_path=Path(vault), yaml_path=config)
+    overrides: dict[str, object] = {}
     if base_url:
-        cfg = cfg.__class__(**{**cfg.__dict__, "site_url": base_url})
+        overrides["site_url"] = base_url
+    if force_include_regex:
+        overrides["force_include_regexes"] = tuple(force_include_regex)
+    if force_exclude_regex:
+        overrides["force_exclude_regexes"] = tuple(force_exclude_regex)
+    if overrides:
+        cfg = cfg.__class__(**{**_config_fields(cfg), **overrides})
 
     builder = StaticSiteBuilder(cfg)
     result = builder.build(out_dir=Path(out), clean=clean)
@@ -67,15 +111,36 @@ def index(
     vault: str = typer.Option(..., "--vault", help="Path to Obsidian vault"),
     json_path: str = typer.Option("./index.json", "--json", help="Output JSON path"),
     config: str | None = typer.Option(None, "--config", help="Path to config YAML"),
+    force_include_regex: list[str] | None = typer.Option(
+        None, "--force-include-regex",
+        help=(
+            "Regex pattern to force-include non-Markdown text files. Repeatable. "
+            "Default: none. Example: --force-include-regex '.*\\.py$' publishes .py files as code pages."
+        ),
+    ),
+    force_exclude_regex: list[str] | None = typer.Option(
+        None, "--force-exclude-regex",
+        help=(
+            "Regex pattern to force-exclude paths from publishing. Repeatable. "
+            "Default: none. Example: --force-exclude-regex '(^|/)secret(/|$)' hides files/folders named 'secret'."
+        ),
+    ),
 ) -> None:
     """Export the vault index as JSON."""
     import json
     from pathlib import Path
 
-    from vaultpub.core.config import load_config
+    from vaultpub.core.config import _config_fields, load_config
     from vaultpub.core.index.indexer import VaultIndexer
 
     cfg = load_config(vault_path=Path(vault), yaml_path=config)
+    overrides: dict[str, object] = {}
+    if force_include_regex:
+        overrides["force_include_regexes"] = tuple(force_include_regex)
+    if force_exclude_regex:
+        overrides["force_exclude_regexes"] = tuple(force_exclude_regex)
+    if overrides:
+        cfg = cfg.__class__(**{**cfg.__dict__, **overrides})
     indexer = VaultIndexer(cfg)
     vault_index = indexer.build()
 
@@ -98,7 +163,7 @@ def doctor(
     """Diagnose vault issues: broken links, duplicates, etc."""
     from pathlib import Path
 
-    from vaultpub.core.config import load_config
+    from vaultpub.core.config import _config_fields, load_config
     from vaultpub.core.index.indexer import VaultIndexer
 
     cfg = load_config(vault_path=Path(vault), yaml_path=config)
@@ -166,6 +231,10 @@ publish:
     - trash
   exclude_globs:
     - "**/*.draft.md"
+  # force_include_regexes:
+  #   - ".*\\.py$"
+  # force_exclude_regexes:
+  #   - "(^|/)secret(/|$)"
 
 rendering:
   strict_line_breaks: true

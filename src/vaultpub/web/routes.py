@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from html import escape
 
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
 
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
-from vaultpub.core.models import NoteRecord, VaultIndex
+from vaultpub.core.models import NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.paths import safe_join
 from vaultpub.core.render.renderer import Renderer
 from vaultpub.core.render.seo import build_meta_tags
@@ -17,8 +18,10 @@ from vaultpub.core.render.templates import (
     graph_container_html,
     nav_tree_html,
     sidebar_graph_state,
+    topbar_context_html_for_note,
+    topbar_context_html_for_text_page,
 )
-from vaultpub.core.security import is_path_public
+from vaultpub.core.security import is_path_excluded, is_path_public
 
 
 @dataclass
@@ -90,17 +93,26 @@ async def page(request: Request) -> HTMLResponse:
 
     url_to_note, redirect_map, _all_urls_to_note = _build_url_maps(state.index)
 
+    # Check note pages first
     if rel_path in url_to_note:
         note = url_to_note[rel_path]
         if not is_path_public(note.rel_path.as_posix(), state.config):
             return HTMLResponse("Not found", status_code=404)
         return _render_note_page(request, note)
 
+    # Check redirects
     if rel_path in redirect_map:
         return HTMLResponse(
             status_code=301,
             headers={"Location": redirect_map[rel_path]},
         )
+
+    # Check text pages
+    tp = state.index.text_pages_by_path.get(path)
+    if tp is not None:
+        if is_path_excluded(tp.rel_path.as_posix(), state.config):
+            return HTMLResponse("Not found", status_code=404)
+        return _render_text_page(request, tp)
 
     return HTMLResponse("Not found", status_code=404)
 
@@ -111,6 +123,9 @@ async def attachment(request: Request) -> Response:
 
     att = state.index.attachments_by_path.get(path)
     if att is None:
+        return HTMLResponse("Not found", status_code=404)
+
+    if is_path_excluded(path, state.config):
         return HTMLResponse("Not found", status_code=404)
 
     fpath = safe_join(state.config.vault_path, path)
@@ -138,6 +153,20 @@ async def api_page(request: Request) -> JSONResponse:
             "tags": list(note.tags),
             "headings": [{"level": h.level, "text": h.text, "slug": h.slug} for h in note.headings],
             "backlinks": list(note.backlinks),
+        })
+
+    # Check text pages
+    tp = state.index.text_pages_by_path.get(path)
+    if tp is not None:
+        code_html = _render_text_page_content(tp)
+        return JSONResponse({
+            "id": tp.id,
+            "title": tp.title,
+            "url": tp.url_path,
+            "html": code_html,
+            "tags": [],
+            "headings": [],
+            "backlinks": [],
         })
 
     return JSONResponse({"error": "Not found"}, status_code=404)
@@ -217,5 +246,47 @@ def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:
     if state.index.nav_tree:
         nav_html = "<ul>" + nav_tree_html(state.index.nav_tree) + "</ul>"
     head = build_meta_tags(note, state.config)
-    page_str = base_page_template(body_html, nav_html, head, state.config, sidebar_right_html, graph_html)
+    topbar_context_html = topbar_context_html_for_note(note)
+    page_str = base_page_template(
+        body_html,
+        nav_html,
+        head,
+        state.config,
+        sidebar_right_html,
+        graph_html,
+        topbar_context_html=topbar_context_html,
+    )
     return HTMLResponse(page_str)
+
+
+def _render_text_page(request: Request, tp: TextPageRecord) -> HTMLResponse:
+    state = _get_state(request)
+    body_html = _render_text_page_content(tp)
+    nav_html = ""
+    if state.index.nav_tree:
+        nav_html = "<ul>" + nav_tree_html(state.index.nav_tree) + "</ul>"
+
+    # Minimal meta tags for text pages
+    head = f"<title>{escape(tp.title)} - {escape(state.config.site_name)}</title>"
+    topbar_context_html = topbar_context_html_for_text_page(tp)
+    page_str = base_page_template(
+        body_html,
+        nav_html,
+        head,
+        state.config,
+        "",
+        "",
+        topbar_context_html=topbar_context_html,
+    )
+    return HTMLResponse(page_str)
+
+
+def _render_text_page_content(tp: TextPageRecord) -> str:
+    lang_class = f"language-{tp.language}" if tp.language else ""
+    return f"""\
+<article class="text-page" data-page-id="{tp.id}" data-page-path="{escape(tp.url_path)}">
+  <h1>{escape(tp.title)}</h1>
+  <div class="code-block">
+    <pre><code class="{lang_class}">{escape(tp.raw_text)}</code></pre>
+  </div>
+</article>"""

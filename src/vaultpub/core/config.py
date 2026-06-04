@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -33,6 +34,8 @@ class PublisherConfig:
     include_folders: tuple[str, ...] = ()
     exclude_folders: tuple[str, ...] = (".obsidian", ".git", ".trash", "private", "trash")
     exclude_globs: tuple[str, ...] = ()
+    force_include_regexes: tuple[str, ...] = ()
+    force_exclude_regexes: tuple[str, ...] = ()
     publish_property_mode: PublishMode = "publish_false_hides"
 
     hidden_file_access: bool = False
@@ -86,6 +89,12 @@ class PublisherConfig:
         if self.max_attachment_size_bytes is not None and self.max_attachment_size_bytes <= 0:
             object.__setattr__(self, "max_attachment_size_bytes", None)  # type: ignore[unreachable]
 
+        compiled_include = _compile_regexes(self.force_include_regexes, "force_include_regexes")
+        object.__setattr__(self, "_compiled_force_include", compiled_include)
+
+        compiled_exclude = _compile_regexes(self.force_exclude_regexes, "force_exclude_regexes")
+        object.__setattr__(self, "_compiled_force_exclude", compiled_exclude)
+
 
 def load_config_from_yaml(yaml_path: Path) -> dict:
     """Load configuration from a YAML file, returning a dict of PublisherConfig kwargs."""
@@ -129,6 +138,10 @@ def load_config_from_yaml(yaml_path: Path) -> dict:
             kwargs["exclude_folders"] = tuple(publish["exclude_folders"])
         if "exclude_globs" in publish:
             kwargs["exclude_globs"] = tuple(publish["exclude_globs"])
+        if "force_include_regexes" in publish:
+            kwargs["force_include_regexes"] = tuple(publish["force_include_regexes"])
+        if "force_exclude_regexes" in publish:
+            kwargs["force_exclude_regexes"] = tuple(publish["force_exclude_regexes"])
 
     # rendering section
     rendering = data.get("rendering", {})
@@ -196,6 +209,11 @@ _LIST_ENV_VARS = {"HIDE_FOLDERS", "ALLOWED_FILE_LINK_TYPES"}
 _INVERT_ENV_VARS = {"DISABLE_POP_HOVER"}
 
 
+def _config_fields(config: PublisherConfig) -> dict[str, object]:
+    """Return only the declared dataclass fields from a config (excludes compiled internals)."""
+    return {f.name: getattr(config, f.name) for f in type(config).__dataclass_fields__.values()}  # type: ignore[arg-type]
+
+
 def apply_env_overrides(config: PublisherConfig) -> PublisherConfig:
     """Apply environment variable overrides to an existing config, returning a new one."""
     kwargs: dict = {f.name: getattr(config, f.name) for f in type(config).__dataclass_fields__.values()}  # type: ignore[arg-type]
@@ -253,3 +271,14 @@ def load_config(
         config = PublisherConfig(**current)
 
     return config
+
+
+def _compile_regexes(patterns: tuple[str, ...], field_name: str) -> list[re.Pattern[str]]:
+    """Compile and validate regex patterns. Raises ConfigError on invalid patterns."""
+    compiled: list[re.Pattern[str]] = []
+    for p in patterns:
+        try:
+            compiled.append(re.compile(p))
+        except re.error as e:
+            raise ConfigError(f"Invalid regex in {field_name}: {p!r} — {e}") from e
+    return compiled

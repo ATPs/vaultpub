@@ -17,6 +17,9 @@ import { initRealtime } from "./realtime";
 import { initMobileDrawer } from "./mobile";
 import { initSidebars } from "./sidebar";
 import { initScroller } from "./scroller";
+import { initNavHighlightAll } from "./nav-highlight";
+import { initCodeHighlight } from "./code-highlight";
+import { initTopbarContext } from "./topbar-context";
 
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
@@ -26,8 +29,11 @@ document.addEventListener("DOMContentLoaded", () => {
   initCalloutFold();
   initMermaid();
   initMath();
+  initCodeHighlight();
   initRealtime();
   initMobileDrawer();
   initSidebars();
   initScroller();
+  initNavHighlightAll();
+  initTopbarContext();
 });

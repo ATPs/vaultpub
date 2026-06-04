@@ -9,7 +9,7 @@ from pathlib import Path
 
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
-from vaultpub.core.models import NoteRecord, VaultIndex
+from vaultpub.core.models import NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.render.renderer import Renderer
 from vaultpub.core.render.seo import build_meta_tags
 from vaultpub.core.render.templates import (
@@ -17,6 +17,8 @@ from vaultpub.core.render.templates import (
     graph_container_html,
     nav_tree_html,
     sidebar_graph_state,
+    topbar_context_html_for_note,
+    topbar_context_html_for_text_page,
 )
 
 
@@ -73,6 +75,14 @@ class StaticSiteBuilder:
                 if alias_path != canonical:
                     self._write_redirect_page(out_dir, alias_path, canonical)
 
+        # Text pages
+        for tp in vault_index.text_pages_by_path.values():
+            page_html = self._render_text_page_static(vault_index, tp)
+            page_dir = out_dir / tp.url_path.lstrip("/")
+            page_dir.mkdir(parents=True, exist_ok=True)
+            (page_dir / "index.html").write_text(page_html)
+            result.pages_written += 1
+
         # Tag pages
         result.tag_pages_written = self._write_tag_pages(out_dir, vault_index, renderer)
 
@@ -128,7 +138,16 @@ class StaticSiteBuilder:
         nav_html = ""
         if vault_index.nav_tree:
             nav_html = "<ul>" + nav_tree_html(vault_index.nav_tree) + "</ul>"
-        return base_page_template(body_html, nav_html, head, self.config, sidebar_right_html, graph_html)
+        topbar_context_html = topbar_context_html_for_note(note)
+        return base_page_template(
+            body_html,
+            nav_html,
+            head,
+            self.config,
+            sidebar_right_html,
+            graph_html,
+            topbar_context_html=topbar_context_html,
+        )
 
     def _write_tag_pages(self, out_dir: Path, vault_index: VaultIndex, renderer: Renderer) -> int:
         """Generate tag pages at tags/<tag-path>/index.html."""
@@ -232,6 +251,32 @@ class StaticSiteBuilder:
             static_dst.mkdir(parents=True, exist_ok=True)
             return
         shutil.copytree(pkg_static, static_dst, dirs_exist_ok=True)
+
+    def _render_text_page_static(self, vault_index: VaultIndex, tp: TextPageRecord) -> str:
+        from html import escape
+
+        lang_class = f"language-{tp.language}" if tp.language else ""
+        body_html = f"""\
+<article class="text-page" data-page-id="{tp.id}" data-page-path="{escape(tp.url_path)}">
+  <h1>{escape(tp.title)}</h1>
+  <div class="code-block">
+    <pre><code class="{lang_class}">{escape(tp.raw_text)}</code></pre>
+  </div>
+</article>"""
+        head = f"<title>{escape(tp.title)} - {escape(self.config.site_name)}</title>"
+        nav_html = ""
+        if vault_index.nav_tree:
+            nav_html = "<ul>" + nav_tree_html(vault_index.nav_tree) + "</ul>"
+        topbar_context_html = topbar_context_html_for_text_page(tp)
+        return base_page_template(
+            body_html,
+            nav_html,
+            head,
+            self.config,
+            "",
+            "",
+            topbar_context_html=topbar_context_html,
+        )
 
     def _write_redirect_page(self, out_dir: Path, source_url: str, target_url: str) -> None:
         redirect_html = (
