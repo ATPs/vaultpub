@@ -80,6 +80,16 @@ def test_django_page_uses_packaged_template(django_setup) -> None:
     assert b"{% toc %}" not in response.content
 
 
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_page_uses_local_graph_placeholder(django_setup) -> None:
+    views._state_cache.clear()
+    response = Client().get("/notes/A")
+
+    assert response.status_code == 200
+    assert b'id="graph-container"' in response.content
+    assert b'data-graph-note-id="note:' in response.content
+
+
 @override_settings(
     ROOT_URLCONF=__name__,
     TEMPLATES=[
@@ -135,3 +145,26 @@ def test_django_api_urls_include_mount_prefix(django_setup) -> None:
     note_urls = [node["url"] for node in graph.json()["nodes"] if node["group"] == "note"]
     assert note_urls
     assert all(url.startswith("/notes/") for url in note_urls)
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_page_omits_graph_when_local_graph_is_too_small(django_setup, tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# README\n\n[[A]]\n", encoding="utf-8")
+    (tmp_path / "A.md").write_text("# A\n", encoding="utf-8")
+
+    views._state_cache.clear()
+    with override_settings(
+        VAULTPUB={
+            "default": {
+                "vault_path": str(tmp_path),
+                "url_prefix": "/notes/",
+                "home_file": "README",
+                "show_graph": True,
+                "show_search": True,
+            }
+        }
+    ):
+        response = Client().get("/notes/README")
+
+    assert response.status_code == 200
+    assert b'id="graph-container"' not in response.content
