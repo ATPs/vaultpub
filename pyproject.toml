@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.26"]
 build-backend = "hatchling.build"
 
 [project]
@@ -62,6 +62,12 @@ Repository = "https://github.com/vaultpub/vaultpub"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vaultpub"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/vaultpub/django_app/static/vaultpub" = "vaultpub/django_app/static/vaultpub"
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
 
 [tool.ruff]
 target-version = "py311"

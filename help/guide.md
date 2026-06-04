@@ -106,6 +106,7 @@ public/
   static/vaultpub/
     app.css                   # Frontend styles
     app.js                    # Frontend scripts
+    assets/...                # Frontend chunks and fonts
   search-index.json           # Client-side search data
   graph.json                  # Graph visualization data
   sitemap.xml                 # SEO sitemap (when --base-url is set)
@@ -613,6 +614,7 @@ The `vaultpub build` command produces a fully self-contained static site. No ser
 | `assets/...` | Copied attachments (images, PDFs, etc.) |
 | `static/vaultpub/app.css` | Bundled CSS |
 | `static/vaultpub/app.js` | Bundled JavaScript |
+| `static/vaultpub/assets/...` | Bundled frontend chunks and fonts |
 | `search-index.json` | Client-side search data |
 | `graph.json` | Graph visualization data |
 | `sitemap.xml` | SEO sitemap (when `site_url` is set) |

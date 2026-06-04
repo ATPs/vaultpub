@@ -5,7 +5,9 @@ from pathlib import Path
 
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
+from vaultpub.core.models import NavNode
 from vaultpub.core.render import Renderer
+from vaultpub.core.render.templates import nav_tree_html
 
 
 def test_render_note_basic(vault_basic) -> None:
@@ -101,3 +103,30 @@ def test_render_note_embed_renders_target_body(tmp_path: Path) -> None:
 
     assert 'class="embed-wrapper"' in html
     assert "Embedded content." in html
+
+
+def test_nav_tree_omits_root_directory() -> None:
+    nav = NavNode(
+        label="/",
+        path=".",
+        url="/",
+        is_dir=True,
+        children=[
+            NavNode(
+                label="Folder",
+                path="Folder",
+                url="/",
+                is_dir=True,
+                children=[
+                    NavNode(label="Child", path="Folder/Child.md", url="/Folder/Child"),
+                ],
+            ),
+            NavNode(label="README", path="README.md", url="/README"),
+        ],
+    )
+
+    html = "<ul>" + nav_tree_html(nav) + "</ul>"
+
+    assert "<summary>/</summary>" not in html
+    assert "<summary>Folder</summary>" in html
+    assert 'href="/README"' in html

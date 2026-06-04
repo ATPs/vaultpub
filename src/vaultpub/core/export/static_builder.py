@@ -113,12 +113,15 @@ class StaticSiteBuilder:
         return result
 
     def _render_page(self, renderer: Renderer, vault_index: VaultIndex, note: NoteRecord) -> str:
-        body_html = renderer.render_page_html(note)
+        body_html = renderer.render_article_html(note)
+        toc_html = renderer.render_toc_html(note) if self.config.show_toc else ""
+        backlinks_html = renderer.render_backlinks_html(note) if self.config.show_backlinks else ""
+        sidebar_right_html = toc_html + backlinks_html
         head = build_meta_tags(note, self.config)
         nav_html = ""
         if vault_index.nav_tree:
             nav_html = "<ul>" + nav_tree_html(vault_index.nav_tree) + "</ul>"
-        return base_page_template(body_html, nav_html, head, self.config)
+        return base_page_template(body_html, nav_html, head, self.config, sidebar_right_html)
 
     def _write_tag_pages(self, out_dir: Path, vault_index: VaultIndex, renderer: Renderer) -> int:
         """Generate tag pages at tags/<tag-path>/index.html."""
@@ -151,7 +154,7 @@ class StaticSiteBuilder:
     <p>{len(note_ids)} note(s)</p>
     <ul>{"".join(note_items)}</ul>
   </main>
-  <script src="/static/vaultpub/app.js"></script>
+  <script type="module" src="/static/vaultpub/app.js"></script>
 </body>
 </html>"""
             (tag_dir / "index.html").write_text(tag_page)
@@ -215,15 +218,13 @@ class StaticSiteBuilder:
         (out_dir / "robots.txt").write_text("User-agent: *\nAllow: /\n")
 
     def _copy_frontend_assets(self, out_dir: Path) -> None:
-        """Copy bundled app.css and app.js into the static output."""
+        """Copy bundled frontend assets into the static output."""
         static_dst = out_dir / "static" / "vaultpub"
-        static_dst.mkdir(parents=True, exist_ok=True)
-
         pkg_static = Path(__file__).parent.parent.parent / "django_app" / "static" / "vaultpub"
-        for fname in ("app.css", "app.js"):
-            src = pkg_static / fname
-            if src.exists():
-                shutil.copy2(src, static_dst / fname)
+        if not pkg_static.exists():
+            static_dst.mkdir(parents=True, exist_ok=True)
+            return
+        shutil.copytree(pkg_static, static_dst, dirs_exist_ok=True)
 
     def _write_redirect_page(self, out_dir: Path, source_url: str, target_url: str) -> None:
         redirect_html = (

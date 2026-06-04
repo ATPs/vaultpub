@@ -17,6 +17,10 @@
   </header>
   <div class="app-layout">
     <aside class="sidebar-left">
+      <div class="sidebar-header">
+        <div class="sidebar-title">Navigation</div>
+        <button class="sidebar-toggle" type="button" data-sidebar-toggle="left" aria-label="Hide navigation">&lt;</button>
+      </div>
       {% block sidebar_left %}
         {% include "vaultpub/partials/nav.html" %}
       {% endblock %}
@@ -25,6 +29,10 @@
       {% block content %}{% endblock %}
     </main>
     <aside class="sidebar-right">
+      <div class="sidebar-header">
+        <div class="sidebar-title">Page</div>
+        <button class="sidebar-toggle" type="button" data-sidebar-toggle="right" aria-label="Hide page sidebar">&gt;</button>
+      </div>
       {% block sidebar_right %}
         {% if show_graph %}<div id="graph-container" class="graph-container"></div>{% endif %}
         {% include "vaultpub/partials/toc.html" %}
@@ -33,7 +41,7 @@
     </aside>
   </div>
   {% block scripts %}
-    <script src="{% static 'vaultpub/app.js' %}"></script>
+    <script type="module" src="{% static 'vaultpub/app.js' %}"></script>
   {% endblock %}
 </body>
 </html>

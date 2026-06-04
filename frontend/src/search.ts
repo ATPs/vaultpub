@@ -17,7 +17,6 @@ interface SearchDoc {
 }
 
 let searchDocs: SearchDoc[] = [];
-let searchIndex: import("minisearch") | null = null;
 
 async function loadSearchIndex(): Promise<void> {
   try {
