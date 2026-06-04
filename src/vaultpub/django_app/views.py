@@ -10,7 +10,7 @@ from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import NoteRecord, VaultIndex
 from vaultpub.core.render import Renderer
 from vaultpub.core.render.seo import build_meta_tags, build_page_description, build_page_title
-from vaultpub.core.render.templates import nav_tree_html
+from vaultpub.core.render.templates import nav_tree_html, sidebar_graph_state
 from vaultpub.core.security import is_path_public
 from vaultpub.django_app.conf import get_default_config
 
@@ -235,9 +235,11 @@ def _render_note(request: HttpRequest, note: NoteRecord) -> HttpResponse:
         "realtime": config.realtime,
         "site_logo": config.site_logo,
         "show_theme_toggle": config.show_theme_toggle,
-        "show_graph": config.show_graph or config.show_local_graph,
         "show_search": config.show_search,
         "url_prefix": _url_prefix(config),
         "seo_head": build_meta_tags(note, config),
     }
+    show_graph, graph_note_id = sidebar_graph_state(config, index.graph, note)
+    context["show_graph"] = show_graph
+    context["graph_note_id"] = graph_note_id
     return render(request, "vaultpub/page.html", context)

@@ -12,7 +12,12 @@ from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import NoteRecord, VaultIndex
 from vaultpub.core.render.renderer import Renderer
 from vaultpub.core.render.seo import build_meta_tags
-from vaultpub.core.render.templates import base_page_template, nav_tree_html
+from vaultpub.core.render.templates import (
+    base_page_template,
+    graph_container_html,
+    nav_tree_html,
+    sidebar_graph_state,
+)
 
 
 @dataclass
@@ -117,11 +122,13 @@ class StaticSiteBuilder:
         toc_html = renderer.render_toc_html(note) if self.config.show_toc else ""
         backlinks_html = renderer.render_backlinks_html(note) if self.config.show_backlinks else ""
         sidebar_right_html = toc_html + backlinks_html
+        show_graph, graph_note_id = sidebar_graph_state(self.config, vault_index.graph, note)
+        graph_html = graph_container_html(show_graph, graph_note_id)
         head = build_meta_tags(note, self.config)
         nav_html = ""
         if vault_index.nav_tree:
             nav_html = "<ul>" + nav_tree_html(vault_index.nav_tree) + "</ul>"
-        return base_page_template(body_html, nav_html, head, self.config, sidebar_right_html)
+        return base_page_template(body_html, nav_html, head, self.config, sidebar_right_html, graph_html)
 
     def _write_tag_pages(self, out_dir: Path, vault_index: VaultIndex, renderer: Renderer) -> int:
         """Generate tag pages at tags/<tag-path>/index.html."""

@@ -40,6 +40,13 @@ async function loadGraphData(): Promise<GraphData | null> {
   }
 }
 
+function buildLocalGraph(graph: GraphData, noteNodeId: string): GraphData {
+  const localEdges = graph.edges.filter((edge) => edge.from === noteNodeId || edge.to === noteNodeId);
+  const localIds = new Set(localEdges.flatMap((edge) => [edge.from, edge.to]));
+  const localNodes = graph.nodes.filter((node) => localIds.has(node.id));
+  return { nodes: localNodes, edges: localEdges };
+}
+
 interface SimNode {
   id: string;
   label: string;
@@ -179,13 +186,17 @@ export async function initGraph(): Promise<void> {
   const container = document.getElementById("graph-container");
   if (!container) return;
 
-  graphData = await loadGraphData();
+  const noteNodeId = container.dataset.graphNoteId;
+  const fullGraph = await loadGraphData();
+  graphData = noteNodeId && fullGraph ? buildLocalGraph(fullGraph, noteNodeId) : fullGraph;
+
   if (!graphData || graphData.nodes.length < 3) {
-    container.style.display = "none";
+    container.remove();
     return;
   }
 
   showContainer(container);
+  container.replaceChildren();
   const canvas = createGraphCanvas(container);
 
   const simNodes: SimNode[] = graphData.nodes.map((n) => ({

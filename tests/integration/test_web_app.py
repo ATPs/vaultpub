@@ -40,6 +40,13 @@ def test_note_page_renders_toc_in_right_sidebar(client) -> None:
     assert "<h3>Contents</h3>" in response.text
 
 
+def test_note_page_uses_local_graph_placeholder(client) -> None:
+    response = client.get("/A")
+    assert response.status_code == 200
+    assert 'id="graph-container"' in response.text
+    assert 'data-graph-note-id="note:' in response.text
+
+
 def test_api_search(client) -> None:
     response = client.get("/api/search?q=README")
     assert response.status_code == 200
@@ -62,6 +69,18 @@ def test_api_graph(client) -> None:
     data = response.json()
     assert "nodes" in data
     assert "edges" in data
+
+
+def test_note_page_omits_graph_when_local_graph_is_too_small(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# README\n\n[[A]]\n", encoding="utf-8")
+    (tmp_path / "A.md").write_text("# A\n", encoding="utf-8")
+
+    app = create_app(PublisherConfig(vault_path=tmp_path, realtime=False))
+    client = TestClient(app)
+
+    response = client.get("/README")
+    assert response.status_code == 200
+    assert 'id="graph-container"' not in response.text
 
 
 def test_graph_json(client) -> None:

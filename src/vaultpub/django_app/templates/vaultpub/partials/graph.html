@@ -1,1 +1,3 @@
-<div id="graph-container" class="graph-container"></div>
+{% if show_graph %}
+  <div id="graph-container" class="graph-container"{% if graph_note_id %} data-graph-note-id="{{ graph_note_id }}"{% endif %}></div>
+{% endif %}

@@ -12,7 +12,12 @@ from vaultpub.core.models import NoteRecord, VaultIndex
 from vaultpub.core.paths import safe_join
 from vaultpub.core.render.renderer import Renderer
 from vaultpub.core.render.seo import build_meta_tags
-from vaultpub.core.render.templates import base_page_template, nav_tree_html
+from vaultpub.core.render.templates import (
+    base_page_template,
+    graph_container_html,
+    nav_tree_html,
+    sidebar_graph_state,
+)
 from vaultpub.core.security import is_path_public
 
 
@@ -206,9 +211,11 @@ def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:
     toc_html = state.renderer.render_toc_html(note) if state.config.show_toc else ""
     backlinks_html = state.renderer.render_backlinks_html(note) if state.config.show_backlinks else ""
     sidebar_right_html = toc_html + backlinks_html
+    show_graph, graph_note_id = sidebar_graph_state(state.config, state.index.graph, note)
+    graph_html = graph_container_html(show_graph, graph_note_id)
     nav_html = ""
     if state.index.nav_tree:
         nav_html = "<ul>" + nav_tree_html(state.index.nav_tree) + "</ul>"
     head = build_meta_tags(note, state.config)
-    page_str = base_page_template(body_html, nav_html, head, state.config, sidebar_right_html)
+    page_str = base_page_template(body_html, nav_html, head, state.config, sidebar_right_html, graph_html)
     return HTMLResponse(page_str)

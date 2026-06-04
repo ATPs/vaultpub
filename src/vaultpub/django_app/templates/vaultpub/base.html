@@ -33,7 +33,7 @@
         <button class="sidebar-toggle" type="button" data-sidebar-toggle="right" aria-label="Hide page sidebar">&gt;</button>
       </div>
       {% block sidebar_right %}
-        {% if show_graph %}<div id="graph-container" class="graph-container"></div>{% endif %}
+        {% include "vaultpub/partials/graph.html" %}
         {% include "vaultpub/partials/toc.html" %}
         {% include "vaultpub/partials/backlinks.html" %}
       {% endblock %}
