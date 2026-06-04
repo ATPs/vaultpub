@@ -167,16 +167,25 @@ function render(canvas: HTMLCanvasElement, nodes: SimNode[], edges: GraphEdge[])
   }
 }
 
+function showContainer(container: HTMLElement): void {
+  container.style.display = "block";
+  container.style.height = "240px";
+  container.style.border = "1px solid var(--border-color)";
+  container.style.borderRadius = "var(--radius, 8px)";
+  container.style.overflow = "hidden";
+}
+
 export async function initGraph(): Promise<void> {
   const container = document.getElementById("graph-container");
   if (!container) return;
 
   graphData = await loadGraphData();
-  if (!graphData || graphData.nodes.length === 0) {
-    container.innerHTML = '<p class="graph-empty">No graph data available.</p>';
+  if (!graphData || graphData.nodes.length < 3) {
+    container.style.display = "none";
     return;
   }
 
+  showContainer(container);
   const canvas = createGraphCanvas(container);
 
   const simNodes: SimNode[] = graphData.nodes.map((n) => ({

@@ -16,12 +16,9 @@ def base_page_template(
     site_logo = getattr(config, "site_logo", None) if config else None
     realtime = "true" if (config and getattr(config, "realtime", True)) else "false"
     show_graph = config and (getattr(config, "show_graph", True) or getattr(config, "show_local_graph", True))
-    show_theme_toggle = config and getattr(config, "show_theme_toggle", True)
 
     logo_html = f'<img src="{site_logo}" alt="{site_name}" class="site-logo">' if site_logo else ""
     search_trigger = '<button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>'
-    theme_btn = '<button id="theme-toggle" class="theme-toggle-btn" aria-label="Toggle theme">🌓</button>'
-    theme_toggle = theme_btn if show_theme_toggle else ""
     graph_container = '<div id="graph-container" class="graph-container"></div>' if show_graph else ""
     right_sidebar = sidebar_right_html + graph_container
 
@@ -40,7 +37,6 @@ def base_page_template(
     {logo_html}
     <span class="site-name">{site_name}</span>
     {search_trigger}
-    {theme_toggle}
   </header>
   <div class="app-layout">
     <aside class="sidebar-left">

@@ -56,7 +56,7 @@ function addPeekButton(layout: HTMLElement, sidebar: HTMLElement, side: SidebarS
   const button = document.createElement("button");
   button.type = "button";
   button.className = `sidebar-peek sidebar-peek-${side}`;
-  button.textContent = side === "left" ? "Nav" : "Page";
+  button.innerHTML = side === "left" ? "&#9654;" : "&#9664;";
   button.setAttribute("aria-label", side === "left" ? "Show navigation" : "Show page sidebar");
 
   let hideTimer: number | undefined;
