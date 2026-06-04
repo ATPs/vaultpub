@@ -28,6 +28,11 @@ function sidebarClass(side: SidebarSide, suffix: string): string {
   return `sidebar-${side}-${suffix}`;
 }
 
+function navStateKey(detail: HTMLDetailsElement, index: number): string {
+  const summary = detail.querySelector("summary");
+  return detail.dataset.navKey || summary?.textContent?.trim() || `nav-${index}`;
+}
+
 function setCollapsed(layout: HTMLElement, side: SidebarSide, collapsed: boolean): void {
   layout.classList.toggle(sidebarClass(side, "collapsed"), collapsed);
   layout.classList.remove(sidebarClass(side, "peeking"));
@@ -108,8 +113,7 @@ function initNavTreeState(): void {
 
   const state = readJson<Record<string, boolean>>(NAV_TREE_STATE_KEY);
   details.forEach((detail, index) => {
-    const summary = detail.querySelector("summary");
-    const key = detail.dataset.navKey || summary?.textContent?.trim() || `nav-${index}`;
+    const key = navStateKey(detail, index);
     if (Object.prototype.hasOwnProperty.call(state, key)) {
       detail.open = state[key];
     }
@@ -118,6 +122,29 @@ function initNavTreeState(): void {
       state[key] = detail.open;
       writeJson(NAV_TREE_STATE_KEY, state);
     });
+
+    const folderLink = detail.querySelector<HTMLAnchorElement>("summary .nav-folder-link");
+    if (folderLink) {
+      folderLink.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        detail.open = true;
+        state[key] = true;
+        writeJson(NAV_TREE_STATE_KEY, state);
+        window.location.href = folderLink.href;
+      });
+    }
+
+    const toggle = detail.querySelector<HTMLButtonElement>("summary .nav-folder-toggle");
+    if (toggle) {
+      toggle.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        detail.open = !detail.open;
+        state[key] = detail.open;
+        writeJson(NAV_TREE_STATE_KEY, state);
+      });
+    }
   });
 }
 

@@ -48,7 +48,7 @@ def test_render_wikilinks_to_links(vault_basic) -> None:
 
     html = renderer.render_note(a_note)
     # Should have transformed [[Folder/B]] to a link
-    assert 'href=' in html
+    assert 'href="/Folder/B.md"' in html
     assert 'class="internal-link"' in html
 
 
@@ -115,18 +115,19 @@ def test_nav_tree_omits_root_directory() -> None:
             NavNode(
                 label="Folder",
                 path="Folder",
-                url="/",
+                url="/Folder/",
                 is_dir=True,
                 children=[
-                    NavNode(label="Child", path="Folder/Child.md", url="/Folder/Child"),
+                    NavNode(label="Child.md", path="Folder/Child.md", url="/Folder/Child.md"),
                 ],
             ),
-            NavNode(label="README", path="README.md", url="/README"),
+            NavNode(label="README.md", path="README.md", url="/README.md"),
         ],
     )
 
     html = "<ul>" + nav_tree_html(nav) + "</ul>"
 
     assert "<summary>/</summary>" not in html
-    assert "<summary>Folder</summary>" in html
-    assert 'href="/README"' in html
+    assert 'href="/Folder/"' in html
+    assert "Folder/" in html
+    assert 'href="/README.md"' in html

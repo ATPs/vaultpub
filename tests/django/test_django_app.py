@@ -79,15 +79,15 @@ def test_django_page_uses_packaged_template(django_setup) -> None:
     assert b'data-url-prefix="/notes/"' in response.content
     assert b'href="/notes/"' in response.content
     assert b"README.md" in response.content
-    assert b'href="/notes/README"' in response.content
-    assert b'href="/README"' not in response.content
+    assert b'href="/notes/README.md"' in response.content
+    assert b'href="/README.md"' not in response.content
     assert b"{% toc %}" not in response.content
 
 
 @override_settings(ROOT_URLCONF=__name__)
 def test_django_page_uses_local_graph_placeholder(django_setup) -> None:
     views._state_cache.clear()
-    response = Client().get("/notes/A")
+    response = Client().get("/notes/A.md")
 
     assert response.status_code == 200
     assert b'id="graph-container"' in response.content
@@ -134,11 +134,11 @@ def test_django_api_urls_include_mount_prefix(django_setup) -> None:
     views._state_cache.clear()
     client = Client()
 
-    page = client.get("/notes/api/page/README")
+    page = client.get("/notes/api/page/README.md")
     assert page.status_code == 200
     page_data = page.json()
-    assert page_data["url"] == "/notes/README"
-    assert 'href="/notes/A"' in page_data["html"]
+    assert page_data["url"] == "/notes/README.md"
+    assert 'href="/notes/A.md"' in page_data["html"]
 
     search = client.get("/notes/api/search?q=README")
     assert search.status_code == 200
@@ -168,7 +168,17 @@ def test_django_page_omits_graph_when_local_graph_is_too_small(django_setup, tmp
             }
         }
     ):
-        response = Client().get("/notes/README")
+        response = Client().get("/notes/README.md")
 
     assert response.status_code == 200
     assert b'id="graph-container"' not in response.content
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_directory_page(django_setup) -> None:
+    views._state_cache.clear()
+    response = Client().get("/notes/Folder/")
+
+    assert response.status_code == 200
+    assert b'class="directory-page"' in response.content
+    assert b'href="/notes/Folder/B.md"' in response.content

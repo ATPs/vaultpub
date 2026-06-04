@@ -3,10 +3,14 @@
  * Right nav (TOC): scroll-spy to highlight the current section heading.
  */
 
+function currentPathElement(): HTMLElement | null {
+  return document.querySelector<HTMLElement>("[data-current-path]");
+}
+
 function initNavHighlight(): void {
-  const article = document.querySelector<HTMLElement>(".note");
-  if (!article) return;
-  const currentPath = article.dataset.notePath;
+  const page = currentPathElement();
+  if (!page) return;
+  const currentPath = page.dataset.currentPath;
   if (!currentPath) return;
 
   const fileTree = document.querySelector<HTMLElement>(".file-tree");
@@ -17,11 +21,16 @@ function initNavHighlight(): void {
     if (link.getAttribute("href") === currentPath) {
       link.classList.add("active");
 
-      // Expand all ancestor <details> so the active link is visible
       let parent = link.parentElement;
       while (parent && parent !== fileTree) {
         if (parent.tagName === "DETAILS") {
-          (parent as HTMLDetailsElement).open = true;
+          const detail = parent as HTMLDetailsElement;
+          detail.open = true;
+          detail.classList.add("has-active-descendant");
+          const folderLink = detail.querySelector<HTMLAnchorElement>("summary .nav-folder-link");
+          if (folderLink && folderLink !== link) {
+            folderLink.classList.add("active-parent");
+          }
         }
         parent = parent.parentElement;
       }
