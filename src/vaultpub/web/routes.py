@@ -168,6 +168,11 @@ async def api_search(request: Request) -> JSONResponse:
     return JSONResponse({"results": results})
 
 
+async def search_index(request: Request) -> JSONResponse:
+    state = _get_state(request)
+    return JSONResponse(state.index.search_documents)
+
+
 async def api_graph(request: Request) -> JSONResponse:
     state = _get_state(request)
     graph = state.index.graph
@@ -197,10 +202,13 @@ async def api_graph(request: Request) -> JSONResponse:
 
 def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:
     state = _get_state(request)
-    body_html = state.renderer.render_page_html(note)
+    body_html = state.renderer.render_article_html(note)
+    toc_html = state.renderer.render_toc_html(note) if state.config.show_toc else ""
+    backlinks_html = state.renderer.render_backlinks_html(note) if state.config.show_backlinks else ""
+    sidebar_right_html = toc_html + backlinks_html
     nav_html = ""
     if state.index.nav_tree:
         nav_html = "<ul>" + nav_tree_html(state.index.nav_tree) + "</ul>"
     head = build_meta_tags(note, state.config)
-    page_str = base_page_template(body_html, nav_html, head, state.config)
+    page_str = base_page_template(body_html, nav_html, head, state.config, sidebar_right_html)
     return HTMLResponse(page_str)

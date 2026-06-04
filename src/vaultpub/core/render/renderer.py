@@ -287,17 +287,22 @@ class Renderer:
 
         return re.sub(r"<h([1-6])>(.+?)</h\1>", _add_anchor, html)
 
-    def render_page_html(self, note: NoteRecord) -> str:
+    def render_article_html(self, note: NoteRecord) -> str:
         body = self.render_note(note)
-        backlinks_html = self.render_backlinks_html(note)
-        toc_html = self.render_toc_html(note)
 
         return f"""\
 <article class="note" data-note-id="{note.id}" data-note-path="{note.url_path}">
   <div class="markdown-body">{body}</div>
-  {toc_html}
-  {backlinks_html}
 </article>"""
+
+    def render_page_html(self, note: NoteRecord) -> str:
+        backlinks_html = self.render_backlinks_html(note)
+        toc_html = self.render_toc_html(note)
+
+        return f"""\
+{self.render_article_html(note)}
+{toc_html}
+{backlinks_html}"""
 
     def render_backlinks_html(self, note: NoteRecord) -> str:
         if not note.backlinks:

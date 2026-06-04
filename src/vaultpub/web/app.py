@@ -6,7 +6,7 @@ import os
 from contextlib import asynccontextmanager, suppress
 
 from starlette.applications import Starlette
-from starlette.routing import Route
+from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
 from vaultpub.core.config import PublisherConfig
@@ -22,6 +22,7 @@ from vaultpub.web.routes import (
     attachment,
     index_page,
     page,
+    search_index,
 )
 from vaultpub.web.sse import events_version, sse_endpoint
 
@@ -57,23 +58,27 @@ def create_app(config: PublisherConfig) -> Starlette:
                 with suppress(asyncio.CancelledError):
                     await watcher_task
 
+    frontend_static = os.path.join(os.path.dirname(__file__), "..", "django_app", "static", "vaultpub")
+
     routes = [
         Route("/", endpoint=index_page, methods=["GET"]),
         Route("/assets/{path:path}", endpoint=attachment, methods=["GET"]),
         Route("/api/page/{path:path}", endpoint=api_page, methods=["GET"]),
         Route("/api/search", endpoint=api_search, methods=["GET"]),
+        Route("/search-index.json", endpoint=search_index, methods=["GET"]),
         Route("/api/graph", endpoint=api_graph, methods=["GET"]),
+        Route("/graph.json", endpoint=api_graph, methods=["GET"]),
         Route("/api/graph/local/{path:path}", endpoint=api_graph, methods=["GET"]),
         Route("/api/events", endpoint=sse_endpoint, methods=["GET"]),
         Route("/api/events/version", endpoint=events_version, methods=["GET"]),
-        Route("/{path:path}", endpoint=page, methods=["GET"]),
     ]
+
+    if os.path.isdir(frontend_static):
+        routes.append(Mount("/static/vaultpub", app=StaticFiles(directory=frontend_static), name="static"))
+
+    routes.append(Route("/{path:path}", endpoint=page, methods=["GET"]))
 
     app = Starlette(debug=False, routes=routes, lifespan=lifespan)
     app.state.vaultpub_state = state
-
-    frontend_static = os.path.join(os.path.dirname(__file__), "..", "django_app", "static", "vaultpub")
-    if os.path.isdir(frontend_static):
-        app.mount("/static/vaultpub", StaticFiles(directory=frontend_static), name="static")
 
     return app

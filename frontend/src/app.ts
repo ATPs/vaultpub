@@ -15,6 +15,7 @@ import { initMermaid } from "./mermaid-init";
 import { initMath } from "./math-init";
 import { initRealtime } from "./realtime";
 import { initMobileDrawer } from "./mobile";
+import { initSidebars } from "./sidebar";
 
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
@@ -26,4 +27,5 @@ document.addEventListener("DOMContentLoaded", () => {
   initMath();
   initRealtime();
   initMobileDrawer();
+  initSidebars();
 });

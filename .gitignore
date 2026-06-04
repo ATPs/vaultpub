@@ -10,12 +10,29 @@ dist/
 # Virtual environments
 .venv/
 venv/
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Frontend build output
+src/vaultpub/django_app/static/vaultpub/app.css
+src/vaultpub/django_app/static/vaultpub/app.js
+src/vaultpub/django_app/static/vaultpub/assets/
 
 # Testing
 .pytest_cache/
 .tox/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
 .coverage
+.coverage.*
+coverage.xml
 htmlcov/
+.playwright-cli/
 
 # IDE
 .idea/

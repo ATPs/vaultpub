@@ -156,6 +156,10 @@ ruff check .
 ruff format .
 ```
 
+Python package builds run the frontend bundle automatically through the Hatch build hook.
+For manual frontend builds, run `npm run build` in `frontend/`; it installs dependencies, writes
+`src/vaultpub/django_app/static/vaultpub/`, and removes `frontend/node_modules` when done.
+
 ## License
 
 MIT

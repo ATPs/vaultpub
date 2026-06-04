@@ -27,6 +27,17 @@ def test_note_page(client) -> None:
     response = client.get("/README")
     assert response.status_code == 200
     assert "README" in response.text
+    assert 'data-sidebar-toggle="left"' in response.text
+    assert 'data-sidebar-toggle="right"' in response.text
+    assert "Navigation" in response.text
+    assert "Page" in response.text
+
+
+def test_note_page_renders_toc_in_right_sidebar(client) -> None:
+    response = client.get("/A")
+    assert response.status_code == 200
+    assert '<aside class="sidebar-right">' in response.text
+    assert "<h3>Contents</h3>" in response.text
 
 
 def test_api_search(client) -> None:
@@ -37,12 +48,38 @@ def test_api_search(client) -> None:
     assert len(data["results"]) > 0
 
 
+def test_search_index_json(client) -> None:
+    response = client.get("/search-index.json")
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert any(doc["title"] == "README" for doc in data)
+
+
 def test_api_graph(client) -> None:
     response = client.get("/api/graph")
     assert response.status_code == 200
     data = response.json()
     assert "nodes" in data
     assert "edges" in data
+
+
+def test_graph_json(client) -> None:
+    response = client.get("/graph.json")
+    assert response.status_code == 200
+    data = response.json()
+    assert "nodes" in data
+    assert "edges" in data
+
+
+def test_frontend_static_assets(client) -> None:
+    css_response = client.get("/static/vaultpub/app.css")
+    assert css_response.status_code == 200
+    assert "text/css" in css_response.headers["content-type"]
+
+    js_response = client.get("/static/vaultpub/app.js")
+    assert js_response.status_code == 200
+    assert "javascript" in js_response.headers["content-type"]
 
 
 def test_note_not_found(client) -> None:
