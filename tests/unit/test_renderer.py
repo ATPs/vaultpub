@@ -7,7 +7,7 @@ from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import NavNode
 from vaultpub.core.render import Renderer
-from vaultpub.core.render.templates import nav_tree_html
+from vaultpub.core.render.templates import directory_page_html, directory_sibling_files_html, nav_tree_html
 
 
 def test_render_note_basic(vault_basic) -> None:
@@ -130,4 +130,53 @@ def test_nav_tree_omits_root_directory() -> None:
     assert "<summary>/</summary>" not in html
     assert 'href="/Folder/"' in html
     assert "Folder/" in html
+    assert 'href="/README.md"' in html
+
+
+def test_directory_page_renders_list_items_for_files_and_folders() -> None:
+    node = NavNode(
+        label="Folder",
+        path="Folder",
+        url="/Folder/",
+        is_dir=True,
+        children=[
+            NavNode(label="Child", path="Folder/Child", url="/Folder/Child/", is_dir=True, children=[]),
+            NavNode(label="Note.md", path="Folder/Note.md", url="/Folder/Note.md"),
+        ],
+    )
+
+    html = directory_page_html(
+        node,
+        current_path="/Folder/",
+        content_previews={"Folder/Note.md": "# Note.md\nSecond line"},
+    )
+
+    assert 'class="directory-list"' in html
+    assert 'class="directory-list-item is-folder"' in html
+    assert 'class="directory-list-item is-file"' in html
+    assert 'directory-list-title">Child/<' in html
+    assert 'directory-list-meta">Folder<' in html
+    assert 'directory-list-title">Note.md<' in html
+    assert 'directory-list-preview"># Note.md\nSecond line<' in html
+
+
+def test_directory_sibling_files_html_lists_parent_directory_files() -> None:
+    nav = NavNode(
+        label="/",
+        path=".",
+        url="/",
+        is_dir=True,
+        children=[
+            NavNode(label="Folder", path="Folder", url="/Folder/", is_dir=True, children=[]),
+            NavNode(label="A.md", path="A.md", url="/A.md"),
+            NavNode(label="README.md", path="README.md", url="/README.md"),
+        ],
+    )
+    directory = nav.children[0]
+
+    html = directory_sibling_files_html(nav, directory)
+
+    assert 'class="directory-context-nav"' in html
+    assert "Same Directory" in html
+    assert 'href="/A.md"' in html
     assert 'href="/README.md"' in html

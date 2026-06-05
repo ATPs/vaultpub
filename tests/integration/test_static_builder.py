@@ -23,9 +23,24 @@ def test_build_static_site(vault_basic) -> None:
         assert (out / "graph.json").exists()
         assert (out / "robots.txt").exists()
         home_html = (out / "README.md.html").read_text(encoding="utf-8")
+        folder_html = (out / "Folder" / "index.html").read_text(encoding="utf-8")
+        folder_note_html = (out / "Folder" / "B.md.html").read_text(encoding="utf-8")
         assert 'class="topbar-context topbar-context-note"' in home_html
         assert 'data-current-heading' in home_html
         assert 'href="/A.md.html"' in home_html
+        assert 'class="sidebar-title">Directory<' in folder_html
+        assert 'class="directory-context-nav"' in folder_html
+        assert 'href="/A.md.html"' in folder_html
+        assert 'href="/README.md.html"' in folder_html
+        assert "Same Directory" in folder_html
+        assert 'class="directory-list"' in folder_html
+        assert 'class="directory-list-item is-file"' in folder_html
+        assert 'directory-list-title">B.md<' in folder_html
+        assert 'directory-list-preview"># Note B' in folder_html
+        assert "This is note B in a folder." in folder_html
+        assert 'directory-list-meta">Folder/B.md<' not in folder_html
+        assert 'href="/Folder/index.html" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in folder_note_html
+        assert 'href="/Folder/B.md.html" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in folder_note_html
 
 
 def test_build_static_site_ignores_permalink_and_alias_routes(tmp_path: Path) -> None:
@@ -66,6 +81,8 @@ def test_build_static_site_renders_topbar_code_tools_for_text_pages(tmp_path: Pa
 
     code_html = (out / "tools" / "example.py.html").read_text(encoding="utf-8")
     assert 'class="topbar-context topbar-context-code"' in code_html
+    assert 'href="/tools/index.html" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in code_html
+    assert 'href="/tools/example.py.html" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in code_html
     assert 'data-code-action="copy-path"' in code_html
     assert 'data-code-action="toggle-wrap"' in code_html
     assert "tools/example.py" in code_html

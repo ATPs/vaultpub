@@ -114,6 +114,8 @@ def test_folder_note(client) -> None:
     response = client.get("/Folder/B.md")
     assert response.status_code == 200
     assert "Note B" in response.text or "B" in response.text
+    assert 'href="/Folder/" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in response.text
+    assert 'href="/Folder/B.md" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in response.text
 
 
 def test_api_page(client) -> None:
@@ -128,7 +130,19 @@ def test_directory_page(client) -> None:
     response = client.get("/Folder/")
     assert response.status_code == 200
     assert 'class="directory-page"' in response.text
+    assert 'class="directory-list"' in response.text
+    assert 'class="sidebar-title">Directory<' in response.text
+    assert 'class="directory-context-nav"' in response.text
+    assert 'href="/A.md"' in response.text
+    assert 'href="/README.md"' in response.text
+    assert "Same Directory" in response.text
     assert 'href="/Folder/B.md"' in response.text
+    assert 'href="/Folder/" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in response.text
+    assert 'class="directory-list-item is-file"' in response.text
+    assert 'directory-list-title">B.md<' in response.text
+    assert 'directory-list-preview"># Note B' in response.text
+    assert "This is note B in a folder." in response.text
+    assert 'directory-list-meta">Folder/B.md<' not in response.text
 
 
 def test_old_extensionless_note_route_is_not_supported(client) -> None:
@@ -148,6 +162,8 @@ def test_force_included_text_page_renders_topbar_code_tools(tmp_path: Path) -> N
     response = client.get("/tools/example.py")
     assert response.status_code == 200
     assert 'class="topbar-context topbar-context-code"' in response.text
+    assert 'href="/tools/" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in response.text
+    assert 'href="/tools/example.py" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in response.text
     assert 'data-code-action="copy-path"' in response.text
     assert 'data-code-action="toggle-wrap"' in response.text
     assert "tools/example.py" in response.text
