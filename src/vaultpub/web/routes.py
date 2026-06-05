@@ -16,7 +16,9 @@ from vaultpub.core.render.renderer import Renderer
 from vaultpub.core.render.seo import build_meta_tags
 from vaultpub.core.render.templates import (
     base_page_template,
+    directory_preview_map,
     directory_page_html,
+    directory_sibling_files_html,
     find_nav_directory,
     graph_container_html,
     nav_tree_html,
@@ -239,7 +241,7 @@ def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:
         head,
         state.config,
         sidebar_right_html,
-        graph_html,
+        graph_html=graph_html,
         topbar_context_html=topbar_context_html,
     )
     return HTMLResponse(page_str)
@@ -247,7 +249,15 @@ def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:
 
 def _render_directory_page(request: Request, directory: NavNode) -> HTMLResponse:
     state = _get_state(request)
-    body_html = directory_page_html(directory, current_path=directory.url)
+    body_html = directory_page_html(
+        directory,
+        current_path=directory.url,
+        content_previews=directory_preview_map(
+            state.index.notes_by_id.values(),
+            state.index.text_pages_by_path.values(),
+        ),
+    )
+    sidebar_right_html = directory_sibling_files_html(state.index.nav_tree, directory)
     nav_html = ""
     if state.index.nav_tree:
         nav_html = "<ul>" + nav_tree_html(state.index.nav_tree) + "</ul>"
@@ -255,14 +265,18 @@ def _render_directory_page(request: Request, directory: NavNode) -> HTMLResponse
     graph_html = graph_container_html(show_graph, graph_note_id)
     title = "Home" if directory.path in ("", ".") else f"{directory.label}/"
     head = f"<title>{escape(title)} - {escape(state.config.site_name)}</title>"
-    topbar_context_html = topbar_context_html_for_directory(PurePosixPath(directory.path), home_url="/")
+    topbar_context_html = topbar_context_html_for_directory(
+        PurePosixPath(directory.path),
+        current_url=directory.url,
+    )
     page_str = base_page_template(
         body_html,
         nav_html,
         head,
         state.config,
-        "",
-        graph_html,
+        sidebar_right_html,
+        sidebar_right_title="Directory",
+        graph_html=graph_html,
         topbar_context_html=topbar_context_html,
     )
     return HTMLResponse(page_str)
@@ -284,7 +298,7 @@ def _render_text_page(request: Request, tp: TextPageRecord) -> HTMLResponse:
         head,
         state.config,
         "",
-        "",
+        graph_html="",
         topbar_context_html=topbar_context_html,
     )
     return HTMLResponse(page_str)

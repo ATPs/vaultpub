@@ -13,7 +13,9 @@ from vaultpub.core.models import NavNode, NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.render import Renderer
 from vaultpub.core.render.seo import build_meta_tags, build_page_description, build_page_title
 from vaultpub.core.render.templates import (
+    directory_preview_map,
     directory_page_html,
+    directory_sibling_files_html,
     find_nav_directory,
     nav_tree_html,
     sidebar_graph_state,
@@ -80,6 +82,10 @@ def _prefix_html_urls(html: str, config: object) -> str:
         return f'{match.group("attr")}{prefixed}{match.group("quote")}'
 
     return _ABSOLUTE_ATTR_RE.sub(_replace, html)
+
+
+def _prefix_public_url(config: object, url: str) -> str:
+    return _prefix_url(config, url) or url
 
 
 def _build_url_maps(index: VaultIndex) -> tuple[dict[str, NoteRecord], dict[str, NoteRecord]]:
@@ -259,7 +265,7 @@ def _render_note(request: HttpRequest, note: NoteRecord) -> HttpResponse:
         "show_search": config.show_search,
         "url_prefix": _url_prefix(config),
         "seo_head": build_meta_tags(note, config),
-        "topbar_context_html": topbar_context_html_for_note(note, home_url=_url_prefix(config)),
+        "topbar_context_html": topbar_context_html_for_note(note, url_transform=lambda url: _prefix_public_url(config, url)),
     }
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, note)
     context["show_graph"] = show_graph
@@ -289,7 +295,10 @@ def _render_text_page(request: HttpRequest, tp: TextPageRecord) -> HttpResponse:
         "show_search": config.show_search,
         "url_prefix": _url_prefix(config),
         "seo_head": f"<title>{escape(tp.title)} - {escape(config.site_name)}</title>",
-        "topbar_context_html": topbar_context_html_for_text_page(tp, home_url=_url_prefix(config)),
+        "topbar_context_html": topbar_context_html_for_text_page(
+            tp,
+            url_transform=lambda url: _prefix_public_url(config, url),
+        ),
     }
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, None)
     context["show_graph"] = show_graph
@@ -302,7 +311,15 @@ def _render_directory_page(request: HttpRequest, directory: NavNode) -> HttpResp
     config = state["config"]
     index: VaultIndex = state["index"]
 
-    page_body_html = directory_page_html(directory, current_path=_prefix_url(config, directory.url) or directory.url)
+    page_body_html = directory_page_html(
+        directory,
+        current_path=_prefix_url(config, directory.url) or directory.url,
+        content_previews=directory_preview_map(
+            index.notes_by_id.values(),
+            index.text_pages_by_path.values(),
+        ),
+    )
+    sidebar_right_html = _prefix_html_urls(directory_sibling_files_html(index.nav_tree, directory), config)
     context = {
         "page_body_html": _prefix_html_urls(page_body_html, config),
         "title": f"{directory.label}/ - {config.site_name}",
@@ -313,6 +330,8 @@ def _render_directory_page(request: HttpRequest, directory: NavNode) -> HttpResp
         "nav_html": _build_nav_html(index, config),
         "toc_html": "",
         "backlinks_html": "",
+        "sidebar_right_html": sidebar_right_html,
+        "sidebar_right_title": "Directory",
         "realtime": config.realtime,
         "site_logo": config.site_logo,
         "show_theme_toggle": config.show_theme_toggle,
@@ -321,7 +340,8 @@ def _render_directory_page(request: HttpRequest, directory: NavNode) -> HttpResp
         "seo_head": f"<title>{escape(directory.label)}/ - {escape(config.site_name)}</title>",
         "topbar_context_html": topbar_context_html_for_directory(
             PurePosixPath(directory.path),
-            home_url=_url_prefix(config),
+            current_url=directory.url,
+            url_transform=lambda url: _prefix_public_url(config, url),
         ),
     }
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, None)

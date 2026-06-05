@@ -39,10 +39,11 @@
         {% if show_search %}<button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>{% endif %}
       </div>
       <div class="sidebar-header">
-        <div class="sidebar-title">Page</div>
+        <div class="sidebar-title">{{ sidebar_right_title|default:"Page" }}</div>
         <button class="sidebar-toggle" type="button" data-sidebar-toggle="right" aria-label="Hide page sidebar">&gt;</button>
       </div>
       {% block sidebar_right %}
+        {% if sidebar_right_html %}{{ sidebar_right_html|safe }}{% endif %}
         {% include "vaultpub/partials/graph.html" %}
         {% include "vaultpub/partials/toc.html" %}
         {% include "vaultpub/partials/backlinks.html" %}

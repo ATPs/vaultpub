@@ -181,4 +181,23 @@ def test_django_directory_page(django_setup) -> None:
 
     assert response.status_code == 200
     assert b'class="directory-page"' in response.content
+    assert b'class="directory-list"' in response.content
+    assert b'class="sidebar-title">Directory<' in response.content
+    assert b'class="directory-context-nav"' in response.content
+    assert b'href="/notes/A.md"' in response.content
+    assert b'href="/notes/README.md"' in response.content
+    assert b"Same Directory" in response.content
     assert b'href="/notes/Folder/B.md"' in response.content
+    assert b'href="/notes/Folder/" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in response.content
+    assert b'class="directory-list-item is-file"' in response.content
+    assert b'directory-list-preview"># Note B' in response.content
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_nested_note_breadcrumb_links_use_mount_prefix(django_setup) -> None:
+    views._state_cache.clear()
+    response = Client().get("/notes/Folder/B.md")
+
+    assert response.status_code == 200
+    assert b'href="/notes/Folder/" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in response.content
+    assert b'href="/notes/Folder/B.md" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in response.content

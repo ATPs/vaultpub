@@ -17,7 +17,9 @@ from vaultpub.core.render.renderer import Renderer
 from vaultpub.core.render.seo import build_page_description, build_page_title
 from vaultpub.core.render.templates import (
     base_page_template,
+    directory_preview_map,
     directory_page_html,
+    directory_sibling_files_html,
     graph_container_html,
     nav_tree_html,
     sidebar_graph_state,
@@ -154,7 +156,7 @@ class StaticSiteBuilder:
         nav_html = ""
         if vault_index.nav_tree:
             nav_html = "<ul>" + nav_tree_html(vault_index.nav_tree, url_transform=static_html_url) + "</ul>"
-        topbar_context_html = topbar_context_html_for_note(note, home_url=static_html_url("/"))
+        topbar_context_html = topbar_context_html_for_note(note, url_transform=static_html_url)
         return base_page_template(
             body_html.replace(
                 f'data-note-path="{escape(note.url_path, quote=True)}"',
@@ -167,7 +169,7 @@ class StaticSiteBuilder:
             head,
             self.config,
             sidebar_right_html,
-            graph_html,
+            graph_html=graph_html,
             topbar_context_html=topbar_context_html,
         )
 
@@ -175,6 +177,15 @@ class StaticSiteBuilder:
         body_html = directory_page_html(
             directory,
             current_path=static_html_url(directory.url),
+            content_previews=directory_preview_map(
+                vault_index.notes_by_id.values(),
+                vault_index.text_pages_by_path.values(),
+            ),
+            url_transform=static_html_url,
+        )
+        sidebar_right_html = directory_sibling_files_html(
+            vault_index.nav_tree,
+            directory,
             url_transform=static_html_url,
         )
         nav_html = ""
@@ -186,15 +197,17 @@ class StaticSiteBuilder:
         head = f"<title>{escape(title)} - {escape(self.config.site_name)}</title>"
         topbar_context_html = topbar_context_html_for_directory(
             PurePosixPath(directory.path),
-            home_url=static_html_url("/"),
+            current_url=directory.url,
+            url_transform=static_html_url,
         )
         return base_page_template(
             body_html,
             nav_html,
             head,
             self.config,
-            "",
-            graph_html,
+            sidebar_right_html,
+            sidebar_right_title="Directory",
+            graph_html=graph_html,
             topbar_context_html=topbar_context_html,
         )
 
@@ -316,14 +329,14 @@ class StaticSiteBuilder:
         nav_html = ""
         if vault_index.nav_tree:
             nav_html = "<ul>" + nav_tree_html(vault_index.nav_tree, url_transform=static_html_url) + "</ul>"
-        topbar_context_html = topbar_context_html_for_text_page(tp, home_url=static_html_url("/"))
+        topbar_context_html = topbar_context_html_for_text_page(tp, url_transform=static_html_url)
         return base_page_template(
             self._rewrite_page_urls(body_html),
             nav_html,
             head,
             self.config,
             "",
-            "",
+            graph_html="",
             topbar_context_html=topbar_context_html,
         )
 

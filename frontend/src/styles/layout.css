@@ -109,14 +109,15 @@ body {
   color: var(--text-muted);
 }
 
-.topbar-breadcrumb-link,
-.topbar-breadcrumb-sep {
-  flex-shrink: 0;
-}
-
 .topbar-breadcrumb-link {
+  min-width: 0;
   color: var(--text-muted);
   text-decoration: none;
+}
+
+.topbar-breadcrumb-link:not(.topbar-breadcrumb-segment):not(.topbar-breadcrumb-current),
+.topbar-breadcrumb-sep {
+  flex-shrink: 0;
 }
 
 .topbar-breadcrumb-link:hover {

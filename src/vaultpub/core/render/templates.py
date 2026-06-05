@@ -3,10 +3,10 @@ from __future__ import annotations
 
 from html import escape
 from pathlib import PurePosixPath
-from typing import Callable
+from typing import Callable, Iterable
 
 from vaultpub.core.models import GraphData, Heading, NavNode, NoteRecord, TextPageRecord
-from vaultpub.core.paths import directory_display_name
+from vaultpub.core.paths import directory_display_name, directory_path_to_url_path
 
 
 def build_local_graph(graph: GraphData, note: NoteRecord) -> GraphData:
@@ -51,17 +51,63 @@ def graph_container_html(show_graph: bool, graph_note_id: str | None = None) -> 
     return f'<div id="graph-container" class="graph-container"{note_attr}></div>'
 
 
-def _breadcrumbs_html(rel_path: PurePosixPath, home_url: str = "/") -> str:
+def _preview_text(content: str) -> str:
+    lines: list[str] = []
+    for raw_line in content.splitlines():
+        line = " ".join(raw_line.strip().split())
+        if not line:
+            continue
+        lines.append(line)
+        if len(lines) == 2:
+            break
+    return "\n".join(lines)
+
+
+def directory_preview_map(
+    notes: Iterable[NoteRecord],
+    text_pages: Iterable[TextPageRecord],
+) -> dict[str, str]:
+    previews: dict[str, str] = {}
+
+    for note in notes:
+        preview = _preview_text(note.plain_text)
+        if preview:
+            previews[note.rel_path.as_posix()] = preview
+
+    for text_page in text_pages:
+        preview = _preview_text(text_page.plain_text)
+        if preview:
+            previews[text_page.rel_path.as_posix()] = preview
+
+    return previews
+
+
+def _breadcrumbs_html(
+    rel_path: PurePosixPath,
+    current_url: str,
+    url_transform: Callable[[str], str] | None = None,
+) -> str:
+    home_url = _transform_url("/", url_transform)
     segments = [f'<a href="{escape(home_url, quote=True)}" class="topbar-breadcrumb-link">Home</a>']
     parts = list(rel_path.parts)
+    dir_parts: list[str] = []
 
     for part in parts[:-1]:
+        dir_parts.append(part)
+        dir_url = _transform_url(directory_path_to_url_path("/".join(dir_parts)), url_transform)
         segments.append('<span class="topbar-breadcrumb-sep">/</span>')
-        segments.append(f'<span class="topbar-breadcrumb-segment">{escape(part)}</span>')
+        segments.append(
+            f'<a href="{escape(dir_url, quote=True)}" class="topbar-breadcrumb-link topbar-breadcrumb-segment">'
+            f"{escape(part)}</a>"
+        )
 
     if parts:
+        final_url = _transform_url(current_url, url_transform)
         segments.append('<span class="topbar-breadcrumb-sep">/</span>')
-        segments.append(f'<span class="topbar-breadcrumb-current">{escape(parts[-1])}</span>')
+        segments.append(
+            f'<a href="{escape(final_url, quote=True)}" class="topbar-breadcrumb-link topbar-breadcrumb-current">'
+            f"{escape(parts[-1])}</a>"
+        )
 
     return "".join(segments)
 
@@ -101,7 +147,10 @@ def _language_label(text_page: TextPageRecord) -> str:
     return suffix.upper() if suffix else "Text"
 
 
-def topbar_context_html_for_note(note: NoteRecord, home_url: str = "/") -> str:
+def topbar_context_html_for_note(
+    note: NoteRecord,
+    url_transform: Callable[[str], str] | None = None,
+) -> str:
     heading = _preferred_heading(note)
     heading_href = f' href="#{escape(heading.slug, quote=True)}"' if heading is not None else ""
     heading_hidden = "" if heading is not None else " hidden"
@@ -110,17 +159,20 @@ def topbar_context_html_for_note(note: NoteRecord, home_url: str = "/") -> str:
     return f"""\
 <div class="topbar-context topbar-context-note" data-topbar-context="note">
   <nav class="topbar-breadcrumbs" aria-label="Current location">
-    {_breadcrumbs_html(note.rel_path, home_url)}
+    {_breadcrumbs_html(note.rel_path, note.url_path, url_transform)}
   </nav>
   <a class="topbar-current-heading" data-current-heading aria-live="polite"{heading_href}{heading_hidden}>{heading_text}</a>
 </div>"""
 
 
-def topbar_context_html_for_text_page(text_page: TextPageRecord, home_url: str = "/") -> str:
+def topbar_context_html_for_text_page(
+    text_page: TextPageRecord,
+    url_transform: Callable[[str], str] | None = None,
+) -> str:
     return f"""\
 <div class="topbar-context topbar-context-code" data-topbar-context="code">
   <nav class="topbar-breadcrumbs" aria-label="Current location">
-    {_breadcrumbs_html(text_page.rel_path, home_url)}
+    {_breadcrumbs_html(text_page.rel_path, text_page.url_path, url_transform)}
   </nav>
   <div class="topbar-code-tools">
     <span class="topbar-code-meta">{escape(_language_label(text_page))} &middot; {_format_size(text_page.size)}</span>
@@ -131,12 +183,16 @@ def topbar_context_html_for_text_page(text_page: TextPageRecord, home_url: str =
 </div>"""
 
 
-def topbar_context_html_for_directory(dir_path: PurePosixPath, home_url: str = "/") -> str:
+def topbar_context_html_for_directory(
+    dir_path: PurePosixPath,
+    current_url: str,
+    url_transform: Callable[[str], str] | None = None,
+) -> str:
     directory_name = escape(directory_display_name(dir_path))
     return f"""\
 <div class="topbar-context topbar-context-note" data-topbar-context="directory">
   <nav class="topbar-breadcrumbs" aria-label="Current location">
-    {_breadcrumbs_html(dir_path, home_url)}
+    {_breadcrumbs_html(dir_path, current_url, url_transform)}
   </nav>
   <span class="topbar-current-heading" data-current-heading>{directory_name}/</span>
 </div>"""
@@ -148,6 +204,7 @@ def base_page_template(
     head_html: str = "",
     config: object | None = None,
     sidebar_right_html: str = "",
+    sidebar_right_title: str = "Page",
     graph_html: str = "",
     topbar_context_html: str = "",
 ) -> str:
@@ -158,6 +215,7 @@ def base_page_template(
     logo_html = f'<img src="{site_logo}" alt="{site_name}" class="site-logo">' if site_logo else ""
     search_trigger = '<button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>'
     right_sidebar = sidebar_right_html + graph_html
+    right_sidebar_title_html = escape(sidebar_right_title)
 
     return f"""\
 <!DOCTYPE html>
@@ -199,7 +257,7 @@ def base_page_template(
         {search_trigger}
       </div>
       <div class="sidebar-header">
-        <div class="sidebar-title">Page</div>
+        <div class="sidebar-title">{right_sidebar_title_html}</div>
         <button class="sidebar-toggle" type="button" data-sidebar-toggle="right"
                 aria-label="Hide page sidebar">&gt;</button>
       </div>
@@ -228,29 +286,74 @@ def find_nav_directory(node: NavNode | None, dir_path: str) -> NavNode | None:
     return None
 
 
+def directory_sibling_files_html(
+    nav_tree: NavNode | None,
+    directory: NavNode,
+    url_transform: Callable[[str], str] | None = None,
+) -> str:
+    """Render links to files alongside the current directory in its parent directory."""
+    if nav_tree is None:
+        return ""
+
+    parent_path = PurePosixPath(directory.path).parent.as_posix()
+    parent_node = find_nav_directory(nav_tree, parent_path)
+    if parent_node is None:
+        return ""
+
+    sibling_files = [child for child in parent_node.children if not child.is_dir]
+    if not sibling_files:
+        return """\
+<nav class="directory-context-nav">
+  <h3>Same Directory</h3>
+  <p class="directory-context-empty">No files in this directory.</p>
+</nav>"""
+
+    items = "".join(
+        f'<li><a href="{escape(_transform_url(child.url, url_transform), quote=True)}">{escape(child.label)}</a></li>'
+        for child in sibling_files
+    )
+    return f"""\
+<nav class="directory-context-nav">
+  <h3>Same Directory</h3>
+  <ul>{items}</ul>
+</nav>"""
+
+
 def directory_page_html(
     node: NavNode,
     current_path: str,
+    content_previews: dict[str, str] | None = None,
     url_transform: Callable[[str], str] | None = None,
 ) -> str:
-    """Render a directory landing page with cards for its direct children."""
+    """Render a directory landing page as a single-column list of cards."""
     items: list[str] = []
+    previews = content_previews or {}
     for child in node.children:
         child_url = _transform_url(child.url, url_transform)
         child_title = f"{child.label}/" if child.is_dir else child.label
-        child_meta = "Folder" if child.is_dir else child.path
-        item_class = "directory-card is-folder" if child.is_dir else "directory-card is-file"
+        item_class = "directory-list-item is-folder" if child.is_dir else "directory-list-item is-file"
+        if child.is_dir:
+            child_detail_html = '<span class="directory-list-meta">Folder</span>'
+        else:
+            preview = previews.get(child.path, "")
+            child_detail_html = (
+                f'<span class="directory-list-preview">{escape(preview)}</span>'
+                if preview
+                else ""
+            )
         items.append(
+            "<li>"
             f'<a href="{escape(child_url, quote=True)}" class="{item_class}">'
-            f'<span class="directory-card-title">{escape(child_title)}</span>'
-            f'<span class="directory-card-meta">{escape(child_meta)}</span>'
+            f'<span class="directory-list-title">{escape(child_title)}</span>'
+            f"{child_detail_html}"
             "</a>"
+            "</li>"
         )
 
     directory_title = "Home" if node.path in (".", "") else f"{directory_display_name(node.path)}/"
     item_count = f"{len(node.children)} item" if len(node.children) == 1 else f"{len(node.children)} items"
     empty_state = '<p class="directory-empty">This folder has no published children.</p>' if not items else ""
-    grid = f'<div class="directory-grid">{"".join(items)}</div>' if items else ""
+    list_html = f'<ul class="directory-list">{"".join(items)}</ul>' if items else ""
     current_attr = escape(current_path, quote=True)
     return f"""\
 <article class="directory-page" data-current-path="{current_attr}">
@@ -259,7 +362,7 @@ def directory_page_html(
     <p>{escape(item_count)}</p>
   </header>
   {empty_state}
-  {grid}
+  {list_html}
 </article>"""
 
 
