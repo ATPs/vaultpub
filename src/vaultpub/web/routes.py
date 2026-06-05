@@ -1,6 +1,7 @@
 """Web routes for the standalone ASGI app."""
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from html import escape
 from pathlib import PurePosixPath
@@ -39,6 +40,7 @@ class AppState:
     indexer: VaultIndexer
     event_bus: object | None = None
     rt_state: object | None = None
+    shutdown_signal: threading.Event | None = None
 
 
 def _get_state(request: Request) -> AppState:

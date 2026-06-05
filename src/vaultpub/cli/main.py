@@ -40,6 +40,7 @@ def serve(
     ),
 ) -> None:
     """Start the vaultpub web server."""
+    import threading
     from pathlib import Path
 
     import uvicorn
@@ -59,7 +60,25 @@ def serve(
         cfg = cfg.__class__(**{**_config_fields(cfg), **overrides})
 
     asgi_app = create_app(cfg)
-    uvicorn.run(asgi_app, host=host, port=port, reload=reload)  # type: ignore[arg-type]
+    shutdown_signal = threading.Event()
+    state = getattr(asgi_app.state, "vaultpub_state", None)
+    if state is not None:
+        state.shutdown_signal = shutdown_signal
+
+    class VaultpubServer(uvicorn.Server):
+        async def shutdown(self, sockets=None) -> None:  # type: ignore[no-untyped-def]
+            shutdown_signal.set()
+            await super().shutdown(sockets=sockets)
+
+    config_obj = uvicorn.Config(
+        asgi_app,
+        host=host,
+        port=port,
+        reload=reload,
+        timeout_graceful_shutdown=5,
+    )
+    server = VaultpubServer(config_obj)
+    server.run()
 
 
 @app.command()
@@ -130,7 +149,7 @@ def index(
     import json
     from pathlib import Path
 
-    from vaultpub.core.config import _config_fields, load_config
+    from vaultpub.core.config import load_config
     from vaultpub.core.index.indexer import VaultIndexer
 
     cfg = load_config(vault_path=Path(vault), yaml_path=config)
@@ -163,7 +182,7 @@ def doctor(
     """Diagnose vault issues: broken links, duplicates, etc."""
     from pathlib import Path
 
-    from vaultpub.core.config import _config_fields, load_config
+    from vaultpub.core.config import load_config
     from vaultpub.core.index.indexer import VaultIndexer
 
     cfg = load_config(vault_path=Path(vault), yaml_path=config)
