@@ -13,6 +13,7 @@ from vaultpub.core.realtime.events import ChangeRecord, EventBus, IndexChangedEv
 from vaultpub.core.security import is_force_included, is_text_file
 
 SKIP_PATTERNS = (".swp", ".swx", "~", ".tmp", ".DS_Store", ".swo")
+DEFAULT_WATCH_RUST_TIMEOUT_MS = 250
 
 
 @dataclass
@@ -29,6 +30,8 @@ async def watch_vault(
     bus: EventBus,
     state: RealtimeState,
     debounce_ms: int = 150,
+    stop_event: asyncio.Event | None = None,
+    rust_timeout_ms: int = DEFAULT_WATCH_RUST_TIMEOUT_MS,
 ) -> None:
     """Watch vault for file changes and emit index update events."""
     try:
@@ -37,27 +40,40 @@ async def watch_vault(
         return
 
     root = config.vault_path.resolve()
+    watcher_stop_event = stop_event or asyncio.Event()
 
-    async for changes in awatch(str(root)):
-        event = _classify_changes(changes, root, config)
-        if not event.changed and not event.deleted:
-            continue
+    try:
+        async for changes in awatch(
+            str(root),
+            stop_event=watcher_stop_event,
+            rust_timeout=rust_timeout_ms,
+        ):
+            event = _classify_changes(changes, root, config)
+            if not event.changed and not event.deleted:
+                continue
 
-        # Debounce: wait for a quiet period
-        await asyncio.sleep(debounce_ms / 1000.0)
+            # Debounce: wait for a quiet period
+            await asyncio.sleep(debounce_ms / 1000.0)
+            if watcher_stop_event.is_set():
+                break
 
-        # Rebuild index and update state atomically
-        try:
-            new_index = indexer.build()
-            from vaultpub.core.render.renderer import Renderer
+            # Rebuild index and update state atomically
+            try:
+                new_index = indexer.build()
+                from vaultpub.core.render.renderer import Renderer
 
-            new_renderer = Renderer(config, new_index)
-            state.index = new_index
-            state.renderer = new_renderer
-        except Exception:
-            continue
+                new_renderer = Renderer(config, new_index)
+                state.index = new_index
+                state.renderer = new_renderer
+            except Exception:
+                continue
 
-        await bus.publish(event)
+            if watcher_stop_event.is_set():
+                break
+            await bus.publish(event)
+    except asyncio.CancelledError:
+        watcher_stop_event.set()
+        raise
 
 
 _CHANGE_MAP: dict[Any, str] = {}

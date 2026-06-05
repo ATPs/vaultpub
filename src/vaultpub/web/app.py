@@ -46,13 +46,24 @@ def create_app(config: PublisherConfig) -> Starlette:
     @asynccontextmanager
     async def lifespan(app: Starlette):  # type: ignore[no-untyped-def]
         watcher_task = None
+        watcher_stop_event = None
         if config.realtime:
+            watcher_stop_event = asyncio.Event()
             watcher_task = asyncio.create_task(
-                watch_vault(config, indexer, event_bus, rt_state, debounce_ms=config.debounce_ms)
+                watch_vault(
+                    config,
+                    indexer,
+                    event_bus,
+                    rt_state,
+                    debounce_ms=config.debounce_ms,
+                    stop_event=watcher_stop_event,
+                )
             )
         try:
             yield
         finally:
+            if watcher_stop_event is not None:
+                watcher_stop_event.set()
             if watcher_task:
                 watcher_task.cancel()
                 with suppress(asyncio.CancelledError):

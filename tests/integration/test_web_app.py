@@ -1,6 +1,8 @@
 """Integration tests for the ASGI web app."""
 from __future__ import annotations
 
+import asyncio
+import threading
 from pathlib import Path
 
 import pytest
@@ -226,3 +228,26 @@ def test_permalink_and_alias_routes_and_api(tmp_path: Path) -> None:
     api_response = client.get("/api/page/README.md")
     assert api_response.status_code == 200
     assert api_response.json()["url"] == "/README.md"
+
+
+def test_realtime_shutdown_signals_watcher_stop(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / "README.md").write_text("# README\n", encoding="utf-8")
+    stop_seen = threading.Event()
+
+    async def fake_watch_vault(config, indexer, bus, state, debounce_ms=150, stop_event=None, rust_timeout_ms=250):
+        assert stop_event is not None
+        try:
+            while not stop_event.is_set():
+                await asyncio.sleep(0.01)
+        finally:
+            if stop_event.is_set():
+                stop_seen.set()
+
+    monkeypatch.setattr("vaultpub.web.app.watch_vault", fake_watch_vault)
+
+    app = create_app(PublisherConfig(vault_path=tmp_path, realtime=True))
+    with TestClient(app) as client:
+        response = client.get("/")
+        assert response.status_code == 200
+
+    assert stop_seen.wait(1.0)
