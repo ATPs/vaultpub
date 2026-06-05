@@ -81,16 +81,18 @@ class Renderer:
             html_safe_mode=self.config.html_safe_mode,
         )
 
-        # Phase 3: Restore placeholders
+        # Phase 3: Add anchors to headings from this note before restoring embedded HTML.
+        html = self._add_heading_anchors(html, note)
+
+        # Phase 4: Restore placeholders
         html = self._restore_placeholders(html, placeholders)
 
-        # Phase 4: Post-processing
+        # Phase 5: Post-processing
         html = self._rewrite_local_img_tags(html, note)
         html = self._rewrite_local_anchor_tags(html, note)
         html = self._rewrite_local_html_urls(html, note)
-        html = self._add_heading_anchors(html)
 
-        # Phase 5: Sanitize and add external link attrs
+        # Phase 6: Sanitize and add external link attrs
         if self.config.html_safe_mode:
             html = sanitize_html(html)
         html = add_external_link_attrs(html)
@@ -441,14 +443,27 @@ class Renderer:
         result = inline_re.sub(_replace_inline, result)
         return result, counter
 
-    def _add_heading_anchors(self, html: str) -> str:
-        def _add_anchor(match: re.Match) -> str:
-            level = len(match.group(1))
-            text = match.group(2)
-            slug = _slugify(text)
-            return f'<h{level} id="{slug}">{text} <a class="heading-anchor" href="#{slug}">#</a></h{level}>'
+    def _add_heading_anchors(self, html: str, note: NoteRecord) -> str:
+        headings = iter(note.headings)
 
-        return re.sub(r"<h([1-6])>(.+?)</h\1>", _add_anchor, html)
+        def _add_anchor(match: re.Match) -> str:
+            level = int(match.group("level"))
+            attrs = match.group("attrs")
+            body = match.group("body")
+            heading = next(headings, None)
+            slug = heading.slug if heading is not None else _slugify(_strip_html_tags(body))
+            safe_slug = escape(slug, quote=True)
+            attrs = re.sub(r'\s+id=(["\']).*?\1', "", attrs, flags=re.IGNORECASE | re.DOTALL)
+            return (
+                f'<h{level}{attrs} id="{safe_slug}">{body} '
+                f'<a class="heading-anchor" href="#{safe_slug}">#</a></h{level}>'
+            )
+
+        heading_re = re.compile(
+            r"<h(?P<level>[1-6])(?P<attrs>[^>]*)>(?P<body>.*?)</h(?P=level)>",
+            re.DOTALL,
+        )
+        return heading_re.sub(_add_anchor, html)
 
     def render_article_html(self, note: NoteRecord, current_path: str | None = None) -> str:
         body = self.render_note(note)
@@ -508,6 +523,10 @@ def _slugify(text: str) -> str:
     slug = re.sub(r"\s+", "-", slug)
     slug = re.sub(r"-+", "-", slug)
     return slug[:100]
+
+
+def _strip_html_tags(text: str) -> str:
+    return unescape(re.sub(r"<[^>]+>", "", text))
 
 
 def _split_url_parts(url: str) -> tuple[str, str]:

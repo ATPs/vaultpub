@@ -52,6 +52,27 @@ def test_render_wikilinks_to_links(vault_basic) -> None:
     assert 'class="internal-link"' in html
 
 
+def test_render_heading_anchors_preserve_levels_and_index_slugs(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text(
+        "### **核心：`sprintf()` 函数**\n\n"
+        "#### **分解 HTML/CSS 部分**:\n",
+        encoding="utf-8",
+    )
+    config = PublisherConfig(vault_path=tmp_path)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = vault_index.notes_by_id[vault_index.notes_by_path["README.md"]]
+
+    html = renderer.render_note(note)
+    toc_html = renderer.render_toc_html(note)
+
+    assert '<h3 id="核心sprintf-函数"><strong>核心：<code>sprintf()</code> 函数</strong>' in html
+    assert '<h4 id="分解-htmlcss-部分"><strong>分解 HTML/CSS 部分</strong>:' in html
+    assert '<h1 id="核心sprintf-函数"' not in html
+    assert 'href="#核心sprintf-函数"' in toc_html
+    assert 'href="#分解-htmlcss-部分"' in toc_html
+
+
 def test_render_obsidian_syntax_outputs_real_html(vault_obsidian_syntax) -> None:
     config = PublisherConfig(vault_path=vault_obsidian_syntax)
     vault_index = VaultIndexer(config).build()
@@ -103,6 +124,21 @@ def test_render_note_embed_renders_target_body(tmp_path: Path) -> None:
 
     assert 'class="embed-wrapper"' in html
     assert "Embedded content." in html
+
+
+def test_render_note_embed_does_not_duplicate_embedded_heading_anchors(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# Parent\n\n![[Child]]", encoding="utf-8")
+    (tmp_path / "Child.md").write_text("# Child\n\nEmbedded content.", encoding="utf-8")
+    config = PublisherConfig(vault_path=tmp_path)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    readme = next(n for n in vault_index.notes_by_id.values() if n.stem == "README")
+
+    html = renderer.render_note(readme)
+
+    assert '<h1 id="parent">Parent ' in html
+    assert '<h1 id="child">Child ' in html
+    assert html.count('class="heading-anchor"') == 2
 
 
 def test_render_local_resources_use_canonical_urls(vault_local_resources) -> None:
