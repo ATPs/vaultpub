@@ -346,9 +346,26 @@ Unresolved links render with `class="internal-link is-unresolved"` and a striket
 ![[audio.mp3]]              → Audio player
 ![[video.mp4]]              → Video player
 ![[document.pdf]]           → PDF iframe
+![[tool.py]]                → Embedded code page (when force-included)
 ![[Other Note]]             → Note content embed (max depth: 5)
 ![[Other Note#Heading]]     → Heading section embed
 ```
+
+Local file targets resolve relative to the current note by default. Root-relative paths like `/subdir/image.png` resolve from the vault root.
+
+Standard Markdown links and images are also canonicalized to published URLs:
+
+```markdown
+![](./image.png)            → /assets/current/dir/image.png
+[Document](./doc.pdf)       → /assets/current/dir/doc.pdf
+[Archive](./archive.pin.gz) → /assets/current/dir/archive.pin.gz (download link)
+[Tool](./tool.py)           → /current/dir/tool.py
+[Note](./Other.md)          → /current/dir/Other.md
+```
+
+Standard Markdown image syntax only inlines image attachments. When it targets a non-image local file, vaultpub degrades it to a normal link; download-only attachments such as `.gz`, `.zip`, and `.tar` become download links automatically.
+
+Common download attachments are published by default: `.gz`, `.tgz`, `.zip`, `.tar`, `.bz2`, `.xz`, `.7z`. To extend the published attachment list, set `publish.allowed_attachment_types` in YAML or `ALLOWED_FILE_LINK_TYPES` in the environment.
 
 ### Callouts
 
@@ -799,7 +816,11 @@ Responsive design with:
 
 - Images must be in the vault (not external unless linked with full URL)
 - Check `allowed_attachment_types` includes the image format
-- Image embeds use `![[image.png]]` syntax, not `[[image.png]]`
+- Local image targets can be relative (`![[image.png]]`, `![](./image.png)`) or vault-root relative (`![](/subdir/image.png)`)
+- Image embeds use `![[image.png]]` for Obsidian-style embeds; standard Markdown `![](./image.png)` is also supported
+- Audio, video, and PDF inline embeds still use `![[file.ext]]` or raw HTML
+- If `![](./file.ext)` points to a non-image local attachment, vaultpub converts it to a link instead of leaving a broken image
+- Common download files such as `.gz` and `.zip` are published by default; extend the list with `publish.allowed_attachment_types` if needed
 
 ### Search not working
 
@@ -830,6 +851,7 @@ Python package builds run the frontend bundle automatically through the Hatch bu
 
 - Browse Obsidian vaults as web pages
 - Wikilinks (`[[Note]]`, `[[Note|display]]`, `[[Note#heading]]`)
+- Canonical local resource resolution for Obsidian embeds and Markdown relative links
 - Backlinks, tags, and interactive graph
 - Full-text client-side search (Ctrl+K)
 - Callouts, embeds, and Obsidian-flavored Markdown

@@ -2,16 +2,15 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
-from vaultpub.core.paths import normalize_rel_path, rel_path_to_url_path
+from vaultpub.core.paths import attachment_rel_path_to_url_path, normalize_rel_path, rel_path_to_url_path
 from vaultpub.core.realtime.events import ChangeRecord, EventBus, IndexChangedEvent
-from vaultpub.core.security import is_force_included, is_text_file, infer_language
+from vaultpub.core.security import is_force_included, is_text_file
 
 SKIP_PATTERNS = (".swp", ".swx", "~", ".tmp", ".DS_Store", ".swo")
 
@@ -150,7 +149,7 @@ def _classify_changes(
             rec = ChangeRecord(
                 kind="attachment",
                 path=rel,
-                url="/assets/" + rel,
+                url=attachment_rel_path_to_url_path(rel),
                 change=change_name,
             )
             event.changed.append(rec)

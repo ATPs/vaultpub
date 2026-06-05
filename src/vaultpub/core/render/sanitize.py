@@ -22,7 +22,7 @@ ALLOWED_ATTRS: dict[str, list[str]] = {
         "class", "id", "style",
         "data-target", "data-callout", "data-callout-fold", "data-embed-source", "data-note-id", "data-note-path",
     ],
-    "a": ["href", "title", "target", "rel", "data-target"],
+    "a": ["href", "title", "target", "rel", "data-target", "download"],
     "img": ["src", "alt", "title", "width", "height", "loading"],
     "audio": ["src", "controls", "preload"],
     "video": ["src", "controls", "width", "height", "preload", "poster"],

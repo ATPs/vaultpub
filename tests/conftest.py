@@ -36,5 +36,10 @@ def vault_publish_filters() -> Path:
 
 
 @pytest.fixture
+def vault_local_resources() -> Path:
+    return FIXTURES_DIR / "vault_local_resources"
+
+
+@pytest.fixture
 def basic_config(vault_basic: Path) -> PublisherConfig:
     return PublisherConfig(vault_path=vault_basic)

@@ -3,13 +3,14 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import os
-import re
 from pathlib import Path, PurePosixPath
 
+from vaultpub.core.attachments import attachment_mime_type
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.exceptions import PathTraversalError
 from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord, TextPageRecord
 from vaultpub.core.paths import (
+    attachment_rel_path_to_url_path,
     directory_path_to_url_path,
     file_display_name,
     generate_note_id,
@@ -18,9 +19,9 @@ from vaultpub.core.paths import (
 )
 from vaultpub.core.security import (
     ALWAYS_FORBIDDEN,
+    infer_language,
     is_force_included,
     is_text_file,
-    infer_language,
 )
 
 
@@ -199,16 +200,8 @@ class VaultScanner:
         )
 
     def _read_attachment(self, fpath: Path, rel: str, stat: os.stat_result) -> AttachmentRecord:
-        ext = fpath.suffix.lower().lstrip(".")
-        mime_map = {
-            "png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
-            "gif": "image/gif", "svg": "image/svg+xml", "webp": "image/webp",
-            "pdf": "application/pdf",
-            "mp3": "audio/mpeg", "wav": "audio/wav", "ogg": "audio/ogg",
-            "mp4": "video/mp4", "webm": "video/webm",
-        }
-        mime_type = mime_map.get(ext, "application/octet-stream")
-        url_path = "/assets/" + PurePosixPath(rel).as_posix()
+        mime_type = attachment_mime_type(rel)
+        url_path = attachment_rel_path_to_url_path(rel)
         att_id = generate_note_id(rel)
 
         return AttachmentRecord(

@@ -105,6 +105,55 @@ def test_render_note_embed_renders_target_body(tmp_path: Path) -> None:
     assert "Embedded content." in html
 
 
+def test_render_local_resources_use_canonical_urls(vault_local_resources) -> None:
+    config = PublisherConfig(
+        vault_path=vault_local_resources,
+        force_include_regexes=(r".*\.py$",),
+    )
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = vault_index.notes_by_id[vault_index.notes_by_path["subdir/README.md"]]
+
+    html = renderer.render_note(note)
+
+    assert '<img src="/assets/subdir/image.png"' in html
+    assert 'href="/assets/subdir/doc.pdf"' in html
+    assert "PDF Link" in html
+    assert '<a href="/assets/subdir/archive.pin.gz" download="archive.pin.gz">Archive Download</a>' in html
+    assert '<a href="/assets/subdir/archive.pin.gz" download="archive.pin.gz">Archive Link</a>' in html
+    assert 'href="/subdir/tool.py"' in html
+    assert 'href="/subdir/Other.md"' in html
+    assert 'data-embed-source="/subdir/tool.py"' in html
+    assert "embedded tool" in html
+    assert 'href="https://example.com"' in html
+    assert 'href="#section"' in html
+    assert 'href="./missing.gz"' in html
+    assert 'href="./missing.txt"' in html
+
+
+def test_render_raw_html_local_urls_are_rewritten(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text(
+        '# Home\n\n<img src="./image.png">\n<a href="./tool.py">Tool</a>\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "image.png").write_text("fake image", encoding="utf-8")
+    (tmp_path / "tool.py").write_text("print('hello')\n", encoding="utf-8")
+
+    config = PublisherConfig(
+        vault_path=tmp_path,
+        html_safe_mode=False,
+        force_include_regexes=(r".*\.py$",),
+    )
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = next(n for n in vault_index.notes_by_id.values() if n.stem == "README")
+
+    html = renderer.render_note(note)
+
+    assert '<img src="/assets/image.png">' in html
+    assert 'href="/tool.py"' in html
+
+
 def test_nav_tree_omits_root_directory() -> None:
     nav = NavNode(
         label="/",

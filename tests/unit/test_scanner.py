@@ -57,3 +57,14 @@ def test_resolve_home(vault_basic) -> None:
     home = scanner.resolve_home(notes)
     assert home is not None
     assert home.stem == "README"
+
+
+def test_scan_default_config_includes_gz_attachments(tmp_path) -> None:
+    (tmp_path / "README.md").write_text("# README", encoding="utf-8")
+    (tmp_path / "archive.pin.gz").write_text("fake archive", encoding="utf-8")
+
+    scanner = VaultScanner(PublisherConfig(vault_path=tmp_path))
+    _notes, attachments, _text_pages, _nav = scanner.scan()
+
+    rel_paths = {att.rel_path.as_posix() for att in attachments}
+    assert "archive.pin.gz" in rel_paths

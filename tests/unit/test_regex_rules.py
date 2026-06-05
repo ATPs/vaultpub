@@ -6,11 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from vaultpub.core.config import PublisherConfig, _compile_regexes
+from vaultpub.core.config import PublisherConfig
 from vaultpub.core.exceptions import ConfigError
 from vaultpub.core.scanner import VaultScanner
 from vaultpub.core.security import is_force_included, is_path_excluded, is_path_public
-
 
 # ── Config validation ──────────────────────────────────────────────────
 
@@ -354,7 +353,7 @@ def test_scanner_force_include_text_file_appears_in_nav() -> None:
                         return found
             return None
 
-        tool_node = _find_node(nav, "tool")
+        tool_node = _find_node(nav, "tool.py")
         assert tool_node is not None
         assert tool_node.url == "/scripts/tool.py"
 

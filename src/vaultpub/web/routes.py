@@ -8,6 +8,7 @@ from pathlib import PurePosixPath
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
 
+from vaultpub.core.attachments import attachment_content_disposition, is_download_only_attachment
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import NavNode, NoteRecord, TextPageRecord, VaultIndex
@@ -16,8 +17,8 @@ from vaultpub.core.render.renderer import Renderer
 from vaultpub.core.render.seo import build_meta_tags
 from vaultpub.core.render.templates import (
     base_page_template,
-    directory_preview_map,
     directory_page_html,
+    directory_preview_map,
     directory_sibling_files_html,
     find_nav_directory,
     graph_container_html,
@@ -121,7 +122,10 @@ async def attachment(request: Request) -> Response:
         return HTMLResponse("Not found", status_code=404)
 
     content = fpath.read_bytes()
-    return Response(content, media_type=att.mime_type)
+    headers: dict[str, str] = {}
+    if is_download_only_attachment(att.rel_path):
+        headers["Content-Disposition"] = attachment_content_disposition(att.rel_path)
+    return Response(content, media_type=att.mime_type, headers=headers)
 
 
 async def api_page(request: Request) -> JSONResponse:

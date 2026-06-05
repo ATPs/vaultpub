@@ -33,6 +33,11 @@ def rel_path_to_url_path(rel_path: str) -> str:
     return "/" + PurePosixPath(rel_path).as_posix()
 
 
+def attachment_rel_path_to_url_path(rel_path: str) -> str:
+    """Convert a file-relative attachment path to the canonical asset URL."""
+    return "/assets/" + PurePosixPath(rel_path).as_posix()
+
+
 def directory_path_to_url_path(rel_path: str) -> str:
     """Convert a relative directory path to a public directory URL."""
     normalized = PurePosixPath(rel_path).as_posix().strip("/")

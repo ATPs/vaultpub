@@ -86,3 +86,26 @@ def test_build_static_site_renders_topbar_code_tools_for_text_pages(tmp_path: Pa
     assert 'data-code-action="copy-path"' in code_html
     assert 'data-code-action="toggle-wrap"' in code_html
     assert "tools/example.py" in code_html
+
+
+def test_build_static_site_keeps_canonical_local_resource_urls(vault_local_resources) -> None:
+    config = PublisherConfig(
+        vault_path=vault_local_resources,
+        force_include_regexes=(r".*\.py$",),
+    )
+    builder = StaticSiteBuilder(config)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "public"
+        result = builder.build(out, clean=True)
+
+        note_html = (out / "subdir" / "README.md.html").read_text(encoding="utf-8")
+        assert result.attachments_copied >= 3
+        assert 'src="/assets/subdir/image.png"' in note_html
+        assert 'href="/assets/subdir/doc.pdf"' in note_html
+        assert '<a href="/assets/subdir/archive.pin.gz" download="archive.pin.gz">Archive Download</a>' in note_html
+        assert 'href="/subdir/tool.py.html"' in note_html
+        assert 'href="/subdir/Other.md.html"' in note_html
+        assert (out / "assets" / "subdir" / "image.png").exists()
+        assert (out / "assets" / "subdir" / "doc.pdf").exists()
+        assert (out / "assets" / "subdir" / "archive.pin.gz").exists()

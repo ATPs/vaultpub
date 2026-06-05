@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from vaultpub.core.attachments import DEFAULT_ATTACHMENT_TYPES
 from vaultpub.core.exceptions import ConfigError
 
 ThemeMode = Literal["light", "dark", "system"]
@@ -40,10 +41,7 @@ class PublisherConfig:
 
     hidden_file_access: bool = False
     follow_symlinks: bool = False
-    allowed_attachment_types: tuple[str, ...] = (
-        "png", "jpg", "jpeg", "gif", "svg", "webp",
-        "pdf", "mp3", "wav", "ogg", "mp4", "webm",
-    )
+    allowed_attachment_types: tuple[str, ...] = DEFAULT_ATTACHMENT_TYPES
     max_markdown_size_bytes: int = 2_000_000
     max_attachment_size_bytes: int | None = None
 
@@ -138,6 +136,8 @@ def load_config_from_yaml(yaml_path: Path) -> dict:
             kwargs["exclude_folders"] = tuple(publish["exclude_folders"])
         if "exclude_globs" in publish:
             kwargs["exclude_globs"] = tuple(publish["exclude_globs"])
+        if "allowed_attachment_types" in publish:
+            kwargs["allowed_attachment_types"] = tuple(publish["allowed_attachment_types"])
         if "force_include_regexes" in publish:
             kwargs["force_include_regexes"] = tuple(publish["force_include_regexes"])
         if "force_exclude_regexes" in publish:

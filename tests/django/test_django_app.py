@@ -63,6 +63,26 @@ def test_conf_parses(django_setup) -> None:
     assert config is not None
     assert config.url_prefix == "/notes/"
     assert config.home_file == "README"
+    assert "gz" in config.allowed_attachment_types
+
+
+@override_settings(
+    VAULTPUB={
+        "default": {
+            "vault_path": str(FIXTURES_DIR / "vault_basic"),
+            "url_prefix": "/notes/",
+            "allowed_attachment_types": ["pdf", "gz"],
+        }
+    }
+)
+def test_conf_reads_allowed_attachment_types_from_settings(django_setup) -> None:
+    from vaultpub.django_app.conf import get_default_config
+
+    views._state_cache.clear()
+    config = get_default_config()
+
+    assert config is not None
+    assert config.allowed_attachment_types == ("pdf", "gz")
 
 
 @override_settings(ROOT_URLCONF=__name__)
@@ -201,3 +221,40 @@ def test_django_nested_note_breadcrumb_links_use_mount_prefix(django_setup) -> N
     assert response.status_code == 200
     assert b'href="/notes/Folder/" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in response.content
     assert b'href="/notes/Folder/B.md" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in response.content
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_mount_prefixes_local_resource_urls(django_setup, vault_local_resources) -> None:
+    views._state_cache.clear()
+    with override_settings(
+        VAULTPUB={
+            "default": {
+                "vault_path": str(vault_local_resources),
+                "url_prefix": "/notes/",
+                "home_file": "README",
+                "show_graph": True,
+                "show_backlinks": True,
+                "show_search": True,
+                "force_include_regexes": [r".*\.py$"],
+            }
+        }
+    ):
+        client = Client()
+        page = client.get("/notes/subdir/README.md")
+        asset = client.get("/notes/assets/subdir/image.png")
+        archive = client.get("/notes/assets/subdir/archive.pin.gz")
+        text_page = client.get("/notes/subdir/tool.py")
+
+    assert page.status_code == 200
+    assert b'src="/notes/assets/subdir/image.png"' in page.content
+    assert b'href="/notes/assets/subdir/doc.pdf"' in page.content
+    assert b'href="/notes/assets/subdir/archive.pin.gz" download="archive.pin.gz"' in page.content
+    assert b'href="/notes/subdir/tool.py"' in page.content
+    assert b'href="/notes/subdir/Other.md"' in page.content
+    assert asset.status_code == 200
+    assert asset["content-type"].startswith("image/png")
+    assert archive.status_code == 200
+    assert archive["content-type"].startswith("application/gzip")
+    assert archive["Content-Disposition"] == 'attachment; filename="archive.pin.gz"'
+    assert text_page.status_code == 200
+    assert b'class="topbar-context topbar-context-code"' in text_page.content
