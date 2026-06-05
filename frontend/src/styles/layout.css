@@ -785,6 +785,16 @@ body.code-wrap-enabled .text-page pre {
   }
 }
 
+@media (max-width: 1180px) and (min-width: 769px) {
+  .sidebar-right {
+    display: none;
+  }
+
+  .app-layout.sidebar-right-collapsed .sidebar-peek-right {
+    display: none;
+  }
+}
+
 @media (max-width: 900px) {
   .topbar-context {
     display: none;
