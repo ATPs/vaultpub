@@ -106,6 +106,8 @@ def test_frontend_static_assets(client) -> None:
     assert css_response.status_code == 200
     assert "text/css" in css_response.headers["content-type"]
     assert "@media(max-width:1180px)" in css_response.text
+    assert "--sidebar-left-width" in css_response.text
+    assert ".sidebar-resizer" in css_response.text
 
     js_response = client.get("/static/vaultpub/app.js")
     assert js_response.status_code == 200
