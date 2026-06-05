@@ -7,10 +7,15 @@ type SidebarSide = "left" | "right";
 interface SidebarState {
   leftCollapsed?: boolean;
   rightCollapsed?: boolean;
+  leftWidth?: number;
+  rightWidth?: number;
 }
 
 const SIDEBAR_STATE_KEY = "vaultpub.sidebarState";
 const NAV_TREE_STATE_KEY = "vaultpub.navTreeState";
+const DEFAULT_SIDEBAR_WIDTH = 270;
+const MIN_SIDEBAR_WIDTH = 220;
+const MIN_CONTENT_WIDTH = 420;
 
 function readJson<T extends object>(key: string): T {
   try {
@@ -28,6 +33,10 @@ function sidebarClass(side: SidebarSide, suffix: string): string {
   return `sidebar-${side}-${suffix}`;
 }
 
+function sidebarWidthVar(side: SidebarSide): string {
+  return `--sidebar-${side}-width`;
+}
+
 function navStateKey(detail: HTMLDetailsElement, index: number): string {
   const summary = detail.querySelector("summary");
   return detail.dataset.navKey || summary?.textContent?.trim() || `nav-${index}`;
@@ -35,6 +44,58 @@ function navStateKey(detail: HTMLDetailsElement, index: number): string {
 
 function writeNavTreeState(state: Record<string, boolean>): void {
   writeJson(NAV_TREE_STATE_KEY, state);
+}
+
+function readStoredSidebarWidth(state: SidebarState, side: SidebarSide): number | null {
+  const value = side === "left" ? state.leftWidth : state.rightWidth;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function writeStoredSidebarWidth(state: SidebarState, side: SidebarSide, width: number): void {
+  if (side === "left") state.leftWidth = width;
+  else state.rightWidth = width;
+}
+
+function currentSidebarWidth(layout: HTMLElement, side: SidebarSide): number {
+  const raw = window.getComputedStyle(layout).getPropertyValue(sidebarWidthVar(side)).trim();
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) ? parsed : DEFAULT_SIDEBAR_WIDTH;
+}
+
+function maxSidebarWidth(layout: HTMLElement, side: SidebarSide): number {
+  const totalWidth = layout.getBoundingClientRect().width || window.innerWidth;
+  const otherSide: SidebarSide = side === "left" ? "right" : "left";
+  const otherSidebar = document.querySelector<HTMLElement>(`.sidebar-${otherSide}`);
+  const otherVisible = (
+    otherSidebar
+    && window.getComputedStyle(otherSidebar).display !== "none"
+    && !layout.classList.contains(sidebarClass(otherSide, "collapsed"))
+  );
+  const otherWidth = otherVisible
+    ? (otherSidebar.getBoundingClientRect().width || currentSidebarWidth(layout, otherSide))
+    : 0;
+  return Math.max(MIN_SIDEBAR_WIDTH, Math.floor(totalWidth - otherWidth - MIN_CONTENT_WIDTH));
+}
+
+function clampSidebarWidth(layout: HTMLElement, side: SidebarSide, width: number): number {
+  const nextWidth = Math.round(width);
+  return Math.max(MIN_SIDEBAR_WIDTH, Math.min(nextWidth, maxSidebarWidth(layout, side)));
+}
+
+function setSidebarWidth(layout: HTMLElement, side: SidebarSide, width: number, persist: boolean): void {
+  const clamped = clampSidebarWidth(layout, side, width);
+  layout.style.setProperty(sidebarWidthVar(side), `${clamped}px`);
+  if (!persist) return;
+
+  const state = readJson<SidebarState>(SIDEBAR_STATE_KEY);
+  writeStoredSidebarWidth(state, side, clamped);
+  writeJson(SIDEBAR_STATE_KEY, state);
+}
+
+function syncSidebarWidths(layout: HTMLElement): void {
+  const state = readJson<SidebarState>(SIDEBAR_STATE_KEY);
+  setSidebarWidth(layout, "left", readStoredSidebarWidth(state, "left") ?? DEFAULT_SIDEBAR_WIDTH, false);
+  setSidebarWidth(layout, "right", readStoredSidebarWidth(state, "right") ?? DEFAULT_SIDEBAR_WIDTH, false);
 }
 
 function setCollapsed(layout: HTMLElement, side: SidebarSide, collapsed: boolean): void {
@@ -91,6 +152,44 @@ function addPeekButton(layout: HTMLElement, sidebar: HTMLElement, side: SidebarS
   layout.appendChild(button);
 }
 
+function addResizer(layout: HTMLElement, sidebar: HTMLElement, side: SidebarSide): void {
+  if (sidebar.querySelector(`.sidebar-resizer-${side}`)) return;
+
+  const handle = document.createElement("div");
+  handle.className = `sidebar-resizer sidebar-resizer-${side}`;
+  handle.setAttribute("aria-hidden", "true");
+
+  handle.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || window.innerWidth <= 768) return;
+    if (layout.classList.contains(sidebarClass(side, "collapsed"))) return;
+    if (window.getComputedStyle(sidebar).display === "none") return;
+
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = sidebar.getBoundingClientRect().width;
+    document.body.classList.add("sidebar-resize-active");
+
+    const onMove = (moveEvent: PointerEvent): void => {
+      const delta = moveEvent.clientX - startX;
+      const nextWidth = side === "left" ? startWidth + delta : startWidth - delta;
+      setSidebarWidth(layout, side, nextWidth, true);
+    };
+
+    const stop = (): void => {
+      document.body.classList.remove("sidebar-resize-active");
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  });
+
+  sidebar.appendChild(handle);
+}
+
 function initSidebar(layout: HTMLElement, side: SidebarSide): void {
   const sidebar = document.querySelector<HTMLElement>(`.sidebar-${side}`);
   if (!sidebar) return;
@@ -109,6 +208,7 @@ function initSidebar(layout: HTMLElement, side: SidebarSide): void {
   }
 
   addPeekButton(layout, sidebar, side);
+  addResizer(layout, sidebar, side);
 }
 
 function initNavTreeState(): void {
@@ -171,7 +271,9 @@ export function initSidebars(): void {
   const layout = document.querySelector<HTMLElement>(".app-layout");
   if (!layout) return;
 
+  syncSidebarWidths(layout);
   initSidebar(layout, "left");
   initSidebar(layout, "right");
   initNavTreeState();
+  window.addEventListener("resize", () => syncSidebarWidths(layout));
 }

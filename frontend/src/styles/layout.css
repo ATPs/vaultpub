@@ -352,8 +352,8 @@ body {
    Left sidebar
    ============================================================ */
 .sidebar-left {
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
+  width: var(--sidebar-left-width);
+  min-width: var(--sidebar-left-width);
   background: var(--sidebar-bg);
   border-right: 1px solid var(--border-color);
   padding: 1em 0.8em;
@@ -455,6 +455,46 @@ body {
   right: 0.3rem;
 }
 
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  z-index: 6;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-resizer::before {
+  content: "";
+  position: absolute;
+  top: 0.9rem;
+  bottom: 0.9rem;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: background-color var(--transition-fast);
+}
+
+.sidebar-resizer:hover::before,
+body.sidebar-resize-active .sidebar-resizer::before {
+  background: var(--link-color);
+}
+
+.sidebar-resizer-left {
+  right: -6px;
+}
+
+.sidebar-resizer-right {
+  left: -6px;
+}
+
+body.sidebar-resize-active {
+  cursor: col-resize;
+  user-select: none;
+}
+
 /* ============================================================
    Main content
    ============================================================ */
@@ -470,8 +510,8 @@ main.content {
    Right sidebar
    ============================================================ */
 .sidebar-right {
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
+  width: var(--sidebar-right-width);
+  min-width: var(--sidebar-right-width);
   background: var(--sidebar-bg);
   border-left: 1px solid var(--border-color);
   padding: 1em 0.8em;
@@ -566,16 +606,21 @@ body.top-bar-hidden .app-layout.sidebar-right-collapsed.sidebar-right-peeking .s
     z-index: 80;
   }
 
+  body.sidebar-resize-active .sidebar-left,
+  body.sidebar-resize-active .sidebar-right {
+    transition: none;
+  }
+
   .app-layout.sidebar-left-collapsed .sidebar-left {
     position: fixed;
     left: 0;
-    transform: translateX(calc(-1 * var(--sidebar-width) - 2px));
+    transform: translateX(calc(-1 * var(--sidebar-left-width) - 2px));
   }
 
   .app-layout.sidebar-right-collapsed .sidebar-right {
     position: fixed;
     right: 0;
-    transform: translateX(calc(var(--sidebar-width) + 2px));
+    transform: translateX(calc(var(--sidebar-right-width) + 2px));
   }
 
   .app-layout.sidebar-left-collapsed .sidebar-peek-left,
@@ -837,6 +882,7 @@ body.code-wrap-enabled .text-page pre {
     z-index: 200;
     transition: left 0.3s ease;
     width: 280px;
+    min-width: 280px;
   }
 
   .sidebar-header {
@@ -854,7 +900,8 @@ body.code-wrap-enabled .text-page pre {
   }
 
   .sidebar-toggle,
-  .sidebar-peek {
+  .sidebar-peek,
+  .sidebar-resizer {
     display: none;
   }
 
@@ -870,6 +917,7 @@ body.code-wrap-enabled .text-page pre {
   .sidebar-right {
     display: none;
     width: 100%;
+    min-width: 100%;
     position: static;
     height: auto;
   }
