@@ -8,13 +8,14 @@ from pathlib import PurePosixPath
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 
+from vaultpub.core.attachments import attachment_content_disposition, is_download_only_attachment
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import NavNode, NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.render import Renderer
 from vaultpub.core.render.seo import build_meta_tags, build_page_description, build_page_title
 from vaultpub.core.render.templates import (
-    directory_preview_map,
     directory_page_html,
+    directory_preview_map,
     directory_sibling_files_html,
     find_nav_directory,
     nav_tree_html,
@@ -147,7 +148,10 @@ def attachment(request: HttpRequest, asset_path: str) -> HttpResponse:
     if not fpath.exists():
         raise Http404("File not found")
     content = fpath.read_bytes()
-    return HttpResponse(content, content_type=att.mime_type)
+    response = HttpResponse(content, content_type=att.mime_type)
+    if is_download_only_attachment(att.rel_path):
+        response["Content-Disposition"] = attachment_content_disposition(att.rel_path)
+    return response
 
 
 def api_page(request: HttpRequest, note_path: str) -> JsonResponse:
@@ -265,7 +269,10 @@ def _render_note(request: HttpRequest, note: NoteRecord) -> HttpResponse:
         "show_search": config.show_search,
         "url_prefix": _url_prefix(config),
         "seo_head": build_meta_tags(note, config),
-        "topbar_context_html": topbar_context_html_for_note(note, url_transform=lambda url: _prefix_public_url(config, url)),
+        "topbar_context_html": topbar_context_html_for_note(
+            note,
+            url_transform=lambda url: _prefix_public_url(config, url),
+        ),
     }
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, note)
     context["show_graph"] = show_graph

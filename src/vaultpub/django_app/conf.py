@@ -5,6 +5,7 @@ from pathlib import Path
 
 from django.conf import settings
 
+from vaultpub.core.attachments import DEFAULT_ATTACHMENT_TYPES
 from vaultpub.core.config import PublisherConfig
 
 
@@ -21,6 +22,9 @@ def get_publisher_configs() -> dict[str, PublisherConfig]:
             "vault_path": vault_path,
             "url_prefix": site_data.get("url_prefix", "/"),
             "home_file": site_data.get("home_file"),
+            "allowed_attachment_types": tuple(site_data.get("allowed_attachment_types", DEFAULT_ATTACHMENT_TYPES)),
+            "force_include_regexes": tuple(site_data.get("force_include_regexes", ())),
+            "force_exclude_regexes": tuple(site_data.get("force_exclude_regexes", ())),
             "show_graph": site_data.get("show_graph", True),
             "show_backlinks": site_data.get("show_backlinks", True),
             "show_search": site_data.get("show_search", True),

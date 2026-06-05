@@ -170,6 +170,42 @@ def test_force_included_text_page_renders_topbar_code_tools(tmp_path: Path) -> N
     assert "tools/example.py" in response.text
 
 
+def test_local_resource_links_render_and_serve(vault_local_resources) -> None:
+    app = create_app(
+        PublisherConfig(
+            vault_path=vault_local_resources,
+            realtime=False,
+            force_include_regexes=(r".*\.py$",),
+        )
+    )
+    client = TestClient(app)
+
+    page = client.get("/subdir/README.md")
+    assert page.status_code == 200
+    assert 'src="/assets/subdir/image.png"' in page.text
+    assert 'href="/assets/subdir/doc.pdf"' in page.text
+    assert '<a href="/assets/subdir/archive.pin.gz" download="archive.pin.gz">Archive Download</a>' in page.text
+    assert '<a href="/assets/subdir/archive.pin.gz" download="archive.pin.gz">Archive Link</a>' in page.text
+    assert 'href="/subdir/tool.py"' in page.text
+    assert 'href="/subdir/Other.md"' in page.text
+    assert 'href="./missing.gz"' in page.text
+    assert 'href="./missing.txt"' in page.text
+
+    asset = client.get("/assets/subdir/image.png")
+    assert asset.status_code == 200
+    assert "image/png" in asset.headers["content-type"]
+
+    archive = client.get("/assets/subdir/archive.pin.gz")
+    assert archive.status_code == 200
+    assert "application/gzip" in archive.headers["content-type"]
+    assert archive.headers["content-disposition"] == 'attachment; filename="archive.pin.gz"'
+
+    text_page = client.get("/subdir/tool.py")
+    assert text_page.status_code == 200
+    assert 'class="topbar-context topbar-context-code"' in text_page.text
+    assert "embedded tool" in text_page.text
+
+
 def test_permalink_and_alias_routes_and_api(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text(
         "---\npermalink: about\naliases:\n  - Old Home\n---\n# Home\n",

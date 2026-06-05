@@ -30,3 +30,9 @@ def test_add_external_link_attrs_preserves_internal() -> None:
     html = '<a href="/local">Local Link</a>'
     result = add_external_link_attrs(html)
     assert 'target="_blank"' not in result
+
+
+def test_sanitize_preserves_download_attr() -> None:
+    html = '<a href="/assets/archive.pin.gz" download="archive.pin.gz">Archive</a>'
+    result = sanitize_html(html)
+    assert 'download="archive.pin.gz"' in result
