@@ -317,6 +317,12 @@ h6:hover .heading-anchor {
   padding-left: 0;
 }
 
+.file-tree details > ul {
+  margin-left: 0.7em;
+  padding-left: 0.85em;
+  border-left: 1px dashed color-mix(in srgb, var(--border-color) 82%, transparent);
+}
+
 .file-tree li,
 .file-tree details {
   min-width: 0;

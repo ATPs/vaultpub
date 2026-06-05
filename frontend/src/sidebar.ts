@@ -33,6 +33,10 @@ function navStateKey(detail: HTMLDetailsElement, index: number): string {
   return detail.dataset.navKey || summary?.textContent?.trim() || `nav-${index}`;
 }
 
+function writeNavTreeState(state: Record<string, boolean>): void {
+  writeJson(NAV_TREE_STATE_KEY, state);
+}
+
 function setCollapsed(layout: HTMLElement, side: SidebarSide, collapsed: boolean): void {
   layout.classList.toggle(sidebarClass(side, "collapsed"), collapsed);
   layout.classList.remove(sidebarClass(side, "peeking"));
@@ -120,7 +124,7 @@ function initNavTreeState(): void {
 
     detail.addEventListener("toggle", () => {
       state[key] = detail.open;
-      writeJson(NAV_TREE_STATE_KEY, state);
+      writeNavTreeState(state);
     });
 
     const folderLink = detail.querySelector<HTMLAnchorElement>("summary .nav-folder-link");
@@ -130,7 +134,7 @@ function initNavTreeState(): void {
         event.stopPropagation();
         detail.open = true;
         state[key] = true;
-        writeJson(NAV_TREE_STATE_KEY, state);
+        writeNavTreeState(state);
         window.location.href = folderLink.href;
       });
     }
@@ -142,10 +146,25 @@ function initNavTreeState(): void {
         event.stopPropagation();
         detail.open = !detail.open;
         state[key] = detail.open;
-        writeJson(NAV_TREE_STATE_KEY, state);
+        writeNavTreeState(state);
       });
     }
   });
+
+  const setAllDetails = (open: boolean): void => {
+    details.forEach((detail, index) => {
+      detail.open = open;
+      state[navStateKey(detail, index)] = open;
+    });
+    writeNavTreeState(state);
+  };
+
+  document
+    .querySelector<HTMLButtonElement>('[data-nav-tree-action="expand"]')
+    ?.addEventListener("click", () => setAllDetails(true));
+  document
+    .querySelector<HTMLButtonElement>('[data-nav-tree-action="collapse"]')
+    ?.addEventListener("click", () => setAllDetails(false));
 }
 
 export function initSidebars(): void {

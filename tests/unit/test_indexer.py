@@ -59,3 +59,19 @@ def test_tag_index(vault_links) -> None:
 
     # Alias Target has tags
     assert "project/demo" in vault_index.tags or any("demo" in t for t in vault_index.tags)
+
+
+def test_heading_extraction_skips_fenced_code_blocks(tmp_path) -> None:
+    (tmp_path / "README.md").write_text(
+        "# Outside\n\n```python\n# Inside code\n## Still code\n```\n\n## After code\n",
+        encoding="utf-8",
+    )
+
+    config = PublisherConfig(vault_path=tmp_path)
+    indexer = VaultIndexer(config)
+    vault_index = indexer.build()
+
+    note_id = vault_index.notes_by_path["README.md"]
+    note = vault_index.notes_by_id[note_id]
+
+    assert [heading.text for heading in note.headings] == ["Outside", "After code"]

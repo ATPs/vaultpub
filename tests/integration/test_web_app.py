@@ -31,6 +31,10 @@ def test_note_page(client) -> None:
     assert "README" in response.text
     assert 'data-sidebar-toggle="left"' in response.text
     assert 'data-sidebar-toggle="right"' in response.text
+    assert 'data-nav-tree-action="expand"' in response.text
+    assert 'data-nav-tree-action="collapse"' in response.text
+    assert 'title="Expand all"' in response.text
+    assert 'title="Collapse all"' in response.text
     assert "Navigation" in response.text
     assert "Page" in response.text
     assert 'class="topbar-context topbar-context-note"' in response.text
