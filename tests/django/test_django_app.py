@@ -203,6 +203,10 @@ def test_django_directory_page(django_setup) -> None:
     assert b'class="directory-page"' in response.content
     assert b'class="directory-list"' in response.content
     assert b'class="sidebar-title">Directory<' in response.content
+    assert b'data-nav-tree-action="expand"' in response.content
+    assert b'data-nav-tree-action="collapse"' in response.content
+    assert b'title="Expand all"' in response.content
+    assert b'title="Collapse all"' in response.content
     assert b'class="directory-context-nav"' in response.content
     assert b'href="/notes/A.md"' in response.content
     assert b'href="/notes/README.md"' in response.content

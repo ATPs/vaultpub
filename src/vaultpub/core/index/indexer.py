@@ -18,6 +18,7 @@ from vaultpub.core.models import (
 )
 from vaultpub.core.paths import file_display_name
 from vaultpub.core.parser.obsidian_links import (
+    find_protected_regions,
     find_wikilinks,
     parse_wikilink_target,
     strip_obsidian_comments,
@@ -90,8 +91,11 @@ class VaultIndexer:
     def _parse_note_body(self, note: NoteRecord) -> None:
         content = note.raw_markdown
         visible = strip_obsidian_comments(content)
+        protected = find_protected_regions(visible)
 
         for match in re.finditer(r"^(#{1,6})\s+(.+?)(?:\s+#+)?$", visible, re.MULTILINE):
+            if any(start <= match.start() < end for start, end in protected):
+                continue
             level = len(match.group(1))
             text = match.group(2).strip()
             slug = _slugify(text)

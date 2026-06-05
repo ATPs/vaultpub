@@ -27,6 +27,10 @@ def test_build_static_site(vault_basic) -> None:
         folder_note_html = (out / "Folder" / "B.md.html").read_text(encoding="utf-8")
         assert 'class="topbar-context topbar-context-note"' in home_html
         assert 'data-current-heading' in home_html
+        assert 'data-nav-tree-action="expand"' in home_html
+        assert 'data-nav-tree-action="collapse"' in home_html
+        assert 'title="Expand all"' in home_html
+        assert 'title="Collapse all"' in home_html
         assert 'href="/A.md.html"' in home_html
         assert 'class="sidebar-title">Directory<' in folder_html
         assert 'class="directory-context-nav"' in folder_html

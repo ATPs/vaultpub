@@ -18,7 +18,7 @@ def find_wikilinks(content: str) -> Iterator[tuple[int, int, str, bool]]:
     Skips wikilinks inside code fences, inline code, and Obsidian comments.
     """
     # Mask protected regions
-    protected = _find_protected_regions(content)
+    protected = find_protected_regions(content)
 
     for match in WIKILINK_EMBED_RE.finditer(content):
         if _in_protected(match.start(), protected):
@@ -77,7 +77,7 @@ def find_inline_tags(content: str, protected: list[tuple[int, int]] | None = Non
     Avoids code fences, inline code, comments, and URL fragments.
     """
     if protected is None:
-        protected = _find_protected_regions(content)
+        protected = find_protected_regions(content)
 
     for match in re.finditer(r"(?<!\w)(?<!/)(?<!\[)#([a-zA-Z一-鿿぀-ゟ゠-ヿ가-힯][\w一-鿿぀-ゟ゠-ヿ가-힯/_-]*)", content):
         if _in_protected(match.start(), protected):
@@ -90,7 +90,7 @@ def find_markdown_links(
 ) -> Iterator[tuple[str, str | None, str, bool]]:
     """Yield (url, display, raw_match, is_embed) for markdown [text](url) links."""
     if protected is None:
-        protected = _find_protected_regions(content)
+        protected = find_protected_regions(content)
 
     for match in re.finditer(r"!?\[([^\]]*)\]\(([^)]+)\)", content):
         if _in_protected(match.start(), protected):
@@ -111,7 +111,7 @@ def find_heading_blocks(content: str) -> Iterator[tuple[int, int, str, str]]:
         yield line_num, line_num + 1, "", match.group(1)
 
 
-def _find_protected_regions(content: str) -> list[tuple[int, int]]:
+def find_protected_regions(content: str) -> list[tuple[int, int]]:
     """Find regions protected from wikilink parsing: code fences and inline code."""
     regions: list[tuple[int, int]] = []
 

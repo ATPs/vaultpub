@@ -244,8 +244,14 @@ def base_page_template(
       </div>
       <div class="sidebar-header">
         <div class="sidebar-title">Navigation</div>
-        <button class="sidebar-toggle" type="button" data-sidebar-toggle="left"
-                aria-label="Hide navigation">&lt;</button>
+        <div class="sidebar-header-actions">
+          <button class="sidebar-action" type="button" data-nav-tree-action="expand"
+                  title="Expand all" aria-label="Expand all">+</button>
+          <button class="sidebar-action" type="button" data-nav-tree-action="collapse"
+                  title="Collapse all" aria-label="Collapse all">&minus;</button>
+          <button class="sidebar-toggle" type="button" data-sidebar-toggle="left"
+                  aria-label="Hide navigation">&lt;</button>
+        </div>
       </div>
       <nav class="file-tree">{nav_html}</nav>
     </aside>
