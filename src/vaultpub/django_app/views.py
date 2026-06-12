@@ -8,10 +8,14 @@ from pathlib import PurePosixPath
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
 
-from vaultpub.core.attachments import attachment_content_disposition, is_download_only_attachment
+from vaultpub.core.attachments import (
+    attachment_content_disposition,
+    attachment_mime_type,
+    is_download_only_attachment,
+)
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
-from vaultpub.core.models import NavNode, NoteRecord, TextPageRecord, VaultIndex
+from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.render import Renderer
 from vaultpub.core.render.seo import build_meta_tags, build_page_description, build_page_title
 from vaultpub.core.render.templates import (
@@ -207,17 +211,17 @@ def attachment(request: HttpRequest, asset_path: str) -> HttpResponse:
 
 
 def _attachment_from_state(request: HttpRequest, asset_path: str, state: dict) -> HttpResponse:
-    att = state["index"].attachments_by_path.get(asset_path)
-    if att is None:
+    asset = _resolve_public_asset(state["renderer"], state["index"], asset_path)
+    if asset is None:
         raise Http404("Attachment not found")
     if is_path_excluded(asset_path, state["config"]):
         raise Http404("Attachment not found")
     fpath = state["config"].vault_path / asset_path
     if not fpath.exists():
         raise Http404("File not found")
-    response = FileResponse(open(fpath, "rb"), content_type=att.mime_type)
-    if is_download_only_attachment(att.rel_path):
-        response["Content-Disposition"] = attachment_content_disposition(att.rel_path)
+    response = FileResponse(open(fpath, "rb"), content_type=attachment_mime_type(asset.rel_path))
+    if isinstance(asset, AttachmentRecord) and is_download_only_attachment(asset.rel_path):
+        response["Content-Disposition"] = attachment_content_disposition(asset.rel_path)
     return response
 
 
@@ -599,3 +603,13 @@ def _resolve_directory(nav_tree: NavNode | None, request_path: str) -> NavNode |
     if nav_tree is None:
         return None
     return find_nav_directory(nav_tree, request_path.rstrip("/"))
+
+
+def _resolve_public_asset(renderer: Renderer, index: VaultIndex, path: str) -> AttachmentRecord | TextPageRecord | None:
+    att = index.attachments_by_path.get(path)
+    if att is not None:
+        return att
+    dyn_att = renderer.dynamic_attachments_by_path.get(path)
+    if dyn_att is not None:
+        return dyn_att
+    return renderer.dynamic_text_pages_by_path.get(path)

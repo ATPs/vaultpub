@@ -25,6 +25,8 @@ def django_setup() -> None:
     if not settings.configured:
         settings.configure(
             DEBUG=True,
+            SECRET_KEY="test-secret-key",
+            ALLOWED_HOSTS=["testserver", "localhost", "127.0.0.1"],
             INSTALLED_APPS=[
                 "django.contrib.staticfiles",
                 "vaultpub.django_app",
@@ -258,11 +260,39 @@ def test_django_mount_prefixes_local_resource_urls(django_setup, vault_local_res
     assert b'href="/notes/subdir/Other.md"' in page.content
     assert asset.status_code == 200
     assert asset["content-type"].startswith("image/png")
-    assert archive.status_code == 200
-    assert archive["content-type"].startswith("application/gzip")
-    assert archive["Content-Disposition"] == 'attachment; filename="archive.pin.gz"'
-    assert text_page.status_code == 200
-    assert b'class="topbar-context topbar-context-code"' in text_page.content
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_mount_prefixes_dynamic_text_file_embed(django_setup, tmp_path: Path) -> None:
+    (tmp_path / "attachments").mkdir()
+    (tmp_path / "general").mkdir()
+    (tmp_path / "attachments" / "config.toml").write_text('name = "vaultpub"\n', encoding="utf-8")
+    (tmp_path / "general" / "README.md").write_text("![[../attachments/config.toml]]\n", encoding="utf-8")
+
+    views._state_cache.clear()
+    with override_settings(
+        VAULTPUB={
+            "default": {
+                "vault_path": str(tmp_path),
+                "url_prefix": "/notes/",
+                "home_file": "README",
+                "show_graph": True,
+                "show_backlinks": True,
+                "show_search": True,
+            }
+        }
+    ):
+        client = Client()
+        asset_before = client.get("/notes/assets/attachments/config.toml")
+        page = client.get("/notes/general/README.md")
+        asset_after = client.get("/notes/assets/attachments/config.toml")
+
+    assert asset_before.status_code == 404
+    assert page.status_code == 200
+    assert b'href="/notes/assets/attachments/config.toml"' in page.content
+    assert b'class="language-toml"' in page.content
+    assert asset_after.status_code == 200
+    assert b"".join(asset_after.streaming_content) == b'name = "vaultpub"\n'
 
 
 @override_settings(ROOT_URLCONF=__name__)

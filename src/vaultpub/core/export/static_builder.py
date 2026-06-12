@@ -104,6 +104,22 @@ class StaticSiteBuilder:
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src, dst)
                 result.attachments_copied += 1
+        for rel_path in renderer.dynamic_attachments_by_path:
+            src = self.config.vault_path / rel_path
+            if src.exists():
+                dst = assets_dir / rel_path
+                if not dst.exists():
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dst)
+                    result.attachments_copied += 1
+        for rel_path in renderer.dynamic_text_pages_by_path:
+            src = self.config.vault_path / rel_path
+            if src.exists():
+                dst = assets_dir / rel_path
+                if not dst.exists():
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dst)
+                    result.attachments_copied += 1
 
         # Data files
         (out_dir / "search-index.json").write_text(
