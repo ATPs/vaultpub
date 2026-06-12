@@ -214,6 +214,30 @@ def test_local_resource_links_render_and_serve(vault_local_resources) -> None:
     assert "embedded tool" in text_page.text
 
 
+def test_local_resource_links_decode_percent_escapes_and_fallback_parent_segments(tmp_path: Path) -> None:
+    (tmp_path / "attachments").mkdir()
+    (tmp_path / "general").mkdir()
+    (tmp_path / "attachments" / "Exported image 20260608223536-1.png").write_text("fake image", encoding="utf-8")
+    (tmp_path / "general" / "README.md").write_text(
+        (
+            "# Home\n\n"
+            "![Image](../../../../../attachments/Exported%20image%2020260608223536-1.png)\n"
+        ),
+        encoding="utf-8",
+    )
+
+    app = create_app(PublisherConfig(vault_path=tmp_path, realtime=False))
+    client = TestClient(app)
+
+    page = client.get("/general/README.md")
+    assert page.status_code == 200
+    assert '/assets/attachments/Exported image 20260608223536-1.png' in page.text
+
+    asset = client.get("/assets/attachments/Exported%20image%2020260608223536-1.png")
+    assert asset.status_code == 200
+    assert asset.headers["content-type"].startswith("image/png")
+
+
 def test_permalink_and_alias_routes_and_api(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text(
         "---\npermalink: about\naliases:\n  - Old Home\n---\n# Home\n",

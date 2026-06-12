@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass
 from html import escape, unescape
 from pathlib import PurePosixPath
+from urllib.parse import unquote
 
 from vaultpub.core.attachments import (
     attachment_download_name,
@@ -53,6 +54,12 @@ class _ResolvedTarget:
     note: NoteRecord | None = None
     text_page: TextPageRecord | None = None
     attachment: AttachmentRecord | None = None
+
+
+@dataclass(frozen=True)
+class _TargetPathCandidate:
+    raw_target: str
+    normalized_path: str
 
 
 class Renderer:
@@ -279,23 +286,74 @@ class Renderer:
             return _ResolvedTarget(kind="passthrough", url=target)
 
         path_part, suffix = _split_url_parts(target)
-        normalized = self._normalize_target_path(path_part, source_path)
-        if normalized is None:
-            return _ResolvedTarget(kind="unresolved", url=target)
+        for candidate in self._iter_target_candidates(path_part, source_path):
+            note = self._resolve_note(candidate.raw_target, candidate.normalized_path)
+            if note is not None:
+                return _ResolvedTarget(kind="note", url=_note_public_url(note) + suffix, note=note)
 
-        note = self._resolve_note(path_part, normalized)
-        if note is not None:
-            return _ResolvedTarget(kind="note", url=_note_public_url(note) + suffix, note=note)
+            text_page = self.index.text_pages_by_path.get(candidate.normalized_path)
+            if text_page is not None:
+                return _ResolvedTarget(kind="text_page", url=text_page.url_path + suffix, text_page=text_page)
 
-        text_page = self.index.text_pages_by_path.get(normalized)
-        if text_page is not None:
-            return _ResolvedTarget(kind="text_page", url=text_page.url_path + suffix, text_page=text_page)
-
-        attachment = self.index.attachments_by_path.get(normalized)
-        if attachment is not None:
-            return _ResolvedTarget(kind="attachment", url=attachment.url_path + suffix, attachment=attachment)
+            attachment = self.index.attachments_by_path.get(candidate.normalized_path)
+            if attachment is not None:
+                return _ResolvedTarget(kind="attachment", url=attachment.url_path + suffix, attachment=attachment)
 
         return _ResolvedTarget(kind="unresolved", url=target)
+
+    def _iter_target_candidates(self, target: str, source_path: PurePosixPath) -> list[_TargetPathCandidate]:
+        variants = [unquote(target)]
+        if variants[0] != target:
+            variants.append(target)
+
+        candidates: list[_TargetPathCandidate] = []
+        seen: set[tuple[str, str]] = set()
+
+        for variant in variants:
+            for raw_candidate, normalized in self._iter_normalized_target_paths(variant, source_path):
+                key = (raw_candidate, normalized)
+                if key in seen:
+                    continue
+                seen.add(key)
+                candidates.append(_TargetPathCandidate(raw_target=raw_candidate, normalized_path=normalized))
+
+        return candidates
+
+    def _iter_normalized_target_paths(self, target: str, source_path: PurePosixPath) -> list[tuple[str, str]]:
+        normalized_candidates: list[tuple[str, str]] = []
+        seen_keys: set[tuple[str, str]] = set()
+
+        normalized = self._normalize_target_path(target, source_path)
+        if normalized is not None:
+            normalized_candidates.append((target, normalized))
+            seen_keys.add((target, normalized))
+
+        if _is_fallback_file_target(target):
+            for normalized_fallback in self._iter_fallback_target_paths(target, source_path):
+                key = (target, normalized_fallback)
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                normalized_candidates.append((target, normalized_fallback))
+
+        return normalized_candidates
+
+    def _iter_fallback_target_paths(self, target: str, source_path: PurePosixPath) -> list[str]:
+        tail = _strip_all_leading_parents(target)
+        if not tail:
+            return []
+
+        parent_parts = source_path.parent.parts
+        candidates: list[str] = []
+        seen: set[str] = set()
+        for depth in range(len(parent_parts) + 1):
+            prefix = parent_parts[:depth]
+            normalized = PurePosixPath(*prefix, tail).as_posix()
+            if normalized in {"", "."} or normalized in seen:
+                continue
+            seen.add(normalized)
+            candidates.append(normalized)
+        return candidates
 
     def _normalize_target_path(self, target: str, source_path: PurePosixPath) -> str | None:
         candidate = (
@@ -588,3 +646,28 @@ def _default_file_label(target_text: str) -> str:
     if target_path.suffix:
         return target_path.name
     return f"{target_path.name}.md"
+
+
+def _leading_parent_count(target: str) -> int:
+    count = 0
+    for part in PurePosixPath(target).parts:
+        if part != "..":
+            break
+        count += 1
+    return count
+
+
+def _strip_leading_parents(target: str, count: int) -> str:
+    parts = PurePosixPath(target).parts
+    if count <= 0 or count >= len(parts):
+        return ""
+    return PurePosixPath(*parts[count:]).as_posix()
+
+
+def _strip_all_leading_parents(target: str) -> str:
+    return _strip_leading_parents(target, _leading_parent_count(target))
+
+
+def _is_fallback_file_target(target: str) -> bool:
+    suffix = PurePosixPath(target).suffix.lower()
+    return bool(suffix and suffix != ".md" and _leading_parent_count(target) > 0)
