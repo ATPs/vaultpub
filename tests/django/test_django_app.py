@@ -5,10 +5,11 @@ from pathlib import Path
 
 import pytest
 from django.conf import settings
-from django.test import Client, override_settings
+from django.test import Client, RequestFactory, override_settings
 from django.urls import include, path
 
 import django
+from vaultpub.core.config import PublisherConfig
 from vaultpub.django_app import views
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
@@ -262,3 +263,51 @@ def test_django_mount_prefixes_local_resource_urls(django_setup, vault_local_res
     assert archive["Content-Disposition"] == 'attachment; filename="archive.pin.gz"'
     assert text_page.status_code == 200
     assert b'class="topbar-context topbar-context-code"' in text_page.content
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_dynamic_config_render_helpers_use_supplied_prefix(django_setup) -> None:
+    views._state_cache.clear()
+    request = RequestFactory().get("/custom/README.md")
+    config = PublisherConfig(
+        vault_path=FIXTURES_DIR / "vault_basic",
+        url_prefix="/custom/",
+        home_file="README",
+        realtime=False,
+    )
+
+    response = views.render_page_with_config(
+        request,
+        config,
+        "README.md",
+        cache_key="test-dynamic-prefix",
+        force_refresh=True,
+    )
+
+    assert response.status_code == 200
+    assert b'data-url-prefix="/custom/"' in response.content
+    assert b'href="/custom/A.md"' in response.content
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_dynamic_config_attachment_streams_file_response(django_setup, vault_local_resources) -> None:
+    views._state_cache.clear()
+    request = RequestFactory().get("/custom/assets/subdir/archive.pin.gz")
+    config = PublisherConfig(
+        vault_path=vault_local_resources,
+        url_prefix="/custom/",
+        home_file="README",
+        realtime=False,
+    )
+
+    response = views.render_attachment_with_config(
+        request,
+        config,
+        "subdir/archive.pin.gz",
+        cache_key="test-dynamic-attachment",
+        force_refresh=True,
+    )
+
+    assert response.status_code == 200
+    assert response.streaming
+    assert response["Content-Disposition"] == 'attachment; filename="archive.pin.gz"'
