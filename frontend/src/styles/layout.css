@@ -89,6 +89,31 @@ body {
   flex-shrink: 0;
 }
 
+.topbar-layout-btn,
+.topbar-code-btn,
+.top-bar .search-trigger {
+  padding: 0.35em 0.85em;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.85em;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.topbar-layout-btn {
+  padding: 0.32em 0.72em;
+}
+
+.topbar-layout-btn.is-active,
+.topbar-code-btn.is-active {
+  border-color: var(--link-color);
+  color: var(--link-color);
+  background: var(--code-bg);
+}
+
 .topbar-context {
   min-width: 0;
   flex: 1;
@@ -176,29 +201,11 @@ body {
   white-space: nowrap;
 }
 
-.topbar-code-btn,
-.top-bar .search-trigger {
-  padding: 0.35em 0.85em;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--bg-color);
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.85em;
-  transition: all var(--transition-fast);
-  white-space: nowrap;
-}
-
 .topbar-code-btn {
   padding: 0.32em 0.72em;
 }
 
-.topbar-code-btn.is-active {
-  border-color: var(--link-color);
-  color: var(--link-color);
-  background: var(--code-bg);
-}
-
+.topbar-layout-btn:hover,
 .topbar-code-btn:hover,
 .top-bar .search-trigger:hover {
   border-color: var(--link-color);
@@ -504,6 +511,11 @@ main.content {
   min-width: 0;
   padding: 2.5em 2em;
   margin: 0 auto;
+}
+
+body.wide-content-enabled main.content {
+  max-width: none;
+  width: 100%;
 }
 
 /* ============================================================
@@ -831,6 +843,16 @@ body.top-bar-hidden .app-layout.sidebar-right-collapsed.sidebar-right-peeking .s
   font-size: 0.9em;
 }
 
+.text-page-embed-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5em;
+}
+
+.text-page-embed-tools .topbar-code-btn {
+  font-size: 0.78em;
+}
+
 /* ============================================================
    Article / note
    ============================================================ */
@@ -841,6 +863,20 @@ body.top-bar-hidden .app-layout.sidebar-right-collapsed.sidebar-right-peeking .s
 body.code-wrap-enabled .text-page pre {
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-x: hidden;
+}
+
+body.code-wrap-enabled .text-page-embed pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: hidden;
+}
+
+body.code-wrap-enabled .text-page pre code,
+body.code-wrap-enabled .text-page-embed pre code {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* ============================================================
@@ -866,6 +902,20 @@ body.code-wrap-enabled .text-page pre {
 @media (max-width: 900px) {
   .topbar-context {
     display: none;
+  }
+
+  .topbar-actions {
+    gap: 0.45em;
+  }
+
+  .theme-selector-label {
+    display: none;
+  }
+
+  .theme-selector-btn,
+  .topbar-layout-btn,
+  .top-bar .search-trigger {
+    padding-inline: 0.6em;
   }
 }
 

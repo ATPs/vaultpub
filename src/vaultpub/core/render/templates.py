@@ -214,6 +214,7 @@ def base_page_template(
     realtime = "true" if (config and getattr(config, "realtime", True)) else "false"
     logo_html = f'<img src="{site_logo}" alt="{site_name}" class="site-logo">' if site_logo else ""
     search_trigger = '<button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>'
+    wide_toggle = '<button class="topbar-layout-btn" type="button" data-layout-action="toggle-wide" aria-pressed="false">Wide</button>'
     right_sidebar = sidebar_right_html + graph_html
     right_sidebar_title_html = escape(sidebar_right_title)
 
@@ -233,6 +234,7 @@ def base_page_template(
     <span class="site-name">{site_name}</span>
     {topbar_context_html}
     <div class="topbar-actions">
+      {wide_toggle}
       {search_trigger}
     </div>
   </header>

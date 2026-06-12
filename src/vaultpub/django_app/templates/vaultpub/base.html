@@ -14,6 +14,7 @@
     <span class="site-name">{{ site_name|default:"vaultpub" }}</span>
     {% if topbar_context_html %}{{ topbar_context_html|safe }}{% endif %}
     <div class="topbar-actions">
+      <button class="topbar-layout-btn" type="button" data-layout-action="toggle-wide" aria-pressed="false">Wide</button>
       {% if show_search %}<button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>{% endif %}
     </div>
   </header>

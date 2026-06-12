@@ -26,6 +26,7 @@ def test_build_static_site(vault_basic) -> None:
         folder_html = (out / "Folder" / "index.html").read_text(encoding="utf-8")
         folder_note_html = (out / "Folder" / "B.md.html").read_text(encoding="utf-8")
         assert 'class="topbar-context topbar-context-note"' in home_html
+        assert 'data-layout-action="toggle-wide"' in home_html
         assert 'data-current-heading' in home_html
         assert 'data-nav-tree-action="expand"' in home_html
         assert 'data-nav-tree-action="collapse"' in home_html
@@ -85,6 +86,7 @@ def test_build_static_site_renders_topbar_code_tools_for_text_pages(tmp_path: Pa
 
     code_html = (out / "tools" / "example.py.html").read_text(encoding="utf-8")
     assert 'class="topbar-context topbar-context-code"' in code_html
+    assert 'data-layout-action="toggle-wide"' in code_html
     assert 'href="/tools/index.html" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in code_html
     assert 'href="/tools/example.py.html" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in code_html
     assert 'data-code-action="copy-path"' in code_html
@@ -132,4 +134,7 @@ def test_build_static_site_copies_dynamic_obsidian_referenced_text_file(tmp_path
     note_html = (out / "general" / "README.md.html").read_text(encoding="utf-8")
     assert result.attachments_copied >= 1
     assert 'data-embed-source="/assets/attachments/config.toml"' in note_html
+    assert 'class="text-page-embed-tools"' in note_html
+    assert 'class="topbar-code-btn"' in note_html
+    assert 'data-code-action="toggle-wrap"' in note_html
     assert (out / "assets" / "attachments" / "config.toml").exists()

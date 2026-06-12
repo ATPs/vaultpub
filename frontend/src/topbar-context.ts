@@ -1,4 +1,5 @@
 const CODE_WRAP_KEY = "vaultpub.codeWrap";
+const WIDE_CONTENT_KEY = "vaultpub.wideContent";
 const ACTIVE_HEADING_OFFSET = 96;
 
 function trackedHeadings(): HTMLElement[] {
@@ -67,10 +68,24 @@ function initCurrentHeading(): void {
   window.addEventListener("resize", requestSync);
 }
 
-function applyCodeWrapState(enabled: boolean, button: HTMLButtonElement): void {
+function applyCodeWrapState(enabled: boolean, buttons: Iterable<HTMLButtonElement>): void {
   document.body.classList.toggle("code-wrap-enabled", enabled);
+  for (const button of buttons) {
+    button.classList.toggle("is-active", enabled);
+    button.setAttribute("aria-pressed", String(enabled));
+  }
+}
+
+function applyWideContentState(enabled: boolean, button: HTMLButtonElement): void {
+  document.body.classList.toggle("wide-content-enabled", enabled);
   button.classList.toggle("is-active", enabled);
   button.setAttribute("aria-pressed", String(enabled));
+}
+
+function storedBoolean(key: string, defaultValue: boolean): boolean {
+  const stored = localStorage.getItem(key);
+  if (stored === null) return defaultValue;
+  return stored === "true";
 }
 
 async function copyText(text: string): Promise<boolean> {
@@ -113,16 +128,20 @@ function flashButtonLabel(button: HTMLButtonElement, label: string): void {
 
 function initCodeTools(): void {
   const copyButton = document.querySelector<HTMLButtonElement>("[data-code-action='copy-path']");
-  const wrapButton = document.querySelector<HTMLButtonElement>("[data-code-action='toggle-wrap']");
+  const wrapButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>("[data-code-action='toggle-wrap']"),
+  );
 
-  if (wrapButton) {
-    const enabled = localStorage.getItem(CODE_WRAP_KEY) === "true";
-    applyCodeWrapState(enabled, wrapButton);
-    wrapButton.addEventListener("click", () => {
+  if (wrapButtons.length) {
+    const enabled = storedBoolean(CODE_WRAP_KEY, true);
+    applyCodeWrapState(enabled, wrapButtons);
+    for (const wrapButton of wrapButtons) {
+      wrapButton.addEventListener("click", () => {
       const nextEnabled = !document.body.classList.contains("code-wrap-enabled");
       localStorage.setItem(CODE_WRAP_KEY, String(nextEnabled));
-      applyCodeWrapState(nextEnabled, wrapButton);
-    });
+        applyCodeWrapState(nextEnabled, wrapButtons);
+      });
+    }
   }
 
   if (copyButton) {
@@ -135,16 +154,28 @@ function initCodeTools(): void {
   }
 }
 
+function initWideContentToggle(): void {
+  const button = document.querySelector<HTMLButtonElement>("[data-layout-action='toggle-wide']");
+  if (!button) return;
+
+  const enabled = storedBoolean(WIDE_CONTENT_KEY, false);
+  applyWideContentState(enabled, button);
+  button.addEventListener("click", () => {
+    const nextEnabled = !document.body.classList.contains("wide-content-enabled");
+    localStorage.setItem(WIDE_CONTENT_KEY, String(nextEnabled));
+    applyWideContentState(nextEnabled, button);
+  });
+}
+
 export function initTopbarContext(): void {
+  initWideContentToggle();
+  initCodeTools();
+
   const context = document.querySelector<HTMLElement>(".topbar-context");
   if (!context) return;
 
   const kind = context.dataset.topbarContext;
   if (kind === "note") {
     initCurrentHeading();
-    return;
-  }
-  if (kind === "code") {
-    initCodeTools();
   }
 }
