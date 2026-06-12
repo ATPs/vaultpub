@@ -44,6 +44,26 @@ def test_note_page(client) -> None:
     assert "README.md" in response.text
 
 
+def test_note_page_code_blocks_default_wrap_and_line_numbers(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text(
+        "# README\n\n```python\nprint('a')\nprint('b')\n```\n",
+        encoding="utf-8",
+    )
+
+    app = create_app(PublisherConfig(vault_path=tmp_path, realtime=False))
+    client = TestClient(app)
+
+    css_response = client.get("/static/vaultpub/app.css")
+    assert css_response.status_code == 200
+    assert "code-line-content" in css_response.text
+    assert "grid-template-columns:3.2em minmax(0,1fr)" in css_response.text
+
+    js_response = client.get("/static/vaultpub/app.js")
+    assert js_response.status_code == 200
+    assert "lineNumbersReady" in js_response.text
+    assert "code-line-content" in js_response.text
+
+
 def test_note_page_renders_toc_in_right_sidebar(client) -> None:
     response = client.get("/A.md")
     assert response.status_code == 200

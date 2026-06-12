@@ -863,12 +863,14 @@ body.top-bar-hidden .app-layout.sidebar-right-collapsed.sidebar-right-peeking .s
 body.code-wrap-enabled .text-page pre {
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
   overflow-x: hidden;
 }
 
 body.code-wrap-enabled .text-page-embed pre {
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
   overflow-x: hidden;
 }
 
