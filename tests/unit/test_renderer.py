@@ -190,6 +190,45 @@ def test_render_raw_html_local_urls_are_rewritten(tmp_path: Path) -> None:
     assert 'href="/tool.py"' in html
 
 
+def test_render_local_resources_decode_percent_escapes_and_fallback_parent_segments(tmp_path: Path) -> None:
+    (tmp_path / "attachments").mkdir()
+    (tmp_path / "general").mkdir()
+    (tmp_path / "attachments" / "Exported image 20260608223536-1.png").write_text("fake image", encoding="utf-8")
+    (tmp_path / "general" / "README.md").write_text(
+        (
+            "# Home\n\n"
+            "![One](../attachments/Exported%20image%2020260608223536-1.png)\n\n"
+            "![Two](../../../../../attachments/Exported%20image%2020260608223536-1.png)\n"
+        ),
+        encoding="utf-8",
+    )
+
+    config = PublisherConfig(vault_path=tmp_path)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = vault_index.notes_by_id[vault_index.notes_by_path["general/README.md"]]
+
+    html = renderer.render_note(note)
+
+    assert html.count('/assets/attachments/Exported image 20260608223536-1.png') == 2
+
+
+def test_render_local_resources_leave_missing_targets_unchanged(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text(
+        "![Missing](../../../../../attachments/Exported%20image%2020260608223536-1.png)\n",
+        encoding="utf-8",
+    )
+
+    config = PublisherConfig(vault_path=tmp_path)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = vault_index.notes_by_id[vault_index.notes_by_path["README.md"]]
+
+    html = renderer.render_note(note)
+
+    assert '../attachments/Exported%20image%2020260608223536-1.png' in html
+
+
 def test_nav_tree_omits_root_directory() -> None:
     nav = NavNode(
         label="/",
