@@ -9,10 +9,14 @@ from pathlib import PurePosixPath
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
 
-from vaultpub.core.attachments import attachment_content_disposition, is_download_only_attachment
+from vaultpub.core.attachments import (
+    attachment_content_disposition,
+    attachment_mime_type,
+    is_download_only_attachment,
+)
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
-from vaultpub.core.models import NavNode, NoteRecord, TextPageRecord, VaultIndex
+from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.paths import safe_join
 from vaultpub.core.render.renderer import Renderer
 from vaultpub.core.render.seo import build_meta_tags
@@ -112,8 +116,8 @@ async def attachment(request: Request) -> Response:
     state = _get_state(request)
     path = request.path_params.get("path", "")
 
-    att = state.index.attachments_by_path.get(path)
-    if att is None:
+    asset = _resolve_public_asset(state.renderer, state.index, path)
+    if asset is None:
         return HTMLResponse("Not found", status_code=404)
 
     if is_path_excluded(path, state.config):
@@ -125,9 +129,10 @@ async def attachment(request: Request) -> Response:
 
     content = fpath.read_bytes()
     headers: dict[str, str] = {}
-    if is_download_only_attachment(att.rel_path):
-        headers["Content-Disposition"] = attachment_content_disposition(att.rel_path)
-    return Response(content, media_type=att.mime_type, headers=headers)
+    media_type = attachment_mime_type(asset.rel_path)
+    if isinstance(asset, AttachmentRecord) and is_download_only_attachment(asset.rel_path):
+        headers["Content-Disposition"] = attachment_content_disposition(asset.rel_path)
+    return Response(content, media_type=media_type, headers=headers)
 
 
 async def api_page(request: Request) -> JSONResponse:
@@ -326,3 +331,13 @@ def _resolve_directory(nav_tree: NavNode | None, request_path: str) -> NavNode |
     if nav_tree is None:
         return None
     return find_nav_directory(nav_tree, request_path.rstrip("/"))
+
+
+def _resolve_public_asset(renderer: Renderer, index: VaultIndex, path: str) -> AttachmentRecord | TextPageRecord | None:
+    att = index.attachments_by_path.get(path)
+    if att is not None:
+        return att
+    dyn_att = renderer.dynamic_attachments_by_path.get(path)
+    if dyn_att is not None:
+        return dyn_att
+    return renderer.dynamic_text_pages_by_path.get(path)

@@ -238,6 +238,28 @@ def test_local_resource_links_decode_percent_escapes_and_fallback_parent_segment
     assert asset.headers["content-type"].startswith("image/png")
 
 
+def test_obsidian_dynamic_text_file_embed_renders_and_serves_asset(tmp_path: Path) -> None:
+    (tmp_path / "attachments").mkdir()
+    (tmp_path / "general").mkdir()
+    (tmp_path / "attachments" / "config.toml").write_text('name = "vaultpub"\n', encoding="utf-8")
+    (tmp_path / "general" / "README.md").write_text("![[../attachments/config.toml]]\n", encoding="utf-8")
+
+    app = create_app(PublisherConfig(vault_path=tmp_path, realtime=False))
+    client = TestClient(app)
+
+    asset_before = client.get("/assets/attachments/config.toml")
+    assert asset_before.status_code == 404
+
+    page = client.get("/general/README.md")
+    assert page.status_code == 200
+    assert 'data-embed-source="/assets/attachments/config.toml"' in page.text
+    assert 'class="language-toml"' in page.text
+
+    asset_after = client.get("/assets/attachments/config.toml")
+    assert asset_after.status_code == 200
+    assert asset_after.text == 'name = "vaultpub"\n'
+
+
 def test_permalink_and_alias_routes_and_api(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text(
         "---\npermalink: about\naliases:\n  - Old Home\n---\n# Home\n",

@@ -113,3 +113,23 @@ def test_build_static_site_keeps_canonical_local_resource_urls(vault_local_resou
         assert (out / "assets" / "subdir" / "image.png").exists()
         assert (out / "assets" / "subdir" / "doc.pdf").exists()
         assert (out / "assets" / "subdir" / "archive.pin.gz").exists()
+
+
+def test_build_static_site_copies_dynamic_obsidian_referenced_text_file(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "attachments").mkdir()
+    (vault / "general").mkdir()
+    (vault / "attachments" / "config.toml").write_text('name = "vaultpub"\n', encoding="utf-8")
+    (vault / "general" / "README.md").write_text("![[../attachments/config.toml]]\n", encoding="utf-8")
+
+    config = PublisherConfig(vault_path=vault)
+    builder = StaticSiteBuilder(config)
+    out = tmp_path / "public"
+
+    result = builder.build(out, clean=True)
+
+    note_html = (out / "general" / "README.md.html").read_text(encoding="utf-8")
+    assert result.attachments_copied >= 1
+    assert 'data-embed-source="/assets/attachments/config.toml"' in note_html
+    assert (out / "assets" / "attachments" / "config.toml").exists()

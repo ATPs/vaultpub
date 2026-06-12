@@ -12,10 +12,11 @@ import posixpath
 import re
 from dataclasses import dataclass
 from html import escape, unescape
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from urllib.parse import unquote
 
 from vaultpub.core.attachments import (
+    attachment_mime_type,
     attachment_download_name,
     is_download_only_attachment,
     is_image_attachment,
@@ -30,8 +31,9 @@ from vaultpub.core.parser.obsidian_links import (
     parse_wikilink_target,
     strip_obsidian_comments,
 )
-from vaultpub.core.paths import file_display_name
+from vaultpub.core.paths import file_display_name, safe_join
 from vaultpub.core.render.sanitize import add_external_link_attrs, sanitize_html
+from vaultpub.core.security import infer_language, is_path_excluded, is_text_file
 
 _PLACEHOLDER_RE = re.compile(r"VAULTPUB_PLACEHOLDER_(\d+)")
 _PLACEHOLDER_PARAGRAPH_RE = re.compile(r"<p>\s*VAULTPUB_PLACEHOLDER_(\d+)\s*</p>")
@@ -54,6 +56,8 @@ class _ResolvedTarget:
     note: NoteRecord | None = None
     text_page: TextPageRecord | None = None
     attachment: AttachmentRecord | None = None
+    dynamic_text_page: TextPageRecord | None = None
+    dynamic_attachment: AttachmentRecord | None = None
 
 
 @dataclass(frozen=True)
@@ -68,6 +72,8 @@ class Renderer:
     def __init__(self, config: PublisherConfig, index: VaultIndex) -> None:
         self.config = config
         self.index = index
+        self.dynamic_text_pages_by_path: dict[str, TextPageRecord] = {}
+        self.dynamic_attachments_by_path: dict[str, AttachmentRecord] = {}
 
     def render_note(self, note: NoteRecord, embed_depth: int = 0) -> str:
         _frontmatter, content, _body_start = parse_frontmatter(note.raw_markdown)
@@ -172,6 +178,35 @@ class Renderer:
                     counter += 1
                 continue
 
+            if resolved.dynamic_text_page is not None:
+                dtext = display_text or file_display_name(resolved.dynamic_text_page.rel_path)
+                if is_embed:
+                    placeholders[counter] = self._render_text_page_embed(resolved.dynamic_text_page)
+                    replacements.append((start, end, self._placeholder(counter)))
+                    counter += 1
+                else:
+                    link_html = (
+                        f'<a href="{escape(resolved.url, quote=True)}" class="internal-link">{escape(dtext)}</a>'
+                    )
+                    placeholders[counter] = link_html
+                    replacements.append((start, end, self._placeholder(counter)))
+                    counter += 1
+                continue
+
+            if resolved.dynamic_attachment is not None:
+                dtext = display_text or file_display_name(resolved.dynamic_attachment.rel_path)
+                if is_embed:
+                    placeholders[counter] = self._render_attachment_embed(
+                        resolved.dynamic_attachment,
+                        size=size,
+                        label=dtext,
+                    )
+                    replacements.append((start, end, self._placeholder(counter)))
+                    counter += 1
+                else:
+                    replacements.append((start, end, f"[{dtext}]({resolved.url})"))
+                continue
+
             if resolved.note is not None:
                 target_note = resolved.note
                 resolved_url = resolved.url
@@ -226,18 +261,19 @@ class Renderer:
                 return match.group(0)
 
             resolved = self._resolve_target(unescape(src), source_note.rel_path)
-            if resolved.kind not in {"note", "text_page", "attachment"}:
+            if resolved.kind not in {"note", "text_page", "attachment", "dynamic_text_page", "dynamic_attachment"}:
                 return match.group(0)
 
             alt = unescape(_extract_html_attr(attrs, "alt") or "")
             label = alt or _resolved_target_label(resolved, src)
 
-            if resolved.attachment is not None and is_image_attachment(resolved.attachment.rel_path):
+            attachment = resolved.attachment or resolved.dynamic_attachment
+            if attachment is not None and is_image_attachment(attachment.rel_path):
                 return _replace_html_attr(match.group(0), "src", resolved.url)
 
             download_name = None
-            if resolved.attachment is not None and is_download_only_attachment(resolved.attachment.rel_path):
-                download_name = attachment_download_name(resolved.attachment.rel_path)
+            if attachment is not None and is_download_only_attachment(attachment.rel_path):
+                download_name = attachment_download_name(attachment.rel_path)
 
             return _render_anchor_html(resolved.url, label, download_name=download_name)
 
@@ -247,12 +283,13 @@ class Renderer:
         def _replace(match: re.Match[str]) -> str:
             url = match.group("url")
             resolved = self._resolve_target(unescape(url), source_note.rel_path)
-            if resolved.kind not in {"note", "text_page", "attachment"}:
+            if resolved.kind not in {"note", "text_page", "attachment", "dynamic_text_page", "dynamic_attachment"}:
                 return match.group(0)
 
             download_attr = ""
-            if resolved.attachment is not None and is_download_only_attachment(resolved.attachment.rel_path):
-                download_name = attachment_download_name(resolved.attachment.rel_path)
+            attachment = resolved.attachment or resolved.dynamic_attachment
+            if attachment is not None and is_download_only_attachment(attachment.rel_path):
+                download_name = attachment_download_name(attachment.rel_path)
                 combined_attrs = match.group("before") + match.group("after")
                 if " download=" not in combined_attrs.lower():
                     download_attr = f' download="{escape(download_name, quote=True)}"'
@@ -268,7 +305,7 @@ class Renderer:
         def _replace(match: re.Match[str]) -> str:
             url = match.group("url")
             resolved = self._resolve_target(url, source_note.rel_path)
-            if resolved.kind not in {"note", "text_page", "attachment"}:
+            if resolved.kind not in {"note", "text_page", "attachment", "dynamic_text_page", "dynamic_attachment"}:
                 return match.group(0)
             return f'{match.group("attr")}{escape(resolved.url, quote=True)}{match.group("quote")}'
 
@@ -299,7 +336,73 @@ class Renderer:
             if attachment is not None:
                 return _ResolvedTarget(kind="attachment", url=attachment.url_path + suffix, attachment=attachment)
 
+            dynamic = self._resolve_dynamic_file(candidate.normalized_path, suffix)
+            if dynamic is not None:
+                return dynamic
+
         return _ResolvedTarget(kind="unresolved", url=target)
+
+    def _resolve_dynamic_file(self, normalized_path: str, suffix: str) -> _ResolvedTarget | None:
+        if is_path_excluded(normalized_path, self.config):
+            return None
+
+        fpath = safe_join(self.config.vault_path, normalized_path)
+        if not fpath.exists() or not fpath.is_file():
+            return None
+
+        rel_path = PurePosixPath(normalized_path)
+        url_path = "/assets/" + rel_path.as_posix()
+
+        if is_text_file(fpath):
+            text_page = self.dynamic_text_pages_by_path.get(normalized_path)
+            if text_page is None:
+                text_page = self._build_dynamic_text_page(fpath, rel_path, url_path)
+                self.dynamic_text_pages_by_path[normalized_path] = text_page
+            return _ResolvedTarget(
+                kind="dynamic_text_page",
+                url=text_page.url_path + suffix,
+                dynamic_text_page=text_page,
+            )
+
+        attachment = self.dynamic_attachments_by_path.get(normalized_path)
+        if attachment is None:
+            attachment = self._build_dynamic_attachment(fpath, rel_path, url_path)
+            self.dynamic_attachments_by_path[normalized_path] = attachment
+        return _ResolvedTarget(
+            kind="dynamic_attachment",
+            url=attachment.url_path + suffix,
+            dynamic_attachment=attachment,
+        )
+
+    def _build_dynamic_text_page(self, fpath: Path, rel_path: PurePosixPath, url_path: str) -> TextPageRecord:
+        raw_text = fpath.read_text(encoding="utf-8-sig")
+        excerpt = raw_text[:300].replace("\n", " ").strip()
+        stat = fpath.stat()
+        return TextPageRecord(
+            id=f"dyn-text:{rel_path.as_posix()}",
+            rel_path=rel_path,
+            url_path=url_path,
+            title=file_display_name(rel_path),
+            stem=rel_path.stem,
+            language=infer_language(rel_path.suffix),
+            raw_text=raw_text,
+            plain_text=raw_text[:2000],
+            excerpt=excerpt,
+            size=stat.st_size,
+            mtime_ns=int(stat.st_mtime_ns),
+            ctime_ns=int(stat.st_ctime_ns),
+        )
+
+    def _build_dynamic_attachment(self, fpath: Path, rel_path: PurePosixPath, url_path: str) -> AttachmentRecord:
+        stat = fpath.stat()
+        return AttachmentRecord(
+            id=f"dyn-asset:{rel_path.as_posix()}",
+            rel_path=rel_path,
+            url_path=url_path,
+            mime_type=attachment_mime_type(rel_path),
+            size=stat.st_size,
+            mtime_ns=int(stat.st_mtime_ns),
+        )
 
     def _iter_target_candidates(self, target: str, source_path: PurePosixPath) -> list[_TargetPathCandidate]:
         variants = [unquote(target)]

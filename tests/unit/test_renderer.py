@@ -229,6 +229,42 @@ def test_render_local_resources_leave_missing_targets_unchanged(tmp_path: Path) 
     assert '../attachments/Exported%20image%2020260608223536-1.png' in html
 
 
+def test_render_obsidian_embed_dynamic_text_file_without_force_include(tmp_path: Path) -> None:
+    (tmp_path / "attachments").mkdir()
+    (tmp_path / "general").mkdir()
+    (tmp_path / "attachments" / "config.toml").write_text('name = "vaultpub"\n', encoding="utf-8")
+    (tmp_path / "general" / "README.md").write_text("![[../attachments/config.toml]]\n", encoding="utf-8")
+
+    config = PublisherConfig(vault_path=tmp_path)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = vault_index.notes_by_id[vault_index.notes_by_path["general/README.md"]]
+
+    html = renderer.render_note(note)
+
+    assert 'class="embed-wrapper"' in html
+    assert 'data-embed-source="/assets/attachments/config.toml"' in html
+    assert 'class="language-toml"' in html
+    assert 'name = &quot;vaultpub&quot;' in html
+
+
+def test_render_obsidian_link_dynamic_text_file_uses_asset_url(tmp_path: Path) -> None:
+    (tmp_path / "attachments").mkdir()
+    (tmp_path / "general").mkdir()
+    (tmp_path / "attachments" / "config.toml").write_text('name = "vaultpub"\n', encoding="utf-8")
+    (tmp_path / "general" / "README.md").write_text("[[../attachments/config.toml]]\n", encoding="utf-8")
+
+    config = PublisherConfig(vault_path=tmp_path)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = vault_index.notes_by_id[vault_index.notes_by_path["general/README.md"]]
+
+    html = renderer.render_note(note)
+
+    assert 'href="/assets/attachments/config.toml"' in html
+    assert ">config.toml<" in html
+
+
 def test_nav_tree_omits_root_directory() -> None:
     nav = NavNode(
         label="/",
