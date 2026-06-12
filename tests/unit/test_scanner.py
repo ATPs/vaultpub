@@ -68,3 +68,18 @@ def test_scan_default_config_includes_gz_attachments(tmp_path) -> None:
 
     rel_paths = {att.rel_path.as_posix() for att in attachments}
     assert "archive.pin.gz" in rel_paths
+
+
+def test_scan_include_folders_scopes_notes_attachments_and_nav(tmp_path) -> None:
+    (tmp_path / "Shared").mkdir()
+    (tmp_path / "Private").mkdir()
+    (tmp_path / "Shared" / "README.md").write_text("# Shared", encoding="utf-8")
+    (tmp_path / "Shared" / "image.png").write_bytes(b"png")
+    (tmp_path / "Private" / "Secret.md").write_text("# Secret", encoding="utf-8")
+
+    scanner = VaultScanner(PublisherConfig(vault_path=tmp_path, include_folders=("Shared",)))
+    notes, attachments, _text_pages, nav = scanner.scan()
+
+    assert {note.rel_path.as_posix() for note in notes} == {"Shared/README.md"}
+    assert {att.rel_path.as_posix() for att in attachments} == {"Shared/image.png"}
+    assert [child.label for child in nav.children] == ["Shared"]

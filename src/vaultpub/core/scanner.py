@@ -37,6 +37,7 @@ class VaultScanner:
         text_pages: list[TextPageRecord] = []
         root = self.config.vault_path.resolve()
         compiled_exclude = getattr(self.config, "_compiled_force_exclude", [])
+        include_folders = self._normalized_include_folders()
 
         for dirpath_str, dirnames, filenames in os.walk(root, followlinks=self.config.follow_symlinks):
             dirpath = Path(dirpath_str)
@@ -80,6 +81,9 @@ class VaultScanner:
                 except PathTraversalError:
                     continue
 
+                if not self._is_included_by_folder(rel, include_folders):
+                    continue
+
                 # Force-exclude regex check
                 if compiled_exclude and any(pat.search(rel) for pat in compiled_exclude):
                     continue
@@ -104,6 +108,40 @@ class VaultScanner:
 
         nav = self._build_nav_tree(notes, text_pages)
         return notes, attachments, text_pages, nav
+
+    def _normalized_include_folders(self) -> tuple[str, ...]:
+        """
+        Normalize configured include folders for component-aware path filtering.
+
+        Explanation:
+            Input: `PublisherConfig.include_folders` strings.
+            Output: POSIX-style relative folder prefixes.
+            Where: Used by `scan`.
+            What: Lets callers expose a scoped folder without publishing sibling
+            notes, attachments, search documents, or graph nodes.
+        """
+        normalized = []
+        for folder in self.config.include_folders:
+            cleaned = PurePosixPath(str(folder).strip().strip("/")).as_posix()
+            if cleaned and cleaned not in {".", ".."} and not cleaned.startswith("../"):
+                normalized.append(cleaned.rstrip("/"))
+        return tuple(dict.fromkeys(normalized))
+
+    def _is_included_by_folder(self, rel_path: str, include_folders: tuple[str, ...]) -> bool:
+        """
+        Check whether a vault-relative file belongs to the configured include scope.
+
+        Explanation:
+            Input: file path relative to the vault root plus normalized include folders.
+            Output: bool indicating whether the file should be scanned.
+            Where: Used by `scan`.
+            What: Applies directory-prefix filtering without allowing `Data2` to
+            match an include folder named `Data`.
+        """
+        if not include_folders:
+            return True
+        normalized = PurePosixPath(rel_path).as_posix().strip("/")
+        return any(normalized == folder or normalized.startswith(f"{folder}/") for folder in include_folders)
 
     def _is_hidden(self, name: str) -> bool:
         return name.startswith(".")
