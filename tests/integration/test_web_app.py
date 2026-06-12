@@ -38,6 +38,7 @@ def test_note_page(client) -> None:
     assert "Navigation" in response.text
     assert "Page" in response.text
     assert 'class="topbar-context topbar-context-note"' in response.text
+    assert 'data-layout-action="toggle-wide"' in response.text
     assert 'data-current-heading' in response.text
     assert "Home" in response.text
     assert "README.md" in response.text
@@ -171,6 +172,7 @@ def test_force_included_text_page_renders_topbar_code_tools(tmp_path: Path) -> N
     response = client.get("/tools/example.py")
     assert response.status_code == 200
     assert 'class="topbar-context topbar-context-code"' in response.text
+    assert 'data-layout-action="toggle-wide"' in response.text
     assert 'href="/tools/" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in response.text
     assert 'href="/tools/example.py" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in response.text
     assert 'data-code-action="copy-path"' in response.text
@@ -253,6 +255,9 @@ def test_obsidian_dynamic_text_file_embed_renders_and_serves_asset(tmp_path: Pat
     page = client.get("/general/README.md")
     assert page.status_code == 200
     assert 'data-embed-source="/assets/attachments/config.toml"' in page.text
+    assert 'class="text-page-embed-tools"' in page.text
+    assert 'class="topbar-code-btn"' in page.text
+    assert 'data-code-action="toggle-wrap"' in page.text
     assert 'class="language-toml"' in page.text
 
     asset_after = client.get("/assets/attachments/config.toml")

@@ -244,6 +244,9 @@ def test_render_obsidian_embed_dynamic_text_file_without_force_include(tmp_path:
 
     assert 'class="embed-wrapper"' in html
     assert 'data-embed-source="/assets/attachments/config.toml"' in html
+    assert 'class="text-page-embed-tools"' in html
+    assert 'class="topbar-code-btn"' in html
+    assert 'data-code-action="toggle-wrap"' in html
     assert 'class="language-toml"' in html
     assert 'name = &quot;vaultpub&quot;' in html
 

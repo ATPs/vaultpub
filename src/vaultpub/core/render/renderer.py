@@ -538,6 +538,9 @@ class Renderer:
 <div class="embed-wrapper" data-embed-source="{embed_source}">
   <div class="text-page-embed">
     <p class="text-page-embed-title"><a href="{embed_source}" class="internal-link">{title}</a></p>
+    <div class="text-page-embed-tools">
+      <button class="topbar-code-btn" type="button" data-code-action="toggle-wrap" aria-pressed="false">Wrap</button>
+    </div>
     <pre><code{code_class}>{code_body}</code></pre>
   </div>
 </div>"""

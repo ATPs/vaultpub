@@ -96,6 +96,7 @@ def test_django_page_uses_packaged_template(django_setup) -> None:
     assert response.status_code == 200
     assert b'class="top-bar"' in response.content
     assert b'class="topbar-context topbar-context-note"' in response.content
+    assert b'data-layout-action="toggle-wide"' in response.content
     assert b'data-current-heading' in response.content
     assert b'class="markdown-body"' in response.content
     assert b"README" in response.content
@@ -290,6 +291,9 @@ def test_django_mount_prefixes_dynamic_text_file_embed(django_setup, tmp_path: P
     assert asset_before.status_code == 404
     assert page.status_code == 200
     assert b'href="/notes/assets/attachments/config.toml"' in page.content
+    assert b'class="text-page-embed-tools"' in page.content
+    assert b'class="topbar-code-btn"' in page.content
+    assert b'data-code-action="toggle-wrap"' in page.content
     assert b'class="language-toml"' in page.content
     assert asset_after.status_code == 200
     assert b"".join(asset_after.streaming_content) == b'name = "vaultpub"\n'
