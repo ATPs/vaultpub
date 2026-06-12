@@ -119,3 +119,26 @@ code.hljs {
   padding: 0;
   background: transparent;
 }
+
+pre code .code-line {
+  display: grid;
+  grid-template-columns: 3.2em minmax(0, 1fr);
+  align-items: start;
+  column-gap: 1em;
+  min-width: 0;
+}
+
+pre code .code-line::before {
+  content: attr(data-line-number);
+  color: var(--text-muted);
+  text-align: right;
+  user-select: none;
+  opacity: 0.8;
+}
+
+pre code .code-line-content {
+  min-width: 0;
+  white-space: inherit;
+  overflow-wrap: inherit;
+  word-break: inherit;
+}
