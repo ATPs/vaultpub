@@ -110,6 +110,9 @@
 
 /* Ensure code blocks inherit the right background and text color */
 pre code.hljs {
+  display: block;
+  width: 100%;
+  min-width: 100%;
   color: var(--text-color);
   background: transparent;
 }
@@ -125,6 +128,7 @@ pre code .code-line {
   grid-template-columns: 3.2em minmax(0, 1fr);
   align-items: start;
   column-gap: 1em;
+  width: 100%;
   min-width: 0;
 }
 

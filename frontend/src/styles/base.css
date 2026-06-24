@@ -108,6 +108,9 @@ pre {
 }
 
 pre code {
+  display: block;
+  width: 100%;
+  min-width: 100%;
   background: none;
   padding: 0;
   overflow-wrap: anywhere;
