@@ -283,6 +283,41 @@ vaultpub serve --vault ~/Vault \
 - Hidden files and always-forbidden paths (`.obsidian/`, `.git/`, `metadata.json`, etc.) are excluded regardless
 - Add patterns in config under `publish.exclude_globs` for persistent YAML-based config instead of CLI flags
 
+### Navigation control files
+
+Folders can contain JSON-only control files that change published navigation without becoming notes or assets. Every file named `__name__.json` is reserved and never published; Markdown files remain normal Obsidian notes.
+
+`__order__.json` lists direct children in the preferred order. Children not listed are appended as folders A–Z, then files A–Z:
+
+```json
+[
+  "Start Here.md",
+  "Guides/"
+]
+```
+
+`__star__.json` lists direct children that always stay at the top, in listed order, even when a visitor sorts by name or date:
+
+```json
+["Start Here.md"]
+```
+
+`__category__.json` changes the folder's public presentation:
+
+```json
+{
+  "title": "Guides",
+  "description": "Tutorials and reference material",
+  "icon": "📘",
+  "created": "2026-01-10",
+  "modified": "2026-07-13T12:30:00+08:00",
+  "nav_hidden": false,
+  "collapsed": true
+}
+```
+
+The Navigation selector persists a visitor's choice of predefined order, name A–Z/Z–A, creation date, or modification date. Category `nav_hidden` only hides a folder from generated navigation; it is not an access-control feature.
+
 ### Environment Variables
 
 Perlite-compatible environment variables are supported for Docker deployments:
@@ -743,6 +778,7 @@ SSE events follow this JSON structure:
 - Files and folders starting with `.` are hidden by default
 - `.obsidian/`, `.git/`, `.trash/`, `private/`, `trash/` are excluded by default
 - `metadata.json`, `.vaultpub.yml`, `.obsidian-publish.yml` are never served
+- Reserved navigation controls matching `__name__.json` are never served
 - Raw `.md` files are not directly accessible
 
 ### HTML sanitization

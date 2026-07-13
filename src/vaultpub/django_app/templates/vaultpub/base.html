@@ -31,6 +31,15 @@
                   title="Expand all" aria-label="Expand all">+</button>
           <button class="sidebar-action" type="button" data-nav-tree-action="collapse"
                   title="Collapse all" aria-label="Collapse all">&minus;</button>
+          <select class="sidebar-action nav-sort-select" data-nav-sort aria-label="Sort navigation" title="Sort navigation">
+            <option value="predefined">Order</option>
+            <option value="name-asc">Name A–Z</option>
+            <option value="name-desc">Name Z–A</option>
+            <option value="created-desc">Created newest</option>
+            <option value="created-asc">Created oldest</option>
+            <option value="modified-desc">Modified newest</option>
+            <option value="modified-asc">Modified oldest</option>
+          </select>
           <button class="sidebar-action" type="button" data-nav-folder-layout="top"
                   title="Move folders to top bar" aria-label="Move folders to top bar" aria-pressed="false">&#8657;</button>
           <button class="sidebar-toggle" type="button" data-sidebar-toggle="left" aria-label="Hide navigation">&lt;</button>

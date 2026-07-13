@@ -213,6 +213,34 @@ def test_directory_page(client) -> None:
     assert 'directory-list-meta">Folder/B.md<' not in response.text
 
 
+def test_navigation_json_controls_are_not_published_and_shape_directory_page(tmp_path: Path) -> None:
+    (tmp_path / "Guides").mkdir()
+    (tmp_path / "README.md").write_text("# README", encoding="utf-8")
+    (tmp_path / "A.md").write_text("# A", encoding="utf-8")
+    (tmp_path / "B.md").write_text("# B", encoding="utf-8")
+    (tmp_path / "Guides" / "Inside.md").write_text("# Inside", encoding="utf-8")
+    (tmp_path / "__order__.json").write_text('["B.md", "Guides/"]', encoding="utf-8")
+    (tmp_path / "__star__.json").write_text('["README.md"]', encoding="utf-8")
+    (tmp_path / "Guides" / "__category__.json").write_text(
+        '{"title": "Documentation", "description": "Read this first", "icon": "📘"}',
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
+
+    root = client.get("/")
+    directory = client.get("/Guides/")
+
+    assert root.status_code == 200
+    assert 'data-nav-sort' in root.text
+    assert 'data-nav-starred="true"' in root.text
+    assert root.text.index("README.md") < root.text.index("B.md") < root.text.index("Documentation/")
+    assert "__order__.json" not in root.text
+    assert client.get("/__order__.json").status_code == 404
+    assert directory.status_code == 200
+    assert "Documentation/" in directory.text
+    assert "Read this first" in directory.text
+
+
 def test_old_extensionless_note_route_is_not_supported(client) -> None:
     response = client.get("/Folder/B")
     assert response.status_code == 404

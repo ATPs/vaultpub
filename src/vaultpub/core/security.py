@@ -9,6 +9,11 @@ from vaultpub.core.paths import safe_join
 ALWAYS_FORBIDDEN = {".git", ".obsidian", "metadata.json", ".vaultpub.yml", ".obsidian-publish.yml"}
 
 
+def is_control_file_name(name: str) -> bool:
+    """Return whether *name* belongs to vaultpub's reserved JSON control namespace."""
+    return name.startswith("__") and name.endswith("__.json") and len(name) > len("____.json")
+
+
 def validate_vault_access(vault_root: Path, rel_path: str, follow_symlinks: bool = False) -> Path:
     """Validate and return a safe path within the vault.
 
@@ -40,6 +45,9 @@ def is_path_excluded(rel_path: str, config: object) -> bool:
     pp = rel_path.replace("\\", "/")
     parts = pp.split("/")
 
+    if is_control_file_name(parts[-1]):
+        return True
+
     # 1. Always-forbidden names
     if pp in ALWAYS_FORBIDDEN or parts[-1] in ALWAYS_FORBIDDEN:
         return True
@@ -66,10 +74,7 @@ def is_path_excluded(rel_path: str, config: object) -> bool:
 
     # 5. Force-exclude regexes
     compiled_exclude: list[re.Pattern[str]] = getattr(config, "_compiled_force_exclude", [])
-    if compiled_exclude and any(pat.search(pp) for pat in compiled_exclude):
-        return True
-
-    return False
+    return bool(compiled_exclude and any(pat.search(pp) for pat in compiled_exclude))
 
 
 def is_force_included(rel_path: str, config: object) -> bool:

@@ -8,9 +8,14 @@ from typing import Any
 
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
-from vaultpub.core.paths import attachment_rel_path_to_url_path, normalize_rel_path, rel_path_to_url_path
+from vaultpub.core.paths import (
+    attachment_rel_path_to_url_path,
+    directory_path_to_url_path,
+    normalize_rel_path,
+    rel_path_to_url_path,
+)
 from vaultpub.core.realtime.events import ChangeRecord, EventBus, IndexChangedEvent
-from vaultpub.core.security import is_force_included, is_text_file
+from vaultpub.core.security import is_control_file_name, is_force_included, is_text_file
 
 SKIP_PATTERNS = (".swp", ".swx", "~", ".tmp", ".DS_Store", ".swo")
 DEFAULT_WATCH_RUST_TIMEOUT_MS = 250
@@ -128,6 +133,17 @@ def _classify_changes(
         if compiled_exclude and any(pat.search(rel) for pat in compiled_exclude):
             continue
 
+        if is_control_file_name(fpath.name):
+            parent = Path(rel).parent.as_posix()
+            event.changed.append(ChangeRecord(
+                kind="navigation",
+                path=rel,
+                url=directory_path_to_url_path("" if parent == "." else parent),
+                change=change_name,
+            ))
+            event.nav_changed = True
+            continue
+
         ext = fpath.suffix.lower()
 
         if ext == ".md":
@@ -145,6 +161,7 @@ def _classify_changes(
                 event.graph_changed = True
             else:
                 event.changed.append(rec)
+                event.nav_changed = True
                 event.search_changed = True
                 event.graph_changed = True
         elif is_force_included(rel, config) and fpath.exists() and is_text_file(fpath):
@@ -160,6 +177,7 @@ def _classify_changes(
                 event.search_changed = True
             else:
                 event.changed.append(rec)
+                event.nav_changed = True
                 event.search_changed = True
         elif ext.lstrip(".") in config.allowed_attachment_types:
             rec = ChangeRecord(

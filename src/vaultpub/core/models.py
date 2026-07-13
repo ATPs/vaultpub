@@ -92,6 +92,14 @@ class NavNode:
     url: str
     is_dir: bool = False
     children: list[NavNode] = field(default_factory=list)
+    raw_label: str = ""
+    created_ns: int = 0
+    modified_ns: int = 0
+    starred: bool = False
+    nav_hidden: bool = False
+    collapsed: bool = False
+    description: str = ""
+    icon: str = ""
 
 
 @dataclass

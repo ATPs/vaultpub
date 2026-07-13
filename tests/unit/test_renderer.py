@@ -366,3 +366,37 @@ def test_directory_sibling_files_html_lists_parent_directory_files() -> None:
     assert "Same Directory" in html
     assert 'href="/A.md"' in html
     assert 'href="/README.md"' in html
+
+
+def test_navigation_html_exposes_sort_metadata_and_starred_category_icon() -> None:
+    nav = NavNode(
+        label="/",
+        raw_label="/",
+        path=".",
+        url="/",
+        is_dir=True,
+        children=[
+            NavNode(
+                label="Guides",
+                raw_label="Folder",
+                path="Folder",
+                url="/Folder/",
+                is_dir=True,
+                icon="📘",
+                starred=True,
+                collapsed=True,
+                children=[
+                    NavNode(label="Child.md", raw_label="Child.md", path="Folder/Child.md", url="/Folder/Child.md")
+                ],
+            ),
+        ],
+    )
+
+    html = "<ul>" + nav_tree_html(nav) + "</ul>"
+
+    assert 'data-nav-sort-item' in html
+    assert 'data-nav-kind="folder"' in html
+    assert 'data-nav-starred="true"' in html
+    assert 'class="nav-star"' in html
+    assert 'class="nav-icon"' in html
+    assert '<details data-nav-key=' in html

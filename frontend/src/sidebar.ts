@@ -3,6 +3,7 @@
  */
 
 type SidebarSide = "left" | "right";
+type NavSortMode = "predefined" | "name-asc" | "name-desc" | "created-desc" | "created-asc" | "modified-desc" | "modified-asc";
 
 interface SidebarState {
   leftCollapsed?: boolean;
@@ -10,6 +11,7 @@ interface SidebarState {
   leftWidth?: number;
   rightWidth?: number;
   topFolders?: boolean;
+  navSort?: NavSortMode;
 }
 
 const SIDEBAR_STATE_KEY = "vaultpub.sidebarState";
@@ -45,6 +47,83 @@ function navStateKey(detail: HTMLDetailsElement, index: number): string {
 
 function writeNavTreeState(state: Record<string, boolean>): void {
   writeJson(NAV_TREE_STATE_KEY, state);
+}
+
+function isNavSortMode(value: string | undefined): value is NavSortMode {
+  return value === "predefined"
+    || value === "name-asc"
+    || value === "name-desc"
+    || value === "created-desc"
+    || value === "created-asc"
+    || value === "modified-desc"
+    || value === "modified-asc";
+}
+
+function navItemValue(item: HTMLLIElement, name: "navCreated" | "navModified"): number {
+  const value = Number(item.dataset[name] || "0");
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function compareNames(left: HTMLLIElement, right: HTMLLIElement): number {
+  return (left.dataset.navName || "").localeCompare(right.dataset.navName || "", undefined, { sensitivity: "base" });
+}
+
+function sortNavigationList(list: HTMLUListElement, mode: NavSortMode): void {
+  const items = Array.from(list.children).filter(
+    (item): item is HTMLLIElement => item instanceof HTMLLIElement && item.hasAttribute("data-nav-sort-item"),
+  );
+  if (items.length < 2) return;
+  items.forEach((item, index) => {
+    if (!item.dataset.navOriginalIndex) item.dataset.navOriginalIndex = String(index);
+  });
+  items.sort((left, right) => {
+    const leftStarred = left.dataset.navStarred === "true";
+    const rightStarred = right.dataset.navStarred === "true";
+    if (leftStarred !== rightStarred) return leftStarred ? -1 : 1;
+    if (leftStarred) return Number(left.dataset.navOriginalIndex) - Number(right.dataset.navOriginalIndex);
+    if (mode === "predefined") return Number(left.dataset.navOriginalIndex) - Number(right.dataset.navOriginalIndex);
+
+    const leftFolder = left.dataset.navKind === "folder";
+    const rightFolder = right.dataset.navKind === "folder";
+    if (leftFolder !== rightFolder) return leftFolder ? -1 : 1;
+
+    if (mode === "name-asc") return compareNames(left, right);
+    if (mode === "name-desc") return compareNames(right, left);
+
+    const field = mode.startsWith("created") ? "navCreated" : "navModified";
+    const leftDate = navItemValue(left, field);
+    const rightDate = navItemValue(right, field);
+    if (leftDate !== rightDate) {
+      if (!leftDate) return 1;
+      if (!rightDate) return -1;
+      return mode.endsWith("desc") ? rightDate - leftDate : leftDate - rightDate;
+    }
+    return compareNames(left, right);
+  });
+  list.append(...items);
+}
+
+function applyNavigationSort(mode: NavSortMode): void {
+  document.querySelectorAll<HTMLUListElement>(".file-tree ul, .directory-list, .directory-context-nav ul").forEach((list) => {
+    sortNavigationList(list, mode);
+  });
+  document.dispatchEvent(new CustomEvent("vaultpub:navigation-sorted"));
+}
+
+function initNavigationSort(): void {
+  const select = document.querySelector<HTMLSelectElement>("[data-nav-sort]");
+  if (!select) return;
+  const state = readJson<SidebarState>(SIDEBAR_STATE_KEY);
+  const mode = isNavSortMode(state.navSort) ? state.navSort : "predefined";
+  select.value = mode;
+  applyNavigationSort(mode);
+  select.addEventListener("change", () => {
+    const next = isNavSortMode(select.value) ? select.value : "predefined";
+    const nextState = readJson<SidebarState>(SIDEBAR_STATE_KEY);
+    nextState.navSort = next;
+    writeJson(SIDEBAR_STATE_KEY, nextState);
+    applyNavigationSort(next);
+  });
 }
 
 function readStoredSidebarWidth(state: SidebarState, side: SidebarSide): number | null {
@@ -451,6 +530,19 @@ function initTopFolderNavigation(): void {
 
   const state = readJson<SidebarState>(SIDEBAR_STATE_KEY);
   setEnabled(state.topFolders === true);
+
+  document.addEventListener("vaultpub:navigation-sorted", () => {
+    const rootSection = sections.find((section) => section.id === "root");
+    const orderedFolders = Array.from(rootList.children).flatMap((item) => {
+      const detail = item.querySelector<HTMLDetailsElement>(":scope > details");
+      const link = detail?.querySelector<HTMLAnchorElement>(":scope > summary .nav-folder-link");
+      if (!detail || !link) return [];
+      return [sections.find((section) => section.id === (detail.dataset.navKey || link.href))];
+    }).filter((section): section is FolderSection => Boolean(section));
+    sections.splice(0, sections.length, ...(rootSection ? [rootSection] : []), ...orderedFolders);
+    updateSelection();
+    scheduleOverflowLayout();
+  });
 }
 
 export function initSidebars(): void {
@@ -460,6 +552,7 @@ export function initSidebars(): void {
   syncSidebarWidths(layout);
   initSidebar(layout, "left");
   initSidebar(layout, "right");
+  initNavigationSort();
   initNavTreeState();
   initTopFolderNavigation();
   window.addEventListener("resize", () => syncSidebarWidths(layout));

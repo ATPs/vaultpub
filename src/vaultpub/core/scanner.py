@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import fnmatch
 import hashlib
+import json
 import os
+import warnings
+from dataclasses import dataclass, field
+from datetime import UTC, date, datetime
 from pathlib import Path, PurePosixPath
 
 from vaultpub.core.attachments import attachment_mime_type
@@ -20,9 +24,17 @@ from vaultpub.core.paths import (
 from vaultpub.core.security import (
     ALWAYS_FORBIDDEN,
     infer_language,
+    is_control_file_name,
     is_force_included,
     is_text_file,
 )
+
+
+@dataclass
+class _DirectoryControl:
+    order: list[str] = field(default_factory=list)
+    star: list[str] = field(default_factory=list)
+    category: dict[str, object] = field(default_factory=dict)
 
 
 class VaultScanner:
@@ -38,6 +50,7 @@ class VaultScanner:
         root = self.config.vault_path.resolve()
         compiled_exclude = getattr(self.config, "_compiled_force_exclude", [])
         include_folders = self._normalized_include_folders()
+        controls: dict[str, _DirectoryControl] = {}
 
         for dirpath_str, dirnames, filenames in os.walk(root, followlinks=self.config.follow_symlinks):
             dirpath = Path(dirpath_str)
@@ -85,6 +98,10 @@ class VaultScanner:
                 if compiled_exclude and any(pat.search(rel) for pat in compiled_exclude):
                     continue
 
+                if is_control_file_name(fname):
+                    self._read_control_file(fpath, rel, controls)
+                    continue
+
                 stat = fpath.stat()
                 ext = fpath.suffix.lower()
                 in_included_folder = self._is_included_by_folder(rel, include_folders)
@@ -110,7 +127,7 @@ class VaultScanner:
                     att = self._read_attachment(fpath, rel, stat)
                     attachments.append(att)
 
-        nav = self._build_nav_tree(notes, text_pages)
+        nav = self._build_nav_tree(notes, text_pages, controls, root)
         return notes, attachments, text_pages, nav
 
     def _normalized_include_folders(self) -> tuple[str, ...]:
@@ -280,8 +297,14 @@ class VaultScanner:
         # mode "all": publish everything
         return not (mode == "publish_false_hides" and fm.get("publish") is False)
 
-    def _build_nav_tree(self, notes: list[NoteRecord], text_pages: list[TextPageRecord]) -> NavNode:
-        root = NavNode(label="/", path=".", url="/", is_dir=True)
+    def _build_nav_tree(
+        self,
+        notes: list[NoteRecord],
+        text_pages: list[TextPageRecord],
+        controls: dict[str, _DirectoryControl],
+        vault_root: Path,
+    ) -> NavNode:
+        root = NavNode(label="/", raw_label="/", path=".", url="/", is_dir=True)
         nav_hidden = set(self.config.nav_hidden)
 
         # Sort notes into directory structure
@@ -296,8 +319,15 @@ class VaultScanner:
             # Add note as leaf
             current.children.append(NavNode(
                 label=file_display_name(note.rel_path),
+                raw_label=file_display_name(note.rel_path),
                 path=note.rel_path.as_posix(),
                 url=note.url_path,
+                created_ns=_record_timestamp(
+                    note.frontmatter.get("created", note.frontmatter.get("date")), note.ctime_ns
+                ),
+                modified_ns=_record_timestamp(
+                    note.frontmatter.get("modified", note.frontmatter.get("updated")), note.mtime_ns
+                ),
             ))
 
         # Add text pages to nav
@@ -311,19 +341,96 @@ class VaultScanner:
                 current = child
             current.children.append(NavNode(
                 label=file_display_name(tp.rel_path),
+                raw_label=file_display_name(tp.rel_path),
                 path=tp.rel_path.as_posix(),
                 url=tp.url_path,
+                created_ns=tp.ctime_ns,
+                modified_ns=tp.mtime_ns,
             ))
 
-        # Sort: dirs first, then files, both alphabetically
-        root.children.sort(key=lambda n: (not n.is_dir, n.label.lower()))
-        self._sort_nav(root)
+        self._apply_directory_controls(root, controls, vault_root)
+        self._sort_nav(root, controls)
         return root
 
-    def _sort_nav(self, node: NavNode) -> None:
+    def _sort_nav(self, node: NavNode, controls: dict[str, _DirectoryControl]) -> None:
         for child in node.children:
-            self._sort_nav(child)
-        node.children.sort(key=lambda n: (not n.is_dir, n.label.lower()))
+            self._sort_nav(child, controls)
+
+        control = controls.get(node.path, _DirectoryControl())
+        starred = _ordered_children(node.children, control.star)
+        for child in starred:
+            child.starred = True
+        ordered = [child for child in _ordered_children(node.children, control.order) if child not in starred]
+        remaining = [child for child in node.children if child not in starred and child not in ordered]
+        remaining.sort(key=lambda child: (not child.is_dir, child.label.casefold()))
+        node.children[:] = [*starred, *ordered, *remaining]
+
+    def _apply_directory_controls(
+        self,
+        node: NavNode,
+        controls: dict[str, _DirectoryControl],
+        vault_root: Path,
+    ) -> None:
+        for child in node.children:
+            if child.is_dir:
+                self._apply_directory_controls(child, controls, vault_root)
+
+        if not node.is_dir:
+            return
+        control = controls.get(node.path, _DirectoryControl())
+        category = control.category
+        title = category.get("title")
+        if node.path not in ("", ".") and isinstance(title, str) and title.strip():
+            node.label = title.strip()
+        node.description = _string_field(category, "description")
+        node.icon = _string_field(category, "icon")
+        node.nav_hidden = bool(category.get("nav_hidden", False)) and node.path not in ("", ".")
+        node.collapsed = bool(category.get("collapsed", False))
+
+        dir_path = vault_root if node.path in ("", ".") else vault_root / node.path
+        try:
+            stat = dir_path.stat()
+            created = int(getattr(stat, "st_birthtime_ns", stat.st_ctime_ns))
+            modified = int(stat.st_mtime_ns)
+        except OSError:
+            created = 0
+            modified = 0
+        node.created_ns = _record_timestamp(category.get("created"), created)
+        newest_child = max((child.modified_ns for child in node.children), default=0)
+        node.modified_ns = _record_timestamp(category.get("modified"), max(modified, newest_child))
+
+    def _read_control_file(
+        self,
+        fpath: Path,
+        rel: str,
+        controls: dict[str, _DirectoryControl],
+    ) -> None:
+        name = fpath.name
+        if name not in {"__order__.json", "__star__.json", "__category__.json"}:
+            return
+        try:
+            data = json.loads(fpath.read_text(encoding="utf-8-sig"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            warnings.warn(f"Ignoring invalid navigation control {rel}: {exc}", stacklevel=2)
+            return
+
+        directory = PurePosixPath(rel).parent.as_posix()
+        if directory == ".":
+            directory = "."
+        control = controls.setdefault(directory, _DirectoryControl())
+        if name == "__category__.json":
+            if not isinstance(data, dict):
+                warnings.warn(f"Ignoring invalid category control {rel}: expected an object", stacklevel=2)
+                return
+            control.category = data
+            return
+        if not isinstance(data, list) or not all(isinstance(item, str) for item in data):
+            warnings.warn(f"Ignoring invalid ordering control {rel}: expected a string array", stacklevel=2)
+            return
+        if name == "__order__.json":
+            control.order = data
+        else:
+            control.star = data
 
     def resolve_home(self, notes: list[NoteRecord]) -> NoteRecord | None:
         """Resolve the home/index page."""
@@ -347,13 +454,60 @@ class VaultScanner:
 
 def _find_or_create_dir(parent: NavNode, name: str) -> NavNode:
     for child in parent.children:
-        if child.is_dir and child.label == name:
+        if child.is_dir and child.raw_label == name:
             return child
     parent_path = "" if parent.path in ("", ".") else parent.path
     dir_path = f"{parent_path}/{name}" if parent_path else name
-    dir_node = NavNode(label=name, path=dir_path, url=directory_path_to_url_path(dir_path), is_dir=True)
+    dir_node = NavNode(
+        label=name,
+        raw_label=name,
+        path=dir_path,
+        url=directory_path_to_url_path(dir_path),
+        is_dir=True,
+    )
     parent.children.append(dir_node)
     return dir_node
+
+
+def _ordered_children(children: list[NavNode], entries: list[str]) -> list[NavNode]:
+    """Return direct children listed by a control file, preserving first occurrences."""
+    result: list[NavNode] = []
+    for entry in entries:
+        candidate = entry.strip()
+        if not candidate or "/" in candidate.rstrip("/"):
+            continue
+        wants_dir = candidate.endswith("/")
+        name = candidate.rstrip("/")
+        matches = [child for child in children if child.raw_label == name and (not wants_dir or child.is_dir)]
+        if not wants_dir and len(matches) > 1:
+            continue
+        if matches and matches[0] not in result:
+            result.append(matches[0])
+    return result
+
+
+def _string_field(data: dict[str, object], key: str) -> str:
+    value = data.get(key)
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _record_timestamp(value: object, fallback_ns: int) -> int:
+    """Parse an explicit ISO-8601 date/time, otherwise return a filesystem timestamp."""
+    if isinstance(value, datetime):
+        return int(value.timestamp() * 1_000_000_000)
+    if isinstance(value, date):
+        return int(datetime(value.year, value.month, value.day, tzinfo=UTC).timestamp() * 1_000_000_000)
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return int(value * 1_000_000_000)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=UTC)
+            return int(parsed.timestamp() * 1_000_000_000)
+        except ValueError:
+            pass
+    return fallback_ns
 
 
 def _extract_frontmatter_simple(content: str) -> tuple[dict, str]:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.scanner import VaultScanner
+from vaultpub.core.security import is_path_public
 
 
 def test_scan_basic_vault(vault_basic) -> None:
@@ -116,3 +117,43 @@ def test_scan_include_folders_can_include_all_vault_attachments(tmp_path) -> Non
     assert {note.rel_path.as_posix() for note in notes} == {"Shared/README.md"}
     assert {att.rel_path.as_posix() for att in attachments} == {"Shared/image.png", "shared-image.png"}
     assert [child.label for child in nav.children] == ["Shared"]
+
+
+def test_navigation_json_controls_order_star_and_describe_direct_children(tmp_path) -> None:
+    (tmp_path / "Folder").mkdir()
+    (tmp_path / "A.md").write_text("# A", encoding="utf-8")
+    (tmp_path / "B.md").write_text("# B", encoding="utf-8")
+    (tmp_path / "C.md").write_text("# C", encoding="utf-8")
+    (tmp_path / "Folder" / "Inside.md").write_text("# Inside", encoding="utf-8")
+    (tmp_path / "__order__.json").write_text('["B.md", "Folder/"]', encoding="utf-8")
+    (tmp_path / "__star__.json").write_text('["C.md"]', encoding="utf-8")
+    (tmp_path / "Folder" / "__category__.json").write_text(
+        '{"title": "Guides", "icon": "📘", "description": "Start here", "collapsed": true}',
+        encoding="utf-8",
+    )
+
+    notes, attachments, text_pages, nav = VaultScanner(PublisherConfig(vault_path=tmp_path)).scan()
+
+    assert {note.rel_path.as_posix() for note in notes} == {"A.md", "B.md", "C.md", "Folder/Inside.md"}
+    assert not attachments
+    assert not text_pages
+    assert [child.raw_label for child in nav.children] == ["C.md", "B.md", "Folder", "A.md"]
+    assert nav.children[0].starred
+    folder = next(child for child in nav.children if child.is_dir)
+    assert folder.label == "Guides"
+    assert folder.icon == "📘"
+    assert folder.description == "Start here"
+    assert folder.collapsed
+
+
+def test_all_dunder_json_files_are_reserved_but_dunder_markdown_remains_a_note(tmp_path) -> None:
+    (tmp_path / "README.md").write_text("# README", encoding="utf-8")
+    (tmp_path / "__future__.json").write_text('{"private": true}', encoding="utf-8")
+    (tmp_path / "__future__.md").write_text("# Visible note", encoding="utf-8")
+
+    notes, _attachments, _text_pages, nav = VaultScanner(PublisherConfig(vault_path=tmp_path)).scan()
+
+    assert {note.rel_path.as_posix() for note in notes} == {"README.md", "__future__.md"}
+    assert [child.raw_label for child in nav.children] == ["__future__.md", "README.md"]
+    assert not is_path_public("__future__.json", None)
+    assert is_path_public("__future__.md", None)

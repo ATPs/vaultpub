@@ -251,6 +251,16 @@ def base_page_template(
                   title="Expand all" aria-label="Expand all">+</button>
           <button class="sidebar-action" type="button" data-nav-tree-action="collapse"
                   title="Collapse all" aria-label="Collapse all">&minus;</button>
+          <select class="sidebar-action nav-sort-select" data-nav-sort aria-label="Sort navigation"
+                  title="Sort navigation">
+            <option value="predefined">Order</option>
+            <option value="name-asc">Name A–Z</option>
+            <option value="name-desc">Name Z–A</option>
+            <option value="created-desc">Created newest</option>
+            <option value="created-asc">Created oldest</option>
+            <option value="modified-desc">Modified newest</option>
+            <option value="modified-asc">Modified oldest</option>
+          </select>
           <button class="sidebar-action" type="button" data-nav-folder-layout="top"
                   title="Move folders to top bar" aria-label="Move folders to top bar" aria-pressed="false">&#8657;</button>
           <button class="sidebar-toggle" type="button" data-sidebar-toggle="left"
@@ -310,7 +320,7 @@ def directory_sibling_files_html(
     if parent_node is None:
         return ""
 
-    sibling_files = [child for child in parent_node.children if not child.is_dir]
+    sibling_files = [child for child in parent_node.children if not child.is_dir and not child.nav_hidden]
     if not sibling_files:
         return """\
 <nav class="directory-context-nav">
@@ -319,13 +329,14 @@ def directory_sibling_files_html(
 </nav>"""
 
     items = "".join(
-        f'<li><a href="{escape(_transform_url(child.url, url_transform), quote=True)}">{escape(child.label)}</a></li>'
+        f'<li{_nav_sort_attrs(child)}><a href="{escape(_transform_url(child.url, url_transform), quote=True)}">'
+        f"{_star_html(child)}{escape(child.label)}</a></li>"
         for child in sibling_files
     )
     return f"""\
 <nav class="directory-context-nav">
   <h3>Same Directory</h3>
-  <ul>{items}</ul>
+  <ul data-nav-sort-list>{items}</ul>
 </nav>"""
 
 
@@ -338,7 +349,8 @@ def directory_page_html(
     """Render a directory landing page as a single-column list of cards."""
     items: list[str] = []
     previews = content_previews or {}
-    for child in node.children:
+    visible_children = [child for child in node.children if not child.nav_hidden]
+    for child in visible_children:
         child_url = _transform_url(child.url, url_transform)
         child_title = f"{child.label}/" if child.is_dir else child.label
         item_class = "directory-list-item is-folder" if child.is_dir else "directory-list-item is-file"
@@ -352,24 +364,26 @@ def directory_page_html(
                 else ""
             )
         items.append(
-            "<li>"
+            f"<li{_nav_sort_attrs(child)}>"
             f'<a href="{escape(child_url, quote=True)}" class="{item_class}">'
-            f'<span class="directory-list-title">{escape(child_title)}</span>'
+            f'<span class="directory-list-title">{_star_html(child)}{_icon_html(child)}{escape(child_title)}</span>'
             f"{child_detail_html}"
             "</a>"
             "</li>"
         )
 
-    directory_title = "Home" if node.path in (".", "") else f"{directory_display_name(node.path)}/"
-    item_count = f"{len(node.children)} item" if len(node.children) == 1 else f"{len(node.children)} items"
+    directory_title = "Home" if node.path in (".", "") else f"{node.label}/"
+    item_count = f"{len(visible_children)} item" if len(visible_children) == 1 else f"{len(visible_children)} items"
     empty_state = '<p class="directory-empty">This folder has no published children.</p>' if not items else ""
-    list_html = f'<ul class="directory-list">{"".join(items)}</ul>' if items else ""
+    list_html = f'<ul class="directory-list" data-nav-sort-list>{"".join(items)}</ul>' if items else ""
+    description_html = f"<p>{escape(node.description)}</p>" if node.description else ""
     current_attr = escape(current_path, quote=True)
     return f"""\
 <article class="directory-page" data-current-path="{current_attr}">
   <header class="directory-page-header">
     <h1>{escape(directory_title)}</h1>
     <p>{escape(item_count)}</p>
+    {description_html}
   </header>
   {empty_state}
   {list_html}
@@ -394,25 +408,57 @@ def nav_tree_html(
     if label == "/" and is_dir and not path:
         return "".join(nav_tree_html(c, node_path, url_transform) for c in children)
 
+    if bool(getattr(node, "nav_hidden", False)):
+        return ""
+
     if is_dir:
-        if not children:
+        visible_children = [child for child in children if not bool(getattr(child, "nav_hidden", False))]
+        if not visible_children:
             return ""
-        child_html = "".join(nav_tree_html(c, node_path, url_transform) for c in children)
+        child_html = "".join(nav_tree_html(c, node_path, url_transform) for c in visible_children)
         nav_key = escape("/".join(node_path) or "/", quote=True)
         folder_url = escape(_transform_url(str(url), url_transform), quote=True)
         folder_path = escape(str(getattr(node, "path", "")), quote=True)
+        open_attr = "" if bool(getattr(node, "collapsed", False)) else " open"
         return (
-            f'<li><details open data-nav-key="{nav_key}">'
+            f'<li{_nav_sort_attrs(node)}><details{open_attr} data-nav-key="{nav_key}">'
             f'<summary class="nav-folder-summary" data-folder-path="{folder_path}">'
-            f'<a href="{folder_url}" class="nav-folder-link">{escape(label)}/</a>'
+            f'<a href="{folder_url}" class="nav-folder-link">{_star_html(node)}{_icon_html(node)}{escape(label)}/</a>'
             '<button type="button" class="nav-folder-toggle" aria-label="Toggle folder">'
             '<span class="nav-folder-toggle-icon" aria-hidden="true"></span>'
             "</button>"
-            f"</summary><ul>{child_html}</ul></details></li>"
+            f"</summary><ul data-nav-sort-list>{child_html}</ul></details></li>"
         )
     else:
         file_url = escape(_transform_url(str(url), url_transform), quote=True)
-        return f'<li><a href="{file_url}" class="internal-link">{escape(label)}</a></li>'
+        return (
+            f'<li{_nav_sort_attrs(node)}><a href="{file_url}" class="internal-link">'
+            f"{_star_html(node)}{_icon_html(node)}{escape(label)}</a></li>"
+        )
+
+
+def _nav_sort_attrs(node: object) -> str:
+    raw_label = str(getattr(node, "raw_label", "") or getattr(node, "label", ""))
+    kind = "folder" if bool(getattr(node, "is_dir", False)) else "file"
+    created = int(getattr(node, "created_ns", 0) or 0)
+    modified = int(getattr(node, "modified_ns", 0) or 0)
+    starred = "true" if bool(getattr(node, "starred", False)) else "false"
+    return (
+        f' data-nav-sort-item data-nav-name="{escape(raw_label, quote=True)}"'
+        f' data-nav-kind="{kind}" data-nav-created="{created}"'
+        f' data-nav-modified="{modified}" data-nav-starred="{starred}"'
+    )
+
+
+def _star_html(node: object) -> str:
+    if not bool(getattr(node, "starred", False)):
+        return ""
+    return '<span class="nav-star" aria-label="Starred" title="Starred">★</span>'
+
+
+def _icon_html(node: object) -> str:
+    icon = str(getattr(node, "icon", ""))
+    return f'<span class="nav-icon" aria-hidden="true">{escape(icon)}</span>' if icon else ""
 
 
 def _transform_url(url: str, url_transform: Callable[[str], str] | None) -> str:

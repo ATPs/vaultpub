@@ -26,6 +26,18 @@ def test_classify_changes_uses_canonical_attachment_url(tmp_path) -> None:
     assert event.changed[0].url == "/assets/image.png"
 
 
+def test_classify_changes_marks_navigation_controls_as_nav_changes(tmp_path) -> None:
+    control_path = tmp_path / "Folder" / "__order__.json"
+    control_path.parent.mkdir()
+    control_path.write_text('["A.md"]', encoding="utf-8")
+    config = PublisherConfig(vault_path=tmp_path)
+
+    event = _classify_changes({("modified", str(control_path))}, tmp_path, config)
+
+    assert event.nav_changed
+    assert [(change.kind, change.url) for change in event.changed] == [("navigation", "/Folder/")]
+
+
 @pytest.mark.asyncio
 async def test_watch_vault_passes_stop_event_and_short_rust_timeout(tmp_path, monkeypatch) -> None:
     config = PublisherConfig(vault_path=tmp_path)

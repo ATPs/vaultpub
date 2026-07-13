@@ -359,6 +359,27 @@ h6:hover .heading-anchor {
   transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
 
+.nav-sort-select {
+  max-width: 74px;
+  height: 28px;
+  padding: 0 0.2em;
+  font-size: 0.72em;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.nav-star {
+  display: inline-block;
+  margin-right: 0.3em;
+  color: #d79b00;
+  font-size: 0.88em;
+}
+
+.nav-icon {
+  display: inline-block;
+  margin-right: 0.3em;
+}
+
 .file-tree .nav-folder-link {
   flex: 1;
   min-width: 0;
