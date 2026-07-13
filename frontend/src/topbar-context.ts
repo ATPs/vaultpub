@@ -158,7 +158,7 @@ function initWideContentToggle(): void {
   const button = document.querySelector<HTMLButtonElement>("[data-layout-action='toggle-wide']");
   if (!button) return;
 
-  const enabled = storedBoolean(WIDE_CONTENT_KEY, false);
+  const enabled = storedBoolean(WIDE_CONTENT_KEY, true);
   applyWideContentState(enabled, button);
   button.addEventListener("click", () => {
     const nextEnabled = !document.body.classList.contains("wide-content-enabled");

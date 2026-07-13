@@ -4,6 +4,8 @@ Provides: serve, build, index, doctor, init
 """
 from __future__ import annotations
 
+from pathlib import Path, PurePosixPath
+
 import typer
 
 app = typer.Typer(name="vaultpub", help="Publish a local Obsidian vault as a web site")
@@ -17,7 +19,15 @@ def callback() -> None:
 @app.command()
 def serve(
     vault: str = typer.Option(..., "--vault", help="Path to Obsidian vault"),
-    host: str = typer.Option("127.0.0.1", "--host", help="Bind host"),
+    sub_path: list[str] | None = typer.Option(
+        None,
+        "--sub-path",
+        help=(
+            "Vault-relative folder to publish. Repeatable. When supplied, overrides "
+            "publish.include_folders and keeps all allowed vault attachments available."
+        ),
+    ),
+    host: str = typer.Option("0.0.0.0", "--host", help="Bind host"),
     port: int = typer.Option(8008, "--port", help="Bind port"),
     home: str | None = typer.Option(None, "--home", help="Home file (e.g. README)"),
     reload: bool = typer.Option(False, "--reload", help="Auto-reload on changes"),
@@ -41,7 +51,6 @@ def serve(
 ) -> None:
     """Start the vaultpub web server."""
     import threading
-    from pathlib import Path
 
     import uvicorn
 
@@ -50,6 +59,9 @@ def serve(
 
     cfg = load_config(vault_path=Path(vault), yaml_path=config)
     overrides: dict[str, object] = {}
+    if sub_path:
+        overrides["include_folders"] = _validate_sub_paths(sub_path, cfg.vault_path)
+        overrides["include_all_attachments"] = True
     if home:
         overrides["home_file"] = home
     if force_include_regex:
@@ -79,6 +91,30 @@ def serve(
     )
     server = VaultpubServer(config_obj)
     server.run()
+
+
+def _validate_sub_paths(sub_paths: list[str], vault_path: Path) -> tuple[str, ...]:
+    """Validate and normalize vault-relative directory paths for ``serve --sub-path``."""
+    root = vault_path.resolve()
+    normalized: list[str] = []
+
+    for raw_path in sub_paths:
+        value = raw_path.strip().replace("\\", "/")
+        path = PurePosixPath(value)
+        if not value or path.is_absolute() or ".." in path.parts:
+            raise typer.BadParameter(
+                f"--sub-path must be a vault-relative directory without '..': {raw_path!r}"
+            )
+
+        candidate = (root / path).resolve()
+        if not candidate.is_relative_to(root) or not candidate.is_dir():
+            raise typer.BadParameter(f"--sub-path must name an existing vault directory: {raw_path!r}")
+
+        relative = candidate.relative_to(root).as_posix() or "."
+        if relative not in normalized:
+            normalized.append(relative)
+
+    return tuple(normalized)
 
 
 @app.command()

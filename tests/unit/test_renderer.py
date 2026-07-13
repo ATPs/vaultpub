@@ -167,6 +167,29 @@ def test_render_local_resources_use_canonical_urls(vault_local_resources) -> Non
     assert 'href="./missing.txt"' in html
 
 
+def test_render_bare_attachment_names_use_vault_wide_obsidian_lookup(tmp_path: Path) -> None:
+    (tmp_path / "Published").mkdir()
+    (tmp_path / "shared.png").write_bytes(b"png")
+    (tmp_path / "Published" / "README.md").write_text(
+        "![[shared.png]]\n\n![Markdown image](shared.png)\n",
+        encoding="utf-8",
+    )
+
+    config = PublisherConfig(
+        vault_path=tmp_path,
+        include_folders=("Published",),
+        include_all_attachments=True,
+    )
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = vault_index.notes_by_id[vault_index.notes_by_path["Published/README.md"]]
+
+    html = renderer.render_note(note)
+
+    assert html.count('src="/assets/shared.png"') == 2
+    assert "is-unresolved" not in html
+
+
 def test_render_raw_html_local_urls_are_rewritten(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text(
         '# Home\n\n<img src="./image.png">\n<a href="./tool.py">Tool</a>\n',

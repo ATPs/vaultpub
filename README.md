@@ -36,6 +36,14 @@ pip install vaultpub
 vaultpub serve --vault ~/my-vault --port 8008
 ```
 
+To share one or more directories, keep `--vault` pointed at the complete vault so notes in a subdirectory can still reference images and attachments in parent directories:
+
+```bash
+vaultpub serve \
+  --vault /data2/pub/couchdb/obsidian/limuyang \
+  --sub-path 2026oral_cancer
+```
+
 Open `http://127.0.0.1:8008` in your browser. The home page is determined by:
 
 1. `home_file` config option
@@ -63,7 +71,7 @@ Start a development web server.
 ```bash
 vaultpub serve \
   --vault ~/Vault \
-  --host 127.0.0.1 \
+  --host 0.0.0.0 \
   --port 8008 \
   --home README \
   --reload
@@ -72,13 +80,16 @@ vaultpub serve \
 | Option | Default | Description |
 | -------- | --------- | ------------- |
 | `--vault` | (required) | Path to Obsidian vault |
-| `--host` | `127.0.0.1` | Bind address |
+| `--sub-path` | YAML / `.` | Vault-relative folder to publish (repeatable). When supplied, overrides `publish.include_folders`; all allowed vault attachments remain available |
+| `--host` | `0.0.0.0` | Bind address (all network interfaces) |
 | `--port` | `8008` | Bind port |
 | `--home` | (auto) | Home file stem, e.g. `README` |
 | `--reload` | `false` | Auto-reload on code changes |
 | `--config` | (auto) | Path to `.vaultpub.yml` |
 | `--force-include-regex` | none | Regex to force-include non-Markdown text files (repeatable). See `--help` for examples |
 | `--force-exclude-regex` | none | Regex to force-exclude paths from publishing (repeatable). See `--help` for examples |
+
+When `--sub-path` is omitted, `serve` preserves `publish.include_folders` from YAML. Without that setting, it publishes from the vault root (`.`). An explicit `--sub-path .` overrides YAML and publishes from the vault root. Sub-paths must be existing directories inside the vault. Scoped note sharing still makes all otherwise-public vault attachments available under `/assets/...`.
 
 ### `vaultpub build`
 

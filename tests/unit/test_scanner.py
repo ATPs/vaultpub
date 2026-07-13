@@ -83,3 +83,36 @@ def test_scan_include_folders_scopes_notes_attachments_and_nav(tmp_path) -> None
     assert {note.rel_path.as_posix() for note in notes} == {"Shared/README.md"}
     assert {att.rel_path.as_posix() for att in attachments} == {"Shared/image.png"}
     assert [child.label for child in nav.children] == ["Shared"]
+
+
+def test_scan_include_folders_root_path_includes_entire_vault(tmp_path) -> None:
+    (tmp_path / "Shared").mkdir()
+    (tmp_path / "README.md").write_text("# Root", encoding="utf-8")
+    (tmp_path / "Shared" / "README.md").write_text("# Shared", encoding="utf-8")
+
+    scanner = VaultScanner(PublisherConfig(vault_path=tmp_path, include_folders=(".", "Shared")))
+    notes, _attachments, _text_pages, _nav = scanner.scan()
+
+    assert {note.rel_path.as_posix() for note in notes} == {"README.md", "Shared/README.md"}
+
+
+def test_scan_include_folders_can_include_all_vault_attachments(tmp_path) -> None:
+    (tmp_path / "Shared").mkdir()
+    (tmp_path / "private").mkdir()
+    (tmp_path / "Shared" / "README.md").write_text("# Shared", encoding="utf-8")
+    (tmp_path / "Shared" / "image.png").write_bytes(b"png")
+    (tmp_path / "shared-image.png").write_bytes(b"png")
+    (tmp_path / "private" / "secret.png").write_bytes(b"png")
+
+    scanner = VaultScanner(
+        PublisherConfig(
+            vault_path=tmp_path,
+            include_folders=("Shared",),
+            include_all_attachments=True,
+        )
+    )
+    notes, attachments, _text_pages, nav = scanner.scan()
+
+    assert {note.rel_path.as_posix() for note in notes} == {"Shared/README.md"}
+    assert {att.rel_path.as_posix() for att in attachments} == {"Shared/image.png", "shared-image.png"}
+    assert [child.label for child in nav.children] == ["Shared"]

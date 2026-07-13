@@ -81,26 +81,30 @@ class VaultScanner:
                 except PathTraversalError:
                     continue
 
-                if not self._is_included_by_folder(rel, include_folders):
-                    continue
-
                 # Force-exclude regex check
                 if compiled_exclude and any(pat.search(rel) for pat in compiled_exclude):
                     continue
 
                 stat = fpath.stat()
                 ext = fpath.suffix.lower()
+                in_included_folder = self._is_included_by_folder(rel, include_folders)
 
                 if ext == ".md":
+                    if not in_included_folder:
+                        continue
                     if fpath.stat().st_size > self.config.max_markdown_size_bytes:
                         continue
                     note = self._read_note(fpath, rel, stat)
                     if self._should_publish(note):
                         notes.append(note)
                 elif self._is_force_included_text(fpath, rel):
+                    if not in_included_folder:
+                        continue
                     tp = self._read_text_page(fpath, rel, ext, stat)
                     text_pages.append(tp)
                 elif ext.lstrip(".") in self.config.allowed_attachment_types:
+                    if not in_included_folder and not self.config.include_all_attachments:
+                        continue
                     if self.config.max_attachment_size_bytes and stat.st_size > self.config.max_attachment_size_bytes:
                         continue
                     att = self._read_attachment(fpath, rel, stat)
@@ -117,13 +121,16 @@ class VaultScanner:
             Input: `PublisherConfig.include_folders` strings.
             Output: POSIX-style relative folder prefixes.
             Where: Used by `scan`.
-            What: Lets callers expose a scoped folder without publishing sibling
-            notes, attachments, search documents, or graph nodes.
+            What: Lets callers expose scoped notes, text pages, search documents,
+            and graph nodes; attachments follow the same scope unless
+            `include_all_attachments` is enabled.
         """
         normalized = []
         for folder in self.config.include_folders:
             cleaned = PurePosixPath(str(folder).strip().strip("/")).as_posix()
-            if cleaned and cleaned not in {".", ".."} and not cleaned.startswith("../"):
+            if cleaned == ".":
+                return ()
+            if cleaned and cleaned != ".." and not cleaned.startswith("../"):
                 normalized.append(cleaned.rstrip("/"))
         return tuple(dict.fromkeys(normalized))
 

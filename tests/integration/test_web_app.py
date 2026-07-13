@@ -25,6 +25,35 @@ def test_root_returns_home(client) -> None:
     assert "README" in response.text or "Welcome" in response.text
 
 
+def test_scoped_notes_can_render_and_serve_vault_wide_attachments(tmp_path: Path) -> None:
+    (tmp_path / "Published").mkdir()
+    (tmp_path / "Elsewhere").mkdir()
+    (tmp_path / "shared.png").write_bytes(b"png")
+    (tmp_path / "Published" / "README.md").write_text(
+        "![[shared.png]]\n\n![shared](shared.png)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "Elsewhere" / "Private.md").write_text("# Private", encoding="utf-8")
+
+    app = create_app(
+        PublisherConfig(
+            vault_path=tmp_path,
+            include_folders=("Published",),
+            include_all_attachments=True,
+            realtime=False,
+        )
+    )
+    client = TestClient(app)
+
+    home = client.get("/")
+    assert home.status_code == 200
+    assert home.text.count('src="/assets/shared.png"') == 2
+    assert "Elsewhere" not in home.text
+    assert client.get("/assets/shared.png").status_code == 200
+    assert client.get("/Elsewhere/Private.md").status_code == 404
+    assert client.get("/api/search?q=Private").json() == {"results": []}
+
+
 def test_note_page(client) -> None:
     response = client.get("/README.md")
     assert response.status_code == 200

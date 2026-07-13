@@ -16,8 +16,8 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import unquote
 
 from vaultpub.core.attachments import (
-    attachment_mime_type,
     attachment_download_name,
+    attachment_mime_type,
     is_download_only_attachment,
     is_image_attachment,
 )
@@ -72,6 +72,9 @@ class Renderer:
     def __init__(self, config: PublisherConfig, index: VaultIndex) -> None:
         self.config = config
         self.index = index
+        self._attachments_by_name: dict[str, list[AttachmentRecord]] = {}
+        for attachment in index.attachments_by_path.values():
+            self._attachments_by_name.setdefault(attachment.rel_path.name, []).append(attachment)
         self.dynamic_text_pages_by_path: dict[str, TextPageRecord] = {}
         self.dynamic_attachments_by_path: dict[str, AttachmentRecord] = {}
 
@@ -332,7 +335,7 @@ class Renderer:
             if text_page is not None:
                 return _ResolvedTarget(kind="text_page", url=text_page.url_path + suffix, text_page=text_page)
 
-            attachment = self.index.attachments_by_path.get(candidate.normalized_path)
+            attachment = self._resolve_attachment(candidate.raw_target, candidate.normalized_path, source_path)
             if attachment is not None:
                 return _ResolvedTarget(kind="attachment", url=attachment.url_path + suffix, attachment=attachment)
 
@@ -341,6 +344,34 @@ class Renderer:
                 return dynamic
 
         return _ResolvedTarget(kind="unresolved", url=target)
+
+    def _resolve_attachment(
+        self,
+        raw_target: str,
+        normalized_target: str,
+        source_path: PurePosixPath,
+    ) -> AttachmentRecord | None:
+        """Resolve an attachment by path, then by Obsidian-style bare filename."""
+        attachment = self.index.attachments_by_path.get(normalized_target)
+        if attachment is not None:
+            return attachment
+
+        target_path = PurePosixPath(raw_target)
+        if raw_target.startswith("/") or len(target_path.parts) != 1:
+            return None
+
+        candidates = self._attachments_by_name.get(target_path.name, [])
+        if not candidates:
+            return None
+
+        source_dir = source_path.parent
+        return min(
+            candidates,
+            key=lambda candidate: (
+                _path_distance(source_dir, candidate.rel_path.parent),
+                candidate.rel_path.as_posix(),
+            ),
+        )
 
     def _resolve_dynamic_file(self, normalized_path: str, suffix: str) -> _ResolvedTarget | None:
         if is_path_excluded(normalized_path, self.config):
@@ -777,3 +808,13 @@ def _strip_all_leading_parents(target: str) -> str:
 def _is_fallback_file_target(target: str) -> bool:
     suffix = PurePosixPath(target).suffix.lower()
     return bool(suffix and suffix != ".md" and _leading_parent_count(target) > 0)
+
+
+def _path_distance(left: PurePosixPath, right: PurePosixPath) -> int:
+    """Return the number of directory steps between two vault-relative paths."""
+    shared_parts = 0
+    for left_part, right_part in zip(left.parts, right.parts, strict=False):
+        if left_part != right_part:
+            break
+        shared_parts += 1
+    return len(left.parts) + len(right.parts) - (2 * shared_parts)

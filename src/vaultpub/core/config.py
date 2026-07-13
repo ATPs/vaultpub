@@ -33,6 +33,7 @@ class PublisherConfig:
     default_home_candidates: tuple[str, ...] = ("README", "index", "Home")
 
     include_folders: tuple[str, ...] = ()
+    include_all_attachments: bool = False
     exclude_folders: tuple[str, ...] = (".obsidian", ".git", ".trash", "private", "trash")
     exclude_globs: tuple[str, ...] = ()
     force_include_regexes: tuple[str, ...] = ()
