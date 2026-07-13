@@ -25,6 +25,15 @@ def test_root_returns_home(client) -> None:
     assert "README" in response.text or "Welcome" in response.text
 
 
+def test_root_renders_top_folder_navigation_toggle(client) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'data-nav-folder-layout="top"' in response.text
+    assert 'title="Move folders to top bar"' in response.text
+    assert 'aria-pressed="false"' in response.text
+
+
 def test_scoped_notes_can_render_and_serve_vault_wide_attachments(tmp_path: Path) -> None:
     (tmp_path / "Published").mkdir()
     (tmp_path / "Elsewhere").mkdir()

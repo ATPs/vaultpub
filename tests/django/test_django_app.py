@@ -97,6 +97,8 @@ def test_django_page_uses_packaged_template(django_setup) -> None:
     assert b'class="top-bar"' in response.content
     assert b'class="topbar-context topbar-context-note"' in response.content
     assert b'data-layout-action="toggle-wide"' in response.content
+    assert b'data-nav-folder-layout="top"' in response.content
+    assert b'title="Move folders to top bar"' in response.content
     assert b'data-current-heading' in response.content
     assert b'class="markdown-body"' in response.content
     assert b"README" in response.content
@@ -116,6 +118,7 @@ def test_django_page_uses_local_graph_placeholder(django_setup) -> None:
     assert response.status_code == 200
     assert b'id="graph-container"' in response.content
     assert b'data-graph-note-id="note:' in response.content
+    assert response.content.count(b"<h3>Contents</h3>") == 1
 
 
 @override_settings(

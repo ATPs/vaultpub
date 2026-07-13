@@ -9,6 +9,7 @@ interface SidebarState {
   rightCollapsed?: boolean;
   leftWidth?: number;
   rightWidth?: number;
+  topFolders?: boolean;
 }
 
 const SIDEBAR_STATE_KEY = "vaultpub.sidebarState";
@@ -252,7 +253,11 @@ function initNavTreeState(): void {
   });
 
   const setAllDetails = (open: boolean): void => {
-    details.forEach((detail, index) => {
+    const visibleDetails = document.querySelectorAll<HTMLDetailsElement>(
+      ".file-tree.folder-tabs-active .folder-tabs-selected details, .file-tree:not(.folder-tabs-active) details",
+    );
+    visibleDetails.forEach((detail) => {
+      const index = Array.from(details).indexOf(detail);
       detail.open = open;
       state[navStateKey(detail, index)] = open;
     });
@@ -267,6 +272,187 @@ function initNavTreeState(): void {
     ?.addEventListener("click", () => setAllDetails(false));
 }
 
+interface FolderSection {
+  id: string;
+  label: string;
+  item: HTMLLIElement | null;
+}
+
+function currentFolderSection(sections: FolderSection[]): string {
+  const currentPath = document.querySelector<HTMLElement>("[data-current-path]")?.dataset.currentPath;
+  if (!currentPath) return "root";
+
+  const matching = sections.find((section) => (
+    Array.from(section.item?.querySelectorAll<HTMLAnchorElement>("a") || []).some(
+      (link) => link.getAttribute("href") === currentPath,
+    )
+  ));
+  return matching?.id || "root";
+}
+
+function initTopFolderNavigation(): void {
+  const fileTree = document.querySelector<HTMLElement>(".file-tree");
+  const topbar = document.querySelector<HTMLElement>(".top-bar");
+  const layoutButton = document.querySelector<HTMLButtonElement>("[data-nav-folder-layout=\"top\"]");
+  const rootList = fileTree?.querySelector<HTMLUListElement>(":scope > ul");
+  if (!fileTree || !topbar || !layoutButton || !rootList) return;
+
+  const rootItems = Array.from(rootList.children).filter(
+    (item): item is HTMLLIElement => item instanceof HTMLLIElement,
+  );
+  const folderSections = rootItems.flatMap((item) => {
+    const detail = item.querySelector<HTMLDetailsElement>(":scope > details");
+    const link = detail?.querySelector<HTMLAnchorElement>(":scope > summary .nav-folder-link");
+    if (!detail || !link) return [];
+    return [{ id: detail.dataset.navKey || link.href, label: link.textContent?.trim().replace(/\/$/, "") || "Folder", item }];
+  });
+  if (!folderSections.length) {
+    layoutButton.disabled = true;
+    layoutButton.title = "No top-level folders";
+    layoutButton.setAttribute("aria-label", "No top-level folders");
+    return;
+  }
+
+  const rootFiles = rootItems.filter((item) => item.querySelector(":scope > a"));
+  rootFiles.forEach((item) => item.classList.add("folder-tabs-root-file"));
+
+  const sections: FolderSection[] = [
+    ...(rootFiles.length ? [{ id: "root", label: "Root", item: null }] : []),
+    ...folderSections,
+  ];
+  const nav = document.createElement("nav");
+  nav.className = "top-folder-nav";
+  nav.setAttribute("aria-label", "Vault folders");
+  const tabs = document.createElement("div");
+  tabs.className = "top-folder-tabs";
+  const overflow = document.createElement("div");
+  overflow.className = "top-folder-overflow";
+  const overflowButton = document.createElement("button");
+  overflowButton.type = "button";
+  overflowButton.className = "top-folder-overflow-toggle";
+  overflowButton.textContent = "…";
+  overflowButton.title = "More folders";
+  overflowButton.setAttribute("aria-label", "More folders");
+  overflowButton.setAttribute("aria-expanded", "false");
+  const overflowMenu = document.createElement("div");
+  overflowMenu.className = "top-folder-overflow-menu";
+  overflowMenu.hidden = true;
+  overflow.append(overflowButton, overflowMenu);
+  nav.append(tabs, overflow);
+  topbar.insertBefore(nav, topbar.querySelector(".topbar-context") || topbar.querySelector(".topbar-actions"));
+
+  let selectedId = currentFolderSection(sections);
+  let layoutFrame: number | undefined;
+
+  const setButtonState = (enabled: boolean): void => {
+    layoutButton.innerHTML = enabled ? "&#8659;" : "&#8657;";
+    const label = enabled ? "Show folders in sidebar" : "Move folders to top bar";
+    layoutButton.title = label;
+    layoutButton.setAttribute("aria-label", label);
+    layoutButton.setAttribute("aria-pressed", String(enabled));
+  };
+
+  const closeOverflow = (): void => {
+    overflowMenu.hidden = true;
+    overflowButton.setAttribute("aria-expanded", "false");
+  };
+
+  const updateSelection = (): void => {
+    const selected = sections.find((section) => section.id === selectedId) || sections[0];
+    selectedId = selected.id;
+    rootItems.forEach((item) => item.classList.remove("folder-tabs-selected"));
+    fileTree.classList.toggle("folder-tabs-root-selected", selected.id === "root");
+    if (selected.item) {
+      selected.item.classList.add("folder-tabs-selected");
+      const detail = selected.item.querySelector<HTMLDetailsElement>(":scope > details");
+      if (detail) detail.open = true;
+    }
+  };
+
+  const makeTab = (section: FolderSection): HTMLButtonElement => {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "top-folder-tab";
+    tab.textContent = section.label;
+    tab.setAttribute("aria-pressed", String(section.id === selectedId));
+    tab.addEventListener("click", () => {
+      selectedId = section.id;
+      updateSelection();
+      closeOverflow();
+      scheduleOverflowLayout();
+    });
+    return tab;
+  };
+
+  const layoutOverflow = (): void => {
+    if (!fileTree.classList.contains("folder-tabs-active")) return;
+    let visible = [...sections];
+    const hidden: FolderSection[] = [];
+
+    const render = (): void => {
+      tabs.replaceChildren(...visible.map(makeTab));
+      overflowMenu.replaceChildren(...hidden.map(makeTab));
+      nav.classList.toggle("has-overflow", hidden.length > 0);
+    };
+
+    render();
+    while (tabs.scrollWidth > tabs.clientWidth && visible.length > 1) {
+      const lastNonSelected = [...visible].reverse().findIndex((section) => section.id !== selectedId);
+      if (lastNonSelected < 0) break;
+      const index = visible.length - 1 - lastNonSelected;
+      hidden.unshift(visible[index]);
+      visible.splice(index, 1);
+      render();
+    }
+  };
+
+  const scheduleOverflowLayout = (): void => {
+    if (layoutFrame !== undefined) window.cancelAnimationFrame(layoutFrame);
+    layoutFrame = window.requestAnimationFrame(() => {
+      layoutFrame = undefined;
+      layoutOverflow();
+    });
+  };
+
+  const setEnabled = (enabled: boolean): void => {
+    fileTree.classList.toggle("folder-tabs-active", enabled);
+    nav.classList.toggle("is-active", enabled);
+    topbar.classList.toggle("top-folder-nav-active", enabled);
+    setButtonState(enabled);
+    const state = readJson<SidebarState>(SIDEBAR_STATE_KEY);
+    state.topFolders = enabled;
+    writeJson(SIDEBAR_STATE_KEY, state);
+    if (!enabled) {
+      rootItems.forEach((item) => item.classList.remove("folder-tabs-selected"));
+      fileTree.classList.remove("folder-tabs-root-selected");
+      closeOverflow();
+      return;
+    }
+    updateSelection();
+    scheduleOverflowLayout();
+  };
+
+  overflowButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const open = overflowMenu.hidden;
+    overflowMenu.hidden = !open;
+    overflowButton.setAttribute("aria-expanded", String(open));
+  });
+  document.addEventListener("click", (event) => {
+    if (!nav.contains(event.target as Node)) closeOverflow();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeOverflow();
+  });
+  layoutButton.addEventListener("click", () => {
+    setEnabled(!fileTree.classList.contains("folder-tabs-active"));
+  });
+  new ResizeObserver(scheduleOverflowLayout).observe(nav);
+
+  const state = readJson<SidebarState>(SIDEBAR_STATE_KEY);
+  setEnabled(state.topFolders === true);
+}
+
 export function initSidebars(): void {
   const layout = document.querySelector<HTMLElement>(".app-layout");
   if (!layout) return;
@@ -275,5 +461,6 @@ export function initSidebars(): void {
   initSidebar(layout, "left");
   initSidebar(layout, "right");
   initNavTreeState();
+  initTopFolderNavigation();
   window.addEventListener("resize", () => syncSidebarWidths(layout));
 }
