@@ -465,10 +465,24 @@ body {
   border-right: 1px solid var(--border-color);
   padding: 1em 0.8em;
   overflow-y: auto;
+  overflow-x: hidden;
   height: calc(100vh - var(--topbar-height));
   position: sticky;
   top: var(--topbar-height);
   transition: background-color 0.35s ease, border-color 0.35s ease;
+}
+
+.sidebar-left-sticky {
+  position: sticky;
+  top: -1em;
+  z-index: 2;
+  margin: -1em -0.8em 0.75em;
+  padding: 1em 0.8em 0.01px;
+  background: var(--sidebar-bg);
+}
+
+.sidebar-left-sticky .sidebar-header {
+  margin-bottom: 0;
 }
 
 .sidebar-header {

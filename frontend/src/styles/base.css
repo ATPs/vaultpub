@@ -316,6 +316,7 @@ h6:hover .heading-anchor {
 .file-tree ul {
   list-style: none;
   padding-left: 0.8em;
+  max-width: 100%;
 }
 
 .file-tree > ul {
@@ -325,6 +326,7 @@ h6:hover .heading-anchor {
 .file-tree details > ul {
   margin-left: 0.7em;
   padding-left: 0.85em;
+  max-width: 100%;
   border-left: 1px dashed color-mix(in srgb, var(--border-color) 82%, transparent);
 }
 
@@ -349,6 +351,7 @@ h6:hover .heading-anchor {
   display: flex;
   align-items: stretch;
   gap: 0.35em;
+  min-width: 0;
 }
 
 .file-tree .nav-folder-link,

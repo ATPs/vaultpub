@@ -240,12 +240,13 @@ def base_page_template(
   </header>
   <div class="app-layout">
     <aside class="sidebar-left">
-      <div class="sidebar-top">
-        {logo_html}
-        <span class="site-name">{site_name}</span>
-      </div>
-      <div class="sidebar-header">
-        <div class="sidebar-header-actions">
+      <div class="sidebar-left-sticky">
+        <div class="sidebar-top">
+          {logo_html}
+          <span class="site-name">{site_name}</span>
+        </div>
+        <div class="sidebar-header">
+          <div class="sidebar-header-actions">
           <button class="sidebar-action" type="button" data-nav-tree-action="expand"
                   title="Expand all" aria-label="Expand all">+</button>
           <button class="sidebar-action" type="button" data-nav-tree-action="collapse"
@@ -262,8 +263,9 @@ def base_page_template(
           </select>
           <button class="sidebar-action" type="button" data-nav-folder-layout="top"
                   title="Move folders to top bar" aria-label="Move folders to top bar" aria-pressed="false">&#8657;</button>
-          <button class="sidebar-toggle" type="button" data-sidebar-toggle="left"
-                  aria-label="Hide navigation">&lt;</button>
+            <button class="sidebar-toggle" type="button" data-sidebar-toggle="left"
+                    aria-label="Hide navigation">&lt;</button>
+          </div>
         </div>
       </div>
       <nav class="file-tree">{nav_html}</nav>
