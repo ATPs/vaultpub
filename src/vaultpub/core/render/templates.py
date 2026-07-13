@@ -245,7 +245,6 @@ def base_page_template(
         <span class="site-name">{site_name}</span>
       </div>
       <div class="sidebar-header">
-        <div class="sidebar-title">Navigation</div>
         <div class="sidebar-header-actions">
           <button class="sidebar-action" type="button" data-nav-tree-action="expand"
                   title="Expand all" aria-label="Expand all">+</button>

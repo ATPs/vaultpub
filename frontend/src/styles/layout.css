@@ -494,6 +494,7 @@ body {
   align-items: center;
   justify-content: flex-end;
   gap: 0.45em;
+  width: 100%;
   min-width: 0;
 }
 

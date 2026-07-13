@@ -73,7 +73,7 @@ def test_note_page(client) -> None:
     assert 'data-nav-tree-action="collapse"' in response.text
     assert 'title="Expand all"' in response.text
     assert 'title="Collapse all"' in response.text
-    assert "Navigation" in response.text
+    assert 'data-nav-sort' in response.text
     assert "Page" in response.text
     assert 'class="topbar-context topbar-context-note"' in response.text
     assert 'data-layout-action="toggle-wide"' in response.text

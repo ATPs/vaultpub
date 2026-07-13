@@ -359,10 +359,12 @@ h6:hover .heading-anchor {
   transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
 
-.nav-sort-select {
-  max-width: 74px;
+.sidebar-action.nav-sort-select {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
   height: 28px;
-  padding: 0 0.2em;
+  padding: 0 0.35em;
   font-size: 0.72em;
   color: var(--text-muted);
   cursor: pointer;
