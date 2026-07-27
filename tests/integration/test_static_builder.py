@@ -25,6 +25,11 @@ def test_build_static_site(vault_basic) -> None:
         home_html = (out / "README.md.html").read_text(encoding="utf-8")
         folder_html = (out / "Folder" / "index.html").read_text(encoding="utf-8")
         folder_note_html = (out / "Folder" / "B.md.html").read_text(encoding="utf-8")
+        assert 'src="/static/vaultpub/boot.js"' in home_html
+        assert home_html.index("vaultpub/boot.js") < home_html.index("vaultpub/app.css")
+        boot_js = (out / "static" / "vaultpub" / "boot.js").read_text(encoding="utf-8")
+        assert "vaultpub.settings" in boot_js
+        assert "vaultpub.sidebarState" in boot_js
         assert 'class="topbar-context topbar-context-note"' in home_html
         assert 'data-layout-action="toggle-wide"' in home_html
         assert 'data-current-heading' in home_html
@@ -48,6 +53,22 @@ def test_build_static_site(vault_basic) -> None:
         assert 'directory-list-meta">Folder/B.md<' not in folder_html
         assert 'href="/Folder/index.html" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in folder_note_html
         assert 'href="/Folder/B.md.html" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in folder_note_html
+
+
+def test_static_tag_page_loads_boot_before_styles(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "README.md").write_text(
+        "---\ntags:\n  - demo\n---\n# README\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "public"
+
+    StaticSiteBuilder(PublisherConfig(vault_path=vault)).build(out)
+
+    tag_html = (out / "tags" / "demo" / "index.html").read_text(encoding="utf-8")
+    assert 'src="/static/vaultpub/boot.js"' in tag_html
+    assert tag_html.index("vaultpub/boot.js") < tag_html.index("vaultpub/app.css")
 
 
 def test_build_static_site_ignores_permalink_and_alias_routes(tmp_path: Path) -> None:

@@ -103,6 +103,8 @@ def test_django_page_uses_packaged_template(django_setup) -> None:
     assert b'class="markdown-body"' in response.content
     assert b"README" in response.content
     assert b'data-url-prefix="/notes/"' in response.content
+    assert b'src="/static/vaultpub/boot.js"' in response.content
+    assert response.content.index(b"vaultpub/boot.js") < response.content.index(b"vaultpub/app.css")
     assert b'href="/notes/"' in response.content
     assert b"README.md" in response.content
     assert b'href="/notes/README.md"' in response.content

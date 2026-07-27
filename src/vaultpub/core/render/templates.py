@@ -225,6 +225,7 @@ def base_page_template(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   {head_html}
+  <script src="/static/vaultpub/boot.js"></script>
   <link rel="stylesheet" href="/static/vaultpub/app.css">
 </head>
 <body data-realtime="{realtime}">

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   {% block head %}{% endblock %}
   {% load static %}
+  <script src="{% static 'vaultpub/boot.js' %}"></script>
   <link rel="stylesheet" href="{% static 'vaultpub/app.css' %}">
 </head>
 <body data-realtime="{% if realtime %}true{% else %}false{% endif %}" data-url-prefix="{{ url_prefix|default:'/' }}">

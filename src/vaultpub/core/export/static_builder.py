@@ -252,6 +252,7 @@ class StaticSiteBuilder:
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>#{tag_name} - {self.config.site_name}</title>
+            <script src="/static/vaultpub/boot.js"></script>
             <link rel="stylesheet" href="/static/vaultpub/app.css">
 </head>
 <body>

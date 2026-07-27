@@ -675,6 +675,7 @@ The `vaultpub build` command produces a fully self-contained static site. No ser
 | `<note-path>/index.html` | Pretty URL for each note |
 | `tags/<tag>/index.html` | Tag listing pages |
 | `assets/...` | Copied attachments (images, PDFs, etc.) |
+| `static/vaultpub/boot.js` | Paint-critical theme and navigation preference bootstrap |
 | `static/vaultpub/app.css` | Bundled CSS |
 | `static/vaultpub/app.js` | Bundled JavaScript |
 | `static/vaultpub/assets/...` | Bundled frontend chunks and fonts |

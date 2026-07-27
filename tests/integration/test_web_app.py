@@ -23,6 +23,8 @@ def test_root_returns_home(client) -> None:
     response = client.get("/")
     assert response.status_code == 200
     assert "README" in response.text or "Welcome" in response.text
+    assert 'src="/static/vaultpub/boot.js"' in response.text
+    assert response.text.index("vaultpub/boot.js") < response.text.index("vaultpub/app.css")
 
 
 def test_root_renders_top_folder_navigation_toggle(client) -> None:
@@ -161,6 +163,13 @@ def test_graph_json(client) -> None:
 
 
 def test_frontend_static_assets(client) -> None:
+    boot_response = client.get("/static/vaultpub/boot.js")
+    assert boot_response.status_code == 200
+    assert "javascript" in boot_response.headers["content-type"]
+    assert "vaultpub.settings" in boot_response.text
+    assert "vaultpub.sidebarState" in boot_response.text
+    assert "vaultpub-top-folders-booting" in boot_response.text
+
     css_response = client.get("/static/vaultpub/app.css")
     assert css_response.status_code == 200
     assert "text/css" in css_response.headers["content-type"]
