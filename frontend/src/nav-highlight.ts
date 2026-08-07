@@ -7,6 +7,19 @@ function currentPathElement(): HTMLElement | null {
   return document.querySelector<HTMLElement>("[data-current-path]");
 }
 
+function keepVisibleWithin(container: HTMLElement, element: HTMLElement): void {
+  if (container.scrollHeight <= container.clientHeight) return;
+
+  const containerRect = container.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+
+  if (elementRect.top < containerRect.top) {
+    container.scrollTop -= containerRect.top - elementRect.top;
+  } else if (elementRect.bottom > containerRect.bottom) {
+    container.scrollTop += elementRect.bottom - containerRect.bottom;
+  }
+}
+
 function initNavHighlight(): void {
   const page = currentPathElement();
   if (!page) return;
@@ -36,7 +49,8 @@ function initNavHighlight(): void {
       }
 
       requestAnimationFrame(() => {
-        link.scrollIntoView({ block: "nearest" });
+        const sidebar = fileTree.closest<HTMLElement>(".sidebar-left");
+        if (sidebar) keepVisibleWithin(sidebar, link);
       });
       return;
     }
@@ -48,6 +62,7 @@ function initScrollSpy(): void {
   if (!article) return;
   const toc = document.querySelector<HTMLElement>(".toc");
   if (!toc) return;
+  const sidebar = toc.closest<HTMLElement>(".sidebar-right");
 
   const headingEls = article.querySelectorAll<HTMLHeadingElement>(
     "h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]",
@@ -86,7 +101,7 @@ function initScrollSpy(): void {
 
     // Keep the active TOC link visible
     requestAnimationFrame(() => {
-      link.scrollIntoView({ block: "nearest" });
+      if (sidebar) keepVisibleWithin(sidebar, link);
     });
   }
 

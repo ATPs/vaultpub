@@ -180,6 +180,8 @@ def test_frontend_static_assets(client) -> None:
     js_response = client.get("/static/vaultpub/app.js")
     assert js_response.status_code == 200
     assert "javascript" in js_response.headers["content-type"]
+    assert "scrollIntoView" not in js_response.text
+    assert "scrollTop" in js_response.text
 
 
 def test_note_not_found(client) -> None:
