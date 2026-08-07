@@ -333,7 +333,7 @@ function initNavTreeState(): void {
 
   const setAllDetails = (open: boolean): void => {
     const visibleDetails = document.querySelectorAll<HTMLDetailsElement>(
-      ".file-tree.folder-tabs-active .folder-tabs-selected details, .file-tree:not(.folder-tabs-active) details",
+      ".file-tree.folder-tabs-active .folder-tabs-selected > details > ul details, .file-tree:not(.folder-tabs-active) details",
     );
     visibleDetails.forEach((detail) => {
       const index = Array.from(details).indexOf(detail);
