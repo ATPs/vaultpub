@@ -10,6 +10,32 @@ dist/
 # Virtual environments
 .venv/
 venv/
+
+# Local environment and runtime data
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# Local tool settings
+.claude/
+.codex/
+.cursor/
+
+# Type-checker caches
+.dmypy.json
+.pyre/
+.pytype/
+
+# Browser test output
+playwright-report/
+test-results/
+blob-report/
+
+# JavaScript dependencies and package-manager diagnostics
 node_modules/
 frontend/node_modules/
 npm-debug.log*
