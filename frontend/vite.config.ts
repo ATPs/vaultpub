@@ -1,7 +1,25 @@
 import { defineConfig } from "vite";
+import { transform } from "esbuild";
 
 export default defineConfig({
   base: "/static/vaultpub/",
+  plugins: [
+    {
+      name: "format-entry-bundle",
+      async generateBundle(_, bundle) {
+        const entry = bundle["app.js"];
+        if (!entry || entry.type !== "chunk") return;
+
+        const formatted = await transform(entry.code, {
+          format: "esm",
+          legalComments: "none",
+          minify: false,
+          target: "esnext",
+        });
+        entry.code = formatted.code;
+      },
+    },
+  ],
   build: {
     outDir: "../src/vaultpub/django_app/static/vaultpub",
     emptyOutDir: true,
