@@ -5,7 +5,6 @@ export default defineConfig({
   build: {
     outDir: "../src/vaultpub/django_app/static/vaultpub",
     emptyOutDir: true,
-    minify: false,
     cssCodeSplit: false,
     rollupOptions: {
       input: "src/app.ts",
