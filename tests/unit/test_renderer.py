@@ -73,6 +73,52 @@ def test_render_heading_anchors_preserve_levels_and_index_slugs(tmp_path: Path) 
     assert 'href="#分解-htmlcss-部分"' in toc_html
 
 
+def test_render_mixed_wikilinks_and_embeds_preserves_content_order(tmp_path: Path) -> None:
+    image_names = [f"image-{number}.png" for number in range(12)]
+    (tmp_path / "First.md").write_text("# First\n", encoding="utf-8")
+    (tmp_path / "Last.md").write_text("# Last\n", encoding="utf-8")
+    for image_name in image_names:
+        (tmp_path / image_name).write_bytes(b"png")
+    (tmp_path / "README.md").write_text(
+        "[[First]]\n"
+        + "\n".join(f"![[{image_name}]]" for image_name in image_names)
+        + "\n[[Last]]\n\n# Repeat\n\n## Repeat\n",
+        encoding="utf-8",
+    )
+
+    config = PublisherConfig(vault_path=tmp_path)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = vault_index.notes_by_id[vault_index.notes_by_path["README.md"]]
+
+    html = renderer.render_note(note)
+    toc_html = renderer.render_toc_html(note)
+
+    assert html.count('class="embed-image"') == len(image_names)
+    assert "!" + "[[" not in html
+    assert html.index('href="/First.md"') < html.index('src="/assets/image-0.png"') < html.index('href="/Last.md"')
+    assert '<h1 id="repeat">Repeat ' in html
+    assert '<h2 id="repeat-1">Repeat ' in html
+    assert 'href="#repeat"' in toc_html
+    assert 'href="#repeat-1"' in toc_html
+
+
+def test_render_standalone_wikilinks_and_images_keep_paragraph_spacing(tmp_path: Path) -> None:
+    (tmp_path / "Linked.md").write_text("# Linked\n", encoding="utf-8")
+    (tmp_path / "image.png").write_bytes(b"png")
+    (tmp_path / "README.md").write_text("# Home\n\n[[Linked]]\n\n![[image.png]]\n", encoding="utf-8")
+
+    config = PublisherConfig(vault_path=tmp_path)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = vault_index.notes_by_id[vault_index.notes_by_path["README.md"]]
+
+    html = renderer.render_note(note)
+
+    assert '<p><a href="/Linked.md" class="internal-link">Linked.md</a></p>' in html
+    assert '<p><img src="/assets/image.png" alt="image.png" class="embed-image"></p>' in html
+
+
 def test_render_obsidian_syntax_outputs_real_html(vault_obsidian_syntax) -> None:
     config = PublisherConfig(vault_path=vault_obsidian_syntax)
     vault_index = VaultIndexer(config).build()

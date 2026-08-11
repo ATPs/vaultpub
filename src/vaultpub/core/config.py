@@ -46,7 +46,7 @@ class PublisherConfig:
     max_markdown_size_bytes: int = 2_000_000
     max_attachment_size_bytes: int | None = None
 
-    strict_line_breaks: bool = True
+    strict_line_breaks: bool = False
     readable_line_length: bool = True
     hide_title: bool = False
     show_inline_title: bool = True

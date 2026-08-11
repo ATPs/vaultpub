@@ -78,6 +78,19 @@ def test_find_embed_wikilinks() -> None:
     assert non_embeds[0][2] == "normal"
 
 
+def test_find_wikilinks_keeps_mixed_links_in_document_order() -> None:
+    content = "[[first]] ![[image.png]] [[last]]"
+
+    links = list(find_wikilinks(content))
+
+    assert [(link[2], link[3]) for link in links] == [
+        ("first", False),
+        ("image.png", True),
+        ("last", False),
+    ]
+    assert [link[0] for link in links] == sorted(link[0] for link in links)
+
+
 def test_find_wikilinks_skip_code_blocks() -> None:
     content = "[[outside]]\n\n```\n[[inside]]\n```\n\n[[also outside]]"
     links = list(find_wikilinks(content))

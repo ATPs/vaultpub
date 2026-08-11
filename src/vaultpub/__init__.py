@@ -3,4 +3,4 @@
 from vaultpub.core.config import PublisherConfig
 
 __all__ = ["PublisherConfig"]
-__version__ = "0.9.4"
+__version__ = "0.9.5"

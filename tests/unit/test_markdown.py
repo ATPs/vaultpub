@@ -27,3 +27,8 @@ def test_render_html_safe_mode() -> None:
     html = render_markdown("<script>alert('xss')</script>", html_safe_mode=True)
     # In safe mode, raw HTML should be escaped (markdown-it commonmark strips it)
     assert "alert" not in html.lower() or "&lt;script" in html
+
+
+def test_render_default_preserves_single_line_breaks() -> None:
+    assert "<br" in render_markdown("first line\nsecond line")
+    assert "<br" not in render_markdown("first line\nsecond line", strict_line_breaks=True)

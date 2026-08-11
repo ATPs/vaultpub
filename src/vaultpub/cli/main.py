@@ -292,7 +292,7 @@ publish:
   #   - "(^|/)secret(/|$)"
 
 rendering:
-  strict_line_breaks: true
+  strict_line_breaks: false
   html_safe_mode: true
   enable_mermaid: true
   enable_math: true

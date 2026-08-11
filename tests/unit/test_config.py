@@ -12,6 +12,7 @@ def test_default_config() -> None:
     assert config.site_name == "vaultpub"
     assert config.url_prefix == "/"
     assert config.publish_property_mode == "publish_false_hides"
+    assert config.strict_line_breaks is False
     assert "gz" in config.allowed_attachment_types
 
 

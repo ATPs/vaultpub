@@ -224,7 +224,7 @@ publish:
 
 # Markdown rendering
 rendering:
-  strict_line_breaks: true
+  strict_line_breaks: false
   readable_line_length: true
   hide_title: false
   html_safe_mode: true       # Sanitize raw HTML

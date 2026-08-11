@@ -75,3 +75,13 @@ def test_heading_extraction_skips_fenced_code_blocks(tmp_path) -> None:
     note = vault_index.notes_by_id[note_id]
 
     assert [heading.text for heading in note.headings] == ["Outside", "After code"]
+
+
+def test_heading_extraction_makes_duplicate_slugs_unique(tmp_path) -> None:
+    (tmp_path / "README.md").write_text("# Repeat\n\n## Repeat\n\n## Repeat-1\n", encoding="utf-8")
+
+    config = PublisherConfig(vault_path=tmp_path)
+    vault_index = VaultIndexer(config).build()
+    note = vault_index.notes_by_id[vault_index.notes_by_path["README.md"]]
+
+    assert [heading.slug for heading in note.headings] == ["repeat", "repeat-1", "repeat-1-1"]

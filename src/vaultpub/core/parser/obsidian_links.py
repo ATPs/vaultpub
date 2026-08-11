@@ -15,15 +15,17 @@ _COMMENT_RE = re.compile(r"%%.*?%%", re.DOTALL)
 def find_wikilinks(content: str) -> Iterator[tuple[int, int, str, bool]]:
     """Yield (start, end, raw_target, is_embed) for each wikilink in content.
 
-    Skips wikilinks inside code fences, inline code, and Obsidian comments.
+    Results are yielded in document order and skip wikilinks inside code fences,
+    inline code, and Obsidian comments.
     """
     # Mask protected regions
     protected = find_protected_regions(content)
+    matches: list[tuple[int, int, str, bool]] = []
 
     for match in WIKILINK_EMBED_RE.finditer(content):
         if _in_protected(match.start(), protected):
             continue
-        yield match.start(), match.end(), match.group(1), True
+        matches.append((match.start(), match.end(), match.group(1), True))
 
     for match in WIKILINK_RE.finditer(content):
         # Skip if preceded by ! (embed already handled above)
@@ -31,7 +33,9 @@ def find_wikilinks(content: str) -> Iterator[tuple[int, int, str, bool]]:
             continue
         if _in_protected(match.start(), protected):
             continue
-        yield match.start(), match.end(), match.group(1), False
+        matches.append((match.start(), match.end(), match.group(1), False))
+
+    yield from sorted(matches, key=lambda item: item[0])
 
 
 def parse_wikilink_target(raw: str) -> tuple[str, str | None, str | None, str | None]:

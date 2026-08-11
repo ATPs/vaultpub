@@ -16,13 +16,13 @@ from vaultpub.core.models import (
     TextPageRecord,
     VaultIndex,
 )
-from vaultpub.core.paths import file_display_name
 from vaultpub.core.parser.obsidian_links import (
     find_protected_regions,
     find_wikilinks,
     parse_wikilink_target,
     strip_obsidian_comments,
 )
+from vaultpub.core.paths import file_display_name
 from vaultpub.core.scanner import VaultScanner
 
 
@@ -92,13 +92,14 @@ class VaultIndexer:
         content = note.raw_markdown
         visible = strip_obsidian_comments(content)
         protected = find_protected_regions(visible)
+        used_heading_slugs: set[str] = set()
 
         for match in re.finditer(r"^(#{1,6})\s+(.+?)(?:\s+#+)?$", visible, re.MULTILINE):
             if any(start <= match.start() < end for start, end in protected):
                 continue
             level = len(match.group(1))
             text = match.group(2).strip()
-            slug = _slugify(text)
+            slug = _unique_slug(_slugify(text), used_heading_slugs)
             line = visible[:match.start()].count("\n")
             note.headings.append(Heading(level=level, text=text, slug=slug, line=line))
 
@@ -292,6 +293,20 @@ def _slugify(text: str) -> str:
     slug = re.sub(r"\s+", "-", slug)
     slug = re.sub(r"-+", "-", slug)
     return slug[:100]
+
+
+def _unique_slug(slug: str, used_slugs: set[str]) -> str:
+    """Return a stable heading slug that is unique within one note."""
+    if slug not in used_slugs:
+        used_slugs.add(slug)
+        return slug
+
+    suffix = 1
+    while f"{slug}-{suffix}" in used_slugs:
+        suffix += 1
+    unique_slug = f"{slug}-{suffix}"
+    used_slugs.add(unique_slug)
+    return unique_slug
 
 
 def _note_public_url(note: NoteRecord) -> str:

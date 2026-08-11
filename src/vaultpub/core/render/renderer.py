@@ -123,7 +123,19 @@ class Renderer:
             idx = int(m.group(1))
             return placeholders.get(idx, m.group(0))
 
-        html = _PLACEHOLDER_PARAGRAPH_RE.sub(_replace, html)
+        def _replace_paragraph(m: re.Match) -> str:
+            idx = int(m.group(1))
+            replacement = placeholders.get(idx)
+            if replacement is None:
+                return m.group(0)
+            # Only block-level embeds need their generated paragraph removed.
+            # Keeping paragraphs around standalone links and media preserves the
+            # Markdown blank-line spacing that Obsidian users expect.
+            if replacement.startswith("<div"):
+                return replacement
+            return f"<p>{replacement}</p>"
+
+        html = _PLACEHOLDER_PARAGRAPH_RE.sub(_replace_paragraph, html)
         return _PLACEHOLDER_RE.sub(_replace, html)
 
     def _preprocess_wikilinks(
@@ -251,7 +263,9 @@ class Renderer:
                 replacements.append((start, end, self._placeholder(counter)))
                 counter += 1
 
-        for start, end, repl in reversed(replacements):
+        # Apply from the end even if a future link finder changes its iteration
+        # order. Earlier substitutions must not invalidate later offsets.
+        for start, end, repl in sorted(replacements, key=lambda item: item[0], reverse=True):
             content = content[:start] + repl + content[end:]
 
         return content, counter
