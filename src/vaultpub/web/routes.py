@@ -156,6 +156,27 @@ async def slides_folder(request: Request) -> HTMLResponse:
     return HTMLResponse(page_html)
 
 
+async def slides_vault(request: Request) -> HTMLResponse:
+    state = _get_state(request)
+    if state.index.nav_tree is None:
+        return HTMLResponse("Not found", status_code=404)
+
+    notes = collect_directory_notes(state.index.nav_tree, state.index)
+    if not notes:
+        return HTMLResponse("Not found", status_code=404)
+
+    rendered_slides = []
+    for note in notes:
+        rendered_slides.extend(state.renderer.render_slides(note, heading_namespace=f"slide-{note.id[:12]}"))
+    return HTMLResponse(slides_page_template(
+        title=f"{state.config.site_name} - Presentation",
+        slides_html=slide_sections_html(rendered_slides),
+        options=SlideOptions(),
+        return_url="/",
+        return_label="Vault",
+    ))
+
+
 async def attachment(request: Request) -> Response:
     state = _get_state(request)
     path = request.path_params.get("path", "")
@@ -298,6 +319,7 @@ def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:
         sidebar_right_html,
         graph_html=graph_html,
         topbar_context_html=topbar_context_html,
+        vault_slides_url="/_slides-vault",
     )
     return HTMLResponse(page_str)
 
@@ -334,6 +356,7 @@ def _render_directory_page(request: Request, directory: NavNode) -> HTMLResponse
         sidebar_right_title="Directory",
         graph_html=graph_html,
         topbar_context_html=topbar_context_html,
+        vault_slides_url="/_slides-vault",
     )
     return HTMLResponse(page_str)
 
@@ -356,6 +379,7 @@ def _render_text_page(request: Request, tp: TextPageRecord) -> HTMLResponse:
         "",
         graph_html="",
         topbar_context_html=topbar_context_html,
+        vault_slides_url="/_slides-vault",
     )
     return HTMLResponse(page_str)
 

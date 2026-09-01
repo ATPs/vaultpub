@@ -31,12 +31,14 @@ def test_build_static_site(vault_basic) -> None:
         assert "vaultpub.settings" in boot_js
         assert "vaultpub.sidebarState" in boot_js
         assert 'class="topbar-context topbar-context-note"' in home_html
-        assert 'data-layout-action="toggle-wide"' in home_html
+        assert 'data-layout-action="toggle-wide"' not in home_html
         assert 'data-current-heading' in home_html
         assert 'data-nav-tree-action="expand"' in home_html
         assert 'data-nav-tree-action="collapse"' in home_html
         assert 'data-nav-folder-layout="top"' in home_html
         assert 'title="Move folders to top bar"' in home_html
+        assert 'data-vault-slides-url' not in home_html
+        assert 'data-slide-note-url' not in home_html
         assert 'title="Expand all"' in home_html
         assert 'title="Collapse all"' in home_html
         assert 'href="/A.md.html"' in home_html
@@ -111,7 +113,8 @@ def test_build_static_site_renders_topbar_code_tools_for_text_pages(tmp_path: Pa
 
     code_html = (out / "tools" / "example.py.html").read_text(encoding="utf-8")
     assert 'class="topbar-context topbar-context-code"' in code_html
-    assert 'data-layout-action="toggle-wide"' in code_html
+    assert 'data-layout-action="toggle-wide"' not in code_html
+    assert 'data-vault-slides-url' not in code_html
     assert 'href="/tools/index.html" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in code_html
     assert 'href="/tools/example.py.html" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in code_html
     assert 'data-code-action="copy-path"' in code_html

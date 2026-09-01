@@ -68,14 +68,14 @@ function applyTheme(themeId: string): void {
   html.classList.add(THEME_CLASS_PREFIX + themeId);
 }
 
-/* ---- build selector UI ---- */
+/* ---- build Settings UI ---- */
 function createSwatchSpans(preview: string[]): string {
   return preview
     .map((color) => `<span style="background:${color}"></span>`)
     .join("");
 }
 
-function buildThemeSelector(): void {
+function buildSettingsMenu(): void {
   const topbar = document.querySelector(".top-bar");
   if (!topbar) return;
   const actions = topbar.querySelector(".topbar-actions") || topbar;
@@ -85,36 +85,46 @@ function buildThemeSelector(): void {
   if (existingBtn) existingBtn.remove();
 
   const wrapper = document.createElement("div");
-  wrapper.className = "theme-selector";
+  wrapper.className = "settings-menu";
 
   const currentThemeId = getStoredThemeId();
   const currentTheme = THEMES.find((t) => t.id === currentThemeId) || THEMES[0];
 
   const btn = document.createElement("button");
-  btn.className = "theme-selector-btn";
-  btn.setAttribute("aria-label", "Select theme");
-  btn.setAttribute("aria-haspopup", "listbox");
+  btn.className = "settings-menu-btn";
+  btn.setAttribute("aria-label", "Settings");
+  btn.setAttribute("aria-haspopup", "menu");
+  btn.setAttribute("aria-expanded", "false");
   btn.innerHTML = `
     <span class="theme-swatch">${createSwatchSpans(currentTheme.preview)}</span>
-    <span class="theme-selector-label">${currentTheme.name}</span>
-    <span class="theme-selector-caret">&#9660;</span>
+    <span class="settings-menu-label">Settings</span>
+    <span class="settings-menu-caret">&#9660;</span>
   `;
 
   // Build dropdown
   const dropdown = document.createElement("div");
-  dropdown.className = "theme-dropdown";
-  dropdown.setAttribute("role", "listbox");
+  dropdown.className = "settings-dropdown";
+  dropdown.setAttribute("role", "menu");
 
   const lightThemes = THEMES.filter((t) => t.group === "light");
   const darkThemes = THEMES.filter((t) => t.group === "dark");
 
   dropdown.innerHTML = `
+    <div class="settings-section settings-layout-controls">
+      <button class="settings-option" type="button" role="menuitem" data-layout-action="toggle-wide" aria-pressed="false">Wide content</button>
+    </div>
+  `;
+
+  const appearanceSection = document.createElement("div");
+  appearanceSection.className = "settings-section settings-appearance";
+  appearanceSection.innerHTML = `
+    <div class="settings-dropdown-header">Appearance</div>
     <div class="theme-dropdown-header">Light</div>
     ${lightThemes
       .map(
         (t) => `
       <button class="theme-option${t.id === currentThemeId ? " active" : ""}"
-              role="option" data-theme-id="${t.id}" aria-selected="${t.id === currentThemeId}">
+              role="menuitemradio" data-theme-id="${t.id}" aria-checked="${t.id === currentThemeId}">
         <span class="theme-option-preview">${createSwatchSpans(t.preview)}</span>
         ${t.name}
       </button>`
@@ -125,13 +135,36 @@ function buildThemeSelector(): void {
       .map(
         (t) => `
       <button class="theme-option${t.id === currentThemeId ? " active" : ""}"
-              role="option" data-theme-id="${t.id}" aria-selected="${t.id === currentThemeId}">
+              role="menuitemradio" data-theme-id="${t.id}" aria-checked="${t.id === currentThemeId}">
         <span class="theme-option-preview">${createSwatchSpans(t.preview)}</span>
         ${t.name}
       </button>`
       )
       .join("")}
+
   `;
+
+  const context = document.querySelector<HTMLElement>(".topbar-context");
+  const noteSlidesUrl = context?.dataset.slideNoteUrl;
+  const folderSlidesUrl = context?.dataset.slideFolderUrl;
+  const vaultSlidesUrl = document.body.dataset.vaultSlidesUrl;
+  if (noteSlidesUrl || folderSlidesUrl || vaultSlidesUrl) {
+    const slideSection = document.createElement("div");
+    slideSection.className = "settings-section settings-slide-actions";
+    slideSection.innerHTML = [
+      noteSlidesUrl
+        ? `<a class="settings-option settings-slide-action" role="menuitem" href="${noteSlidesUrl}" title="View this Markdown note in Slide Mode">Note in Slide View</a>`
+        : "",
+      folderSlidesUrl
+        ? `<a class="settings-option settings-slide-action" role="menuitem" href="${folderSlidesUrl}" title="View this folder in Slide Mode">Folder in Slide View</a>`
+        : "",
+      vaultSlidesUrl
+        ? `<a class="settings-option settings-slide-action" role="menuitem" href="${vaultSlidesUrl}" title="View all published Markdown notes in Slide Mode">Vault in Slide View</a>`
+        : "",
+    ].join("");
+    dropdown.appendChild(slideSection);
+  }
+  dropdown.appendChild(appearanceSection);
 
   wrapper.appendChild(btn);
   wrapper.appendChild(dropdown);
@@ -139,7 +172,9 @@ function buildThemeSelector(): void {
   // Events
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
-    wrapper.classList.toggle("open");
+    const open = !wrapper.classList.contains("open");
+    wrapper.classList.toggle("open", open);
+    btn.setAttribute("aria-expanded", String(open));
   });
 
   dropdown.addEventListener("click", (e) => {
@@ -151,24 +186,35 @@ function buildThemeSelector(): void {
     setSettings({ theme: themeId });
     applyTheme(themeId);
 
-    // Update button label
     const theme = THEMES.find((t) => t.id === themeId);
     if (theme) {
-      btn.querySelector(".theme-selector-label")!.textContent = theme.name;
       btn.querySelector(".theme-swatch")!.innerHTML = createSwatchSpans(theme.preview);
     }
 
     // Update active state
     dropdown.querySelectorAll(".theme-option").forEach((el) => {
       el.classList.toggle("active", (el as HTMLElement).dataset.themeId === themeId);
-      el.setAttribute("aria-selected", String((el as HTMLElement).dataset.themeId === themeId));
+      el.setAttribute("aria-checked", String((el as HTMLElement).dataset.themeId === themeId));
     });
 
     wrapper.classList.remove("open");
+    btn.setAttribute("aria-expanded", "false");
   });
 
   // Close on outside click
-  document.addEventListener("click", () => wrapper.classList.remove("open"));
+  document.addEventListener("click", (event) => {
+    if (!wrapper.contains(event.target as Node)) {
+      wrapper.classList.remove("open");
+      btn.setAttribute("aria-expanded", "false");
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && wrapper.classList.contains("open")) {
+      wrapper.classList.remove("open");
+      btn.setAttribute("aria-expanded", "false");
+      btn.focus();
+    }
+  });
 
   // Insert before search trigger (or at end)
   const searchTrigger = actions.querySelector(".search-trigger");
@@ -183,7 +229,7 @@ function buildThemeSelector(): void {
 export function initTheme(): void {
   const themeId = getStoredThemeId();
   applyTheme(themeId);
-  buildThemeSelector();
+  buildSettingsMenu();
 
   // Listen for system preference changes
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
@@ -199,21 +245,19 @@ export function initTheme(): void {
 }
 
 function updateSelectorForTheme(themeId: string): void {
-  const btn = document.querySelector<HTMLButtonElement>(".theme-selector-btn");
-  const dropdown = document.querySelector(".theme-dropdown");
+  const btn = document.querySelector<HTMLButtonElement>(".settings-menu-btn");
+  const dropdown = document.querySelector(".settings-dropdown");
   if (!btn || !dropdown) return;
 
   const theme = THEMES.find((t) => t.id === themeId);
   if (!theme) return;
 
-  const label = btn.querySelector(".theme-selector-label");
   const swatch = btn.querySelector(".theme-swatch");
-  if (label) label.textContent = theme.name;
   if (swatch) swatch.innerHTML = createSwatchSpans(theme.preview);
 
   dropdown.querySelectorAll(".theme-option").forEach((el) => {
     const id = (el as HTMLElement).dataset.themeId;
     el.classList.toggle("active", id === themeId);
-    el.setAttribute("aria-selected", String(id === themeId));
+    el.setAttribute("aria-checked", String(id === themeId));
   });
 }

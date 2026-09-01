@@ -159,18 +159,13 @@ def topbar_context_html_for_note(
     heading_hidden = "" if heading is not None else " hidden"
     heading_text = escape(heading.text) if heading is not None else ""
 
-    present_html = (
-        f'<a class="topbar-present-action" href="{escape(present_url, quote=True)}">&#9654; Present</a>'
-        if present_url
-        else ""
-    )
+    present_attr = f' data-slide-note-url="{escape(present_url, quote=True)}"' if present_url else ""
     return f"""\
-<div class="topbar-context topbar-context-note" data-topbar-context="note">
+<div class="topbar-context topbar-context-note" data-topbar-context="note"{present_attr}>
   <nav class="topbar-breadcrumbs" aria-label="Current location">
     {_breadcrumbs_html(note.rel_path, note.url_path, url_transform)}
   </nav>
   <a class="topbar-current-heading" data-current-heading aria-live="polite"{heading_href}{heading_hidden}>{heading_text}</a>
-  {present_html}
 </div>"""
 
 
@@ -199,18 +194,13 @@ def topbar_context_html_for_directory(
     present_url: str | None = None,
 ) -> str:
     directory_name = escape(directory_display_name(dir_path))
-    present_html = (
-        f'<a class="topbar-present-action" href="{escape(present_url, quote=True)}">&#9654; Present All</a>'
-        if present_url
-        else ""
-    )
+    present_attr = f' data-slide-folder-url="{escape(present_url, quote=True)}"' if present_url else ""
     return f"""\
-<div class="topbar-context topbar-context-note" data-topbar-context="directory">
+<div class="topbar-context topbar-context-note" data-topbar-context="directory"{present_attr}>
   <nav class="topbar-breadcrumbs" aria-label="Current location">
     {_breadcrumbs_html(dir_path, current_url, url_transform)}
   </nav>
   <span class="topbar-current-heading" data-current-heading>{directory_name}/</span>
-  {present_html}
 </div>"""
 
 
@@ -261,6 +251,7 @@ def base_page_template(
     sidebar_right_title: str = "Page",
     graph_html: str = "",
     topbar_context_html: str = "",
+    vault_slides_url: str | None = None,
 ) -> str:
     """Wrap content in a basic HTML page template."""
     site_name = getattr(config, "site_name", "vaultpub") if config else "vaultpub"
@@ -268,7 +259,7 @@ def base_page_template(
     realtime = "true" if (config and getattr(config, "realtime", True)) else "false"
     logo_html = f'<img src="{site_logo}" alt="{site_name}" class="site-logo">' if site_logo else ""
     search_trigger = '<button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>'
-    wide_toggle = '<button class="topbar-layout-btn" type="button" data-layout-action="toggle-wide" aria-pressed="false">Wide</button>'
+    vault_slides_attr = f' data-vault-slides-url="{escape(vault_slides_url, quote=True)}"' if vault_slides_url else ""
     right_sidebar = sidebar_right_html + graph_html
     right_sidebar_title_html = escape(sidebar_right_title)
 
@@ -282,14 +273,13 @@ def base_page_template(
   <script src="/static/vaultpub/boot.js"></script>
   <link rel="stylesheet" href="/static/vaultpub/app.css">
 </head>
-<body data-realtime="{realtime}">
+<body data-realtime="{realtime}"{vault_slides_attr}>
   <header class="top-bar">
     <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle navigation">&#9776;</button>
     {logo_html}
     <span class="site-name">{site_name}</span>
     {topbar_context_html}
     <div class="topbar-actions">
-      {wide_toggle}
       {search_trigger}
     </div>
   </header>

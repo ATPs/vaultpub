@@ -487,7 +487,7 @@ Automatically generated for every note. A note's backlinks section shows all not
 
 ## Presentation Mode
 
-Every published Markdown note has a `▶ Present` action. Presentation Mode is another view of the same source Markdown: it does not edit, summarize, or require converting notes into a slide format.
+Presentation Mode is another view of the same source Markdown: it does not edit, summarize, or require converting notes into a slide format. On live pages, open **Settings** for Note in Slide View, Folder in Slide View, or Vault in Slide View. Text and code pages offer the vault action only.
 
 For existing notes, slides are chosen in this order:
 
@@ -559,7 +559,7 @@ slide:
 
 Bundled themes are `beige`, `black`, `black-contrast`, `blood`, `dracula`, `league`, `moon`, `night`, `serif`, `simple`, `sky`, `solarized`, `white`, and `white-contrast`. Valid transitions are `none`, `fade`, `slide`, `convex`, `concave`, and `zoom`.
 
-The standalone server uses `/_slides/<note-path>` and `/_slides-folder/<directory-path>/`; for example, `/_slides/AI-course/introduction.md`. Django uses the same routes below its mount, such as `/notes/_slides/AI-course/introduction.md`. Directory pages with visible Markdown descendants show `▶ Present All`; their decks recursively follow VaultPub's navigation order and use safe default presentation settings.
+The standalone server uses `/_slides/<note-path>`, `/_slides-folder/<directory-path>/`, and `/_slides-vault`; for example, `/_slides/AI-course/introduction.md`. Django uses the same routes below its mount, such as `/notes/_slides/AI-course/introduction.md`. Folder and whole-vault decks recursively follow VaultPub's navigation order, include only published visible Markdown notes, and use safe default presentation settings.
 
 Reveal.js provides arrow/space navigation, overview with `Esc`, slide numbers, hash navigation, controls, fullscreen-compatible display, and browser print/PDF support. Speaker notes and static-export presentation pages are not included yet; static export continues to publish article pages only.
 
@@ -615,6 +615,7 @@ Set `VAULTPUB["default"]["url_prefix"]` to the same mount path used in `include(
 | `/notes/assets/image.png` | Attachment serving |
 | `/notes/_slides/README.md` | Presentation for one note |
 | `/notes/_slides-folder/Folder/` | Presentation for a directory's visible descendant notes |
+| `/notes/_slides-vault` | Presentation for all visible published Markdown notes |
 
 ### Template Customization
 

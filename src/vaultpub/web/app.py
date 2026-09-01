@@ -25,6 +25,7 @@ from vaultpub.web.routes import (
     search_index,
     slides,
     slides_folder,
+    slides_vault,
 )
 from vaultpub.web.sse import events_version, sse_endpoint
 
@@ -84,6 +85,7 @@ def create_app(config: PublisherConfig) -> Starlette:
         Route("/api/graph/local/{path:path}", endpoint=api_graph, methods=["GET"]),
         Route("/api/events", endpoint=sse_endpoint, methods=["GET"]),
         Route("/api/events/version", endpoint=events_version, methods=["GET"]),
+        Route("/_slides-vault", endpoint=slides_vault, methods=["GET"], name="slides_vault"),
         Route("/_slides-folder/{path:path}", endpoint=slides_folder, methods=["GET"], name="slides_folder"),
         Route("/_slides/{path:path}", endpoint=slides, methods=["GET"], name="slides"),
     ]

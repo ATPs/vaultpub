@@ -288,23 +288,6 @@ body {
   text-decoration: none;
 }
 
-.topbar-present-action {
-  flex-shrink: 0;
-  padding: 0.3em 0.65em;
-  border: 1px solid var(--link-color);
-  border-radius: 999px;
-  color: var(--link-color);
-  font-size: 0.8em;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.topbar-present-action:hover {
-  color: var(--link-hover-color);
-  background: var(--code-bg);
-  text-decoration: none;
-}
-
 .topbar-code-tools {
   display: flex;
   align-items: center;
@@ -330,14 +313,14 @@ body {
 }
 
 /* ============================================================
-   Theme selector
+   Settings menu
    ============================================================ */
-.theme-selector {
+.settings-menu {
   position: relative;
   flex-shrink: 0;
 }
 
-.theme-selector-btn {
+.settings-menu-btn {
   display: flex;
   align-items: center;
   gap: 0.4em;
@@ -352,7 +335,7 @@ body {
   white-space: nowrap;
 }
 
-.theme-selector-btn:hover {
+.settings-menu-btn:hover {
   border-color: var(--link-color);
 }
 
@@ -368,17 +351,17 @@ body {
   display: inline-block;
 }
 
-.theme-selector-caret {
+.settings-menu-caret {
   font-size: 0.7em;
   color: var(--text-muted);
   transition: transform var(--transition-fast);
 }
 
-.theme-selector.open .theme-selector-caret {
+.settings-menu.open .settings-menu-caret {
   transform: rotate(180deg);
 }
 
-.theme-dropdown {
+.settings-dropdown {
   display: none;
   position: absolute;
   top: calc(100% + 6px);
@@ -396,15 +379,15 @@ body {
   -webkit-backdrop-filter: blur(24px) saturate(1.5);
 }
 
-.theme-glass-light .theme-dropdown {
+.theme-glass-light .settings-dropdown {
   background: rgba(255, 255, 255, 0.88);
 }
 
-.theme-glass-dark .theme-dropdown {
+.theme-glass-dark .settings-dropdown {
   background: rgba(30, 31, 34, 0.88);
 }
 
-.theme-selector.open .theme-dropdown {
+.settings-menu.open .settings-dropdown {
   display: block;
   animation: dropdownIn 0.15s ease;
 }
@@ -414,6 +397,7 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+.settings-dropdown-header,
 .theme-dropdown-header {
   font-size: 0.7em;
   font-weight: 650;
@@ -423,7 +407,7 @@ body {
   padding: 0.5em 0.7em 0.3em;
 }
 
-.theme-dropdown-header:first-child {
+.settings-dropdown-header:first-child {
   padding-top: 0.3em;
 }
 
@@ -469,6 +453,49 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 2px;
+}
+
+.settings-section {
+  border-top: 1px solid var(--border-color);
+  margin-top: 0.35em;
+  padding-top: 0.35em;
+}
+
+.settings-section:first-of-type {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.settings-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  padding: 0.5em 0.7em;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--text-color);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9em;
+  text-align: left;
+  text-decoration: none;
+}
+
+.settings-option:hover,
+.settings-option:focus-visible {
+  background: var(--code-bg);
+  color: var(--link-color);
+  outline: none;
+  text-decoration: none;
+}
+
+.settings-option[aria-pressed="true"]::after {
+  content: "On";
+  margin-left: auto;
+  color: var(--link-color);
+  font-size: 0.85em;
 }
 
 
@@ -1078,12 +1105,7 @@ body.code-wrap-enabled .text-page-embed pre code {
     max-width: none;
   }
 
-  .theme-selector-label {
-    display: none;
-  }
-
-  .theme-selector-btn,
-  .topbar-layout-btn,
+  .settings-menu-btn,
   .top-bar .search-trigger {
     padding-inline: 0.6em;
   }
@@ -1155,7 +1177,7 @@ body.code-wrap-enabled .text-page-embed pre code {
     padding: 1.2em;
   }
 
-  .theme-dropdown {
+  .settings-dropdown {
     right: -40px;
     min-width: 220px;
   }

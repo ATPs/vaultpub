@@ -194,6 +194,11 @@ def slides_folder(request: HttpRequest, directory_path: str) -> HttpResponse:
     return _slides_folder_from_state(request, directory_path, state)
 
 
+def slides_vault(request: HttpRequest) -> HttpResponse:
+    state = _get_state()
+    return _slides_vault_from_state(request, state)
+
+
 def _page_from_state(request: HttpRequest, note_path: str, state: dict) -> HttpResponse:
     rel_path = "/" + note_path
     canonical_to_note, _all_urls_to_note = _build_url_maps(state["index"])
@@ -414,6 +419,17 @@ def render_slides_folder_with_config(
     return _slides_folder_from_state(request, directory_path, state)
 
 
+def render_slides_vault_with_config(
+    request: HttpRequest,
+    config: PublisherConfig,
+    cache_key: str | None = None,
+    force_refresh: bool = False,
+) -> HttpResponse:
+    """Render the whole-vault presentation deck for a caller-provided configuration."""
+    state = build_state_for_config(config, cache_key=cache_key, force_refresh=force_refresh)
+    return _slides_vault_from_state(request, state)
+
+
 def render_attachment_with_config(
     request: HttpRequest,
     config: PublisherConfig,
@@ -541,6 +557,7 @@ def _render_note(request: HttpRequest, note: NoteRecord, state: dict | None = No
             url_transform=lambda url: _prefix_public_url(config, url),
             present_url=_prefix_public_url(config, _slide_url(note)),
         ),
+        "vault_slides_url": _prefix_public_url(config, _vault_slide_url()),
     }
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, note)
     context["show_graph"] = show_graph
@@ -574,6 +591,7 @@ def _render_text_page(request: HttpRequest, tp: TextPageRecord, state: dict | No
             tp,
             url_transform=lambda url: _prefix_public_url(config, url),
         ),
+        "vault_slides_url": _prefix_public_url(config, _vault_slide_url()),
     }
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, None)
     context["show_graph"] = show_graph
@@ -623,6 +641,7 @@ def _render_directory_page(request: HttpRequest, directory: NavNode, state: dict
                 else None
             ),
         ),
+        "vault_slides_url": _prefix_public_url(config, _vault_slide_url()),
     }
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, None)
     context["show_graph"] = show_graph
@@ -676,6 +695,31 @@ def _slides_folder_from_state(request: HttpRequest, directory_path: str, state: 
     )
 
 
+def _slides_vault_from_state(request: HttpRequest, state: dict) -> HttpResponse:
+    nav_tree = state["index"].nav_tree
+    if nav_tree is None:
+        raise Http404("Not found")
+
+    notes = collect_directory_notes(nav_tree, state["index"])
+    if not notes:
+        raise Http404("Not found")
+
+    config = state["config"]
+    rendered_slides = []
+    for note in notes:
+        namespace = f"slide-{note.id[:12]}"
+        rendered_slides.extend(state["renderer"].render_slides(note, heading_namespace=namespace))
+    rendered_slides = [replace(slide, html=_prefix_html_urls(slide.html, config)) for slide in rendered_slides]
+    return _render_slides(
+        request,
+        title=f"{config.site_name} - Presentation",
+        slides_html=slide_sections_html(rendered_slides),
+        options=SlideOptions(),
+        return_url=_prefix_public_url(config, "/"),
+        return_label="Vault",
+    )
+
+
 def _render_slides(
     request: HttpRequest,
     title: str,
@@ -704,6 +748,10 @@ def _slide_url(note: NoteRecord) -> str:
 
 def _folder_slide_url(directory: NavNode) -> str:
     return f"/_slides-folder/{directory.path}/"
+
+
+def _vault_slide_url() -> str:
+    return "/_slides-vault"
 
 
 def _render_text_page_content(tp: TextPageRecord, current_path: str | None = None) -> str:

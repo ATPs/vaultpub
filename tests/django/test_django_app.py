@@ -96,7 +96,9 @@ def test_django_page_uses_packaged_template(django_setup) -> None:
     assert response.status_code == 200
     assert b'class="top-bar"' in response.content
     assert b'class="topbar-context topbar-context-note"' in response.content
-    assert b'data-layout-action="toggle-wide"' in response.content
+    assert b'data-slide-note-url="/notes/_slides/README.md"' in response.content
+    assert b'data-vault-slides-url="/notes/_slides-vault"' in response.content
+    assert b'topbar-present-action' not in response.content
     assert b'data-nav-folder-layout="top"' in response.content
     assert b'title="Move folders to top bar"' in response.content
     assert b'data-current-heading' in response.content
@@ -254,7 +256,7 @@ def test_django_slide_page_uses_dedicated_layout_and_mount_prefix(django_setup, 
         response = client.get("/notes/_slides/README.md")
 
     assert article.status_code == 200
-    assert b'href="/notes/_slides/README.md"' in article.content
+    assert b'data-slide-note-url="/notes/_slides/README.md"' in article.content
     assert response.status_code == 200
     assert b'<div class="reveal"><div class="slides">' in response.content
     assert response.content.count(b'<section class="vaultpub-slide"') == 2
@@ -285,13 +287,52 @@ def test_django_folder_slides_are_recursive_and_reject_missing_or_private_notes(
         private = client.get("/notes/_slides/private/Secret.md")
 
     assert directory.status_code == 200
-    assert b'href="/notes/_slides-folder/Course/"' in directory.content
+    assert b'data-slide-folder-url="/notes/_slides-folder/Course/"' in directory.content
     assert response.status_code == 200
     assert response.content.count(b'<section class="vaultpub-slide"') == 3
     assert response.content.find(b"Course/Nested/B.md") < response.content.find(b"Course/A.md")
     assert b'href="/notes/Course/"' in response.content
     assert missing.status_code == 404
     assert private.status_code == 404
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_whole_vault_slides_follow_navigation_order_and_mount_prefix(django_setup, tmp_path: Path) -> None:
+    (tmp_path / "Course" / "Nested").mkdir(parents=True)
+    (tmp_path / "private").mkdir()
+    (tmp_path / "README.md").write_text("# README\n", encoding="utf-8")
+    (tmp_path / "Course" / "A.md").write_text("# A\n", encoding="utf-8")
+    (tmp_path / "Course" / "Nested" / "B.md").write_text("# B\n\n## Detail\n", encoding="utf-8")
+    (tmp_path / "private" / "Secret.md").write_text("# Secret\n", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("not Markdown\n", encoding="utf-8")
+    (tmp_path / "__order__.json").write_text('["Course/", "README.md"]', encoding="utf-8")
+    (tmp_path / "Course" / "__order__.json").write_text('["Nested/", "A.md"]', encoding="utf-8")
+
+    views._state_cache.clear()
+    with override_settings(
+        VAULTPUB={"default": {"vault_path": str(tmp_path), "url_prefix": "/notes/", "realtime": False}}
+    ):
+        response = Client().get("/notes/_slides-vault")
+
+    assert response.status_code == 200
+    assert response.content.count(b'<section class="vaultpub-slide"') == 4
+    assert response.content.find(b"Course/Nested/B.md") < response.content.find(b"Course/A.md") < response.content.find(b"README.md")
+    assert b"Secret.md" not in response.content
+    assert b'href="/notes/"' in response.content
+    assert b'"transition": "slide"' in response.content
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_whole_vault_slides_reject_empty_vault(django_setup, tmp_path: Path) -> None:
+    (tmp_path / "Empty").mkdir()
+
+    views._state_cache.clear()
+    with override_settings(
+        VAULTPUB={"default": {"vault_path": str(tmp_path), "url_prefix": "/notes/", "realtime": False}}
+    ):
+        response = Client().get("/notes/_slides-vault")
+
+    assert response.status_code == 404
 
 
 @override_settings(ROOT_URLCONF=__name__)

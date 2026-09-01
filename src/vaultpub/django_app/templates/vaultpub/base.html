@@ -8,14 +8,13 @@
   <script src="{% static 'vaultpub/boot.js' %}"></script>
   <link rel="stylesheet" href="{% static 'vaultpub/app.css' %}">
 </head>
-<body data-realtime="{% if realtime %}true{% else %}false{% endif %}" data-url-prefix="{{ url_prefix|default:'/' }}">
+<body data-realtime="{% if realtime %}true{% else %}false{% endif %}" data-url-prefix="{{ url_prefix|default:'/' }}"{% if vault_slides_url %} data-vault-slides-url="{{ vault_slides_url }}"{% endif %}>
   <header class="top-bar">
     <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle navigation">&#9776;</button>
     {% if site_logo %}<img src="{{ site_logo }}" alt="{{ site_name }}" class="site-logo">{% endif %}
     <span class="site-name">{{ site_name|default:"vaultpub" }}</span>
     {% if topbar_context_html %}{{ topbar_context_html|safe }}{% endif %}
     <div class="topbar-actions">
-      <button class="topbar-layout-btn" type="button" data-layout-action="toggle-wide" aria-pressed="false">Wide</button>
       {% if show_search %}<button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>{% endif %}
     </div>
   </header>

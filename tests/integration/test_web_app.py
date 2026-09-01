@@ -32,8 +32,8 @@ def test_root_renders_top_folder_navigation_toggle(client) -> None:
 
     assert response.status_code == 200
     assert 'data-nav-folder-layout="top"' in response.text
+    assert 'data-vault-slides-url="/_slides-vault"' in response.text
     assert 'title="Move folders to top bar"' in response.text
-    assert 'aria-pressed="false"' in response.text
 
 
 def test_scoped_notes_can_render_and_serve_vault_wide_attachments(tmp_path: Path) -> None:
@@ -78,7 +78,9 @@ def test_note_page(client) -> None:
     assert 'data-nav-sort' in response.text
     assert "Page" in response.text
     assert 'class="topbar-context topbar-context-note"' in response.text
-    assert 'data-layout-action="toggle-wide"' in response.text
+    assert 'data-layout-action="toggle-wide"' not in response.text
+    assert 'data-slide-note-url="/_slides/README.md"' in response.text
+    assert 'data-vault-slides-url="/_slides-vault"' in response.text
     assert 'data-current-heading' in response.text
     assert "Home" in response.text
     assert "README.md" in response.text
@@ -206,7 +208,7 @@ def test_standalone_slide_page_uses_reveal_without_article_chrome(tmp_path: Path
     response = client.get("/_slides/README.md")
 
     assert article.status_code == 200
-    assert 'href="/_slides/README.md"' in article.text
+    assert 'data-slide-note-url="/_slides/README.md"' in article.text
     assert response.status_code == 200
     assert '<div class="reveal"><div class="slides">' in response.text
     assert response.text.count('<section class="vaultpub-slide"') == 2
@@ -226,7 +228,7 @@ def test_standalone_folder_slides_follow_navigation_order(tmp_path: Path) -> Non
     response = client.get("/_slides-folder/Course/")
 
     assert directory.status_code == 200
-    assert 'href="/_slides-folder/Course/"' in directory.text
+    assert 'data-slide-folder-url="/_slides-folder/Course/"' in directory.text
     assert response.status_code == 200
     assert response.text.count('<section class="vaultpub-slide"') == 3
     assert response.text.find("Course/Nested/B.md") < response.text.find("Course/A.md")
@@ -244,6 +246,35 @@ def test_standalone_slide_routes_reject_private_non_markdown_and_empty_directori
     assert client.get("/_slides/private/Secret.md").status_code == 404
     assert client.get("/_slides/notes.txt").status_code == 404
     assert client.get("/_slides-folder/Empty/").status_code == 404
+
+
+def test_standalone_whole_vault_slides_follow_navigation_order_and_exclusions(tmp_path: Path) -> None:
+    (tmp_path / "Course" / "Nested").mkdir(parents=True)
+    (tmp_path / "private").mkdir()
+    (tmp_path / "README.md").write_text("# README\n", encoding="utf-8")
+    (tmp_path / "Course" / "A.md").write_text("# A\n", encoding="utf-8")
+    (tmp_path / "Course" / "Nested" / "B.md").write_text("# B\n\n## Detail\n", encoding="utf-8")
+    (tmp_path / "private" / "Secret.md").write_text("# Secret\n", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("not Markdown\n", encoding="utf-8")
+    (tmp_path / "__order__.json").write_text('["Course/", "README.md"]', encoding="utf-8")
+    (tmp_path / "Course" / "__order__.json").write_text('["Nested/", "A.md"]', encoding="utf-8")
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
+
+    response = client.get("/_slides-vault")
+
+    assert response.status_code == 200
+    assert response.text.count('<section class="vaultpub-slide"') == 4
+    assert response.text.find("Course/Nested/B.md") < response.text.find("Course/A.md") < response.text.find("README.md")
+    assert "Secret.md" not in response.text
+    assert 'href="/"' in response.text
+    assert '"transition": "slide"' in response.text
+
+
+def test_standalone_whole_vault_slides_reject_empty_vault(tmp_path: Path) -> None:
+    (tmp_path / "Empty").mkdir()
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
+
+    assert client.get("/_slides-vault").status_code == 404
 
 
 def test_api_page(client) -> None:
@@ -318,7 +349,8 @@ def test_force_included_text_page_renders_topbar_code_tools(tmp_path: Path) -> N
     response = client.get("/tools/example.py")
     assert response.status_code == 200
     assert 'class="topbar-context topbar-context-code"' in response.text
-    assert 'data-layout-action="toggle-wide"' in response.text
+    assert 'data-layout-action="toggle-wide"' not in response.text
+    assert 'data-vault-slides-url="/_slides-vault"' in response.text
     assert 'href="/tools/" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in response.text
     assert 'href="/tools/example.py" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in response.text
     assert 'data-code-action="copy-path"' in response.text
