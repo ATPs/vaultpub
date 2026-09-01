@@ -10,15 +10,16 @@ vaultpub is **not** an Obsidian Publish client. It does not require an Obsidian 
 2. [CLI Commands](#cli-commands)
 3. [Configuration](#configuration)
 4. [Obsidian Syntax Support](#obsidian-syntax-support)
-5. [Django Integration](#django-integration)
-6. [Python API](#python-api)
-7. [Static Export](#static-export)
-8. [Realtime Updates](#realtime-updates)
-9. [Security](#security)
-10. [Frontend Features](#frontend-features)
-11. [Troubleshooting](#troubleshooting)
-12. [Development](#development)
-13. [License](#license)
+5. [Presentation Mode](#presentation-mode)
+6. [Django Integration](#django-integration)
+7. [Python API](#python-api)
+8. [Static Export](#static-export)
+9. [Realtime Updates](#realtime-updates)
+10. [Security](#security)
+11. [Frontend Features](#frontend-features)
+12. [Troubleshooting](#troubleshooting)
+13. [Development](#development)
+14. [License](#license)
 
 ---
 
@@ -484,6 +485,86 @@ Automatically generated for every note. A note's backlinks section shows all not
 
 ---
 
+## Presentation Mode
+
+Every published Markdown note has a `▶ Present` action. Presentation Mode is another view of the same source Markdown: it does not edit, summarize, or require converting notes into a slide format.
+
+For existing notes, slides are chosen in this order:
+
+```text
+explicit --- separators
+    ↓
+automatic H2 splitting
+    ↓
+one scrollable slide
+```
+
+For example, this ordinary article becomes a title/intro slide followed by Quality Control, PCA, and UMAP slides without changing the file:
+
+```markdown
+# Single-cell RNA-seq
+
+Introduction.
+
+## Quality Control
+
+- nFeature
+- nCount
+- percent.mt
+
+## PCA
+
+PCA...
+
+## UMAP
+
+UMAP...
+```
+
+Add standalone `---` lines only when you want exact slide boundaries. Explicit separators always override automatic H2 splitting. Separators inside frontmatter and fenced code blocks are ignored.
+
+```markdown
+# Title
+
+Intro
+
+---
+
+## Custom slide
+
+---
+
+## Another slide
+```
+
+Long notes without H2 headings remain a single presentation section with vertical scrolling, preserving all content. Wikilinks, embeds, images, callouts, Mermaid, KaTeX, code blocks, tables, and normal internal/external links use the same VaultPub rendering rules as Article Mode.
+
+Optional frontmatter safely configures an individual note deck. Only the documented values are accepted; arbitrary JavaScript, plugins, and remote assets are ignored.
+
+```yaml
+---
+slides: true
+slide:
+  theme: white
+  transition: slide
+  controls: true
+  progress: true
+  slideNumber: true
+  center: true
+  width: 1600
+  height: 900
+  hash: true
+---
+```
+
+Bundled themes are `beige`, `black`, `black-contrast`, `blood`, `dracula`, `league`, `moon`, `night`, `serif`, `simple`, `sky`, `solarized`, `white`, and `white-contrast`. Valid transitions are `none`, `fade`, `slide`, `convex`, `concave`, and `zoom`.
+
+The standalone server uses `/_slides/<note-path>` and `/_slides-folder/<directory-path>/`; for example, `/_slides/AI-course/introduction.md`. Django uses the same routes below its mount, such as `/notes/_slides/AI-course/introduction.md`. Directory pages with visible Markdown descendants show `▶ Present All`; their decks recursively follow VaultPub's navigation order and use safe default presentation settings.
+
+Reveal.js provides arrow/space navigation, overview with `Esc`, slide numbers, hash navigation, controls, fullscreen-compatible display, and browser print/PDF support. Speaker notes and static-export presentation pages are not included yet; static export continues to publish article pages only.
+
+---
+
 ## Django Integration
 
 ### Setup
@@ -532,6 +613,8 @@ Set `VAULTPUB["default"]["url_prefix"]` to the same mount path used in `include(
 | `/notes/api/graph` | Graph data API |
 | `/notes/api/graph/local/README` | Local graph API |
 | `/notes/assets/image.png` | Attachment serving |
+| `/notes/_slides/README.md` | Presentation for one note |
+| `/notes/_slides-folder/Folder/` | Presentation for a directory's visible descendant notes |
 
 ### Template Customization
 

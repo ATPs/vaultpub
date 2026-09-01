@@ -20,6 +20,8 @@ pnpm-debug.log*
 # Frontend build output
 src/vaultpub/django_app/static/vaultpub/app.css
 src/vaultpub/django_app/static/vaultpub/app.js
+src/vaultpub/django_app/static/vaultpub/slides.css
+src/vaultpub/django_app/static/vaultpub/slides.js
 src/vaultpub/django_app/static/vaultpub/assets/
 
 # Testing

@@ -5,6 +5,7 @@
 import "./styles/base.css";
 import "./styles/themes.css";
 import "./styles/callouts.css";
+import "./styles/highlight.css";
 import "./styles/layout.css";
 import { initTheme } from "./theme";
 import { initSearch } from "./search";

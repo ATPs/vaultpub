@@ -37,7 +37,7 @@ def get_publisher_configs() -> dict[str, PublisherConfig]:
             "show_theme_toggle": site_data.get("show_theme_toggle", True),
             "show_hover_preview": site_data.get("show_hover_preview", True),
             "hidden_file_access": site_data.get("hidden_file_access", False),
-            "exclude_folders": tuple(site_data.get("exclude_folders", ())),
+            "exclude_folders": tuple(site_data.get("exclude_folders", PublisherConfig.exclude_folders)),
             "enable_mermaid": site_data.get("enable_mermaid", True),
             "enable_math": site_data.get("enable_math", True),
         }

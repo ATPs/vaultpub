@@ -197,6 +197,55 @@ def test_folder_note(client) -> None:
     assert 'href="/Folder/B.md" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in response.text
 
 
+def test_standalone_slide_page_uses_reveal_without_article_chrome(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# Title\n\nIntro\n\n## Second\n\n[[Target]]\n", encoding="utf-8")
+    (tmp_path / "Target.md").write_text("# Target\n", encoding="utf-8")
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
+
+    article = client.get("/README.md")
+    response = client.get("/_slides/README.md")
+
+    assert article.status_code == 200
+    assert 'href="/_slides/README.md"' in article.text
+    assert response.status_code == 200
+    assert '<div class="reveal"><div class="slides">' in response.text
+    assert response.text.count('<section class="vaultpub-slide"') == 2
+    assert 'class="top-bar"' not in response.text
+    assert 'href="/README.md"' in response.text
+    assert 'href="/Target.md"' in response.text
+
+
+def test_standalone_folder_slides_follow_navigation_order(tmp_path: Path) -> None:
+    (tmp_path / "Course" / "Nested").mkdir(parents=True)
+    (tmp_path / "Course" / "A.md").write_text("# A\n", encoding="utf-8")
+    (tmp_path / "Course" / "Nested" / "B.md").write_text("# B\n\n## Detail\n", encoding="utf-8")
+    (tmp_path / "Course" / "__order__.json").write_text('["Nested/", "A.md"]', encoding="utf-8")
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
+
+    directory = client.get("/Course/")
+    response = client.get("/_slides-folder/Course/")
+
+    assert directory.status_code == 200
+    assert 'href="/_slides-folder/Course/"' in directory.text
+    assert response.status_code == 200
+    assert response.text.count('<section class="vaultpub-slide"') == 3
+    assert response.text.find("Course/Nested/B.md") < response.text.find("Course/A.md")
+    assert 'href="/Course/"' in response.text
+
+
+def test_standalone_slide_routes_reject_private_non_markdown_and_empty_directories(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# README\n", encoding="utf-8")
+    (tmp_path / "private").mkdir()
+    (tmp_path / "private" / "Secret.md").write_text("# Secret\n", encoding="utf-8")
+    (tmp_path / "notes.txt").write_text("not Markdown\n", encoding="utf-8")
+    (tmp_path / "Empty").mkdir()
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
+
+    assert client.get("/_slides/private/Secret.md").status_code == 404
+    assert client.get("/_slides/notes.txt").status_code == 404
+    assert client.get("/_slides-folder/Empty/").status_code == 404
+
+
 def test_api_page(client) -> None:
     response = client.get("/api/page/README.md")
     assert response.status_code == 200

@@ -237,6 +237,64 @@ def test_django_nested_note_breadcrumb_links_use_mount_prefix(django_setup) -> N
 
 
 @override_settings(ROOT_URLCONF=__name__)
+def test_django_slide_page_uses_dedicated_layout_and_mount_prefix(django_setup, tmp_path: Path) -> None:
+    (tmp_path / "images").mkdir()
+    (tmp_path / "images" / "figure.png").write_bytes(b"image")
+    (tmp_path / "README.md").write_text(
+        "---\nslide:\n  theme: dracula\n  transition: fade\n---\n\n# Title\n\nIntro\n\n## Second\n\n![[images/figure.png]]\n",
+        encoding="utf-8",
+    )
+
+    views._state_cache.clear()
+    with override_settings(
+        VAULTPUB={"default": {"vault_path": str(tmp_path), "url_prefix": "/notes/", "realtime": False}}
+    ):
+        client = Client()
+        article = client.get("/notes/README.md")
+        response = client.get("/notes/_slides/README.md")
+
+    assert article.status_code == 200
+    assert b'href="/notes/_slides/README.md"' in article.content
+    assert response.status_code == 200
+    assert b'<div class="reveal"><div class="slides">' in response.content
+    assert response.content.count(b'<section class="vaultpub-slide"') == 2
+    assert b'class="top-bar"' not in response.content
+    assert b'href="/notes/README.md"' in response.content
+    assert b'src="/notes/assets/images/figure.png"' in response.content
+    assert b'reveal-themes/dracula.css' in response.content
+    assert b'"transition": "fade"' in response.content
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_folder_slides_are_recursive_and_reject_missing_or_private_notes(django_setup, tmp_path: Path) -> None:
+    (tmp_path / "Course" / "Nested").mkdir(parents=True)
+    (tmp_path / "private").mkdir()
+    (tmp_path / "Course" / "A.md").write_text("# A\n", encoding="utf-8")
+    (tmp_path / "Course" / "Nested" / "B.md").write_text("# B\n\n## Detail\n", encoding="utf-8")
+    (tmp_path / "private" / "Secret.md").write_text("# Secret\n", encoding="utf-8")
+    (tmp_path / "Course" / "__order__.json").write_text('["Nested/", "A.md"]', encoding="utf-8")
+
+    views._state_cache.clear()
+    with override_settings(
+        VAULTPUB={"default": {"vault_path": str(tmp_path), "url_prefix": "/notes/", "realtime": False}}
+    ):
+        client = Client()
+        directory = client.get("/notes/Course/")
+        response = client.get("/notes/_slides-folder/Course/")
+        missing = client.get("/notes/_slides/missing.md")
+        private = client.get("/notes/_slides/private/Secret.md")
+
+    assert directory.status_code == 200
+    assert b'href="/notes/_slides-folder/Course/"' in directory.content
+    assert response.status_code == 200
+    assert response.content.count(b'<section class="vaultpub-slide"') == 3
+    assert response.content.find(b"Course/Nested/B.md") < response.content.find(b"Course/A.md")
+    assert b'href="/notes/Course/"' in response.content
+    assert missing.status_code == 404
+    assert private.status_code == 404
+
+
+@override_settings(ROOT_URLCONF=__name__)
 def test_django_mount_prefixes_local_resource_urls(django_setup, vault_local_resources) -> None:
     views._state_cache.clear()
     with override_settings(

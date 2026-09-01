@@ -33,6 +33,7 @@ from vaultpub.core.parser.obsidian_links import (
 )
 from vaultpub.core.paths import file_display_name, safe_join
 from vaultpub.core.render.sanitize import add_external_link_attrs, sanitize_html
+from vaultpub.core.render.slides import RenderedSlide, segment_slides
 from vaultpub.core.security import infer_language, is_path_excluded, is_text_file
 
 _PLACEHOLDER_RE = re.compile(r"VAULTPUB_PLACEHOLDER_(\d+)")
@@ -80,6 +81,50 @@ class Renderer:
 
     def render_note(self, note: NoteRecord, embed_depth: int = 0) -> str:
         _frontmatter, content, _body_start = parse_frontmatter(note.raw_markdown)
+        html, _consumed = self._render_markdown_content(content, note, embed_depth=embed_depth)
+        return html
+
+    def render_slides(self, note: NoteRecord, heading_namespace: str | None = None) -> list[RenderedSlide]:
+        """Render one note as independently navigable slide fragments."""
+        segmented = segment_slides(note.raw_markdown)
+        slides: list[RenderedSlide] = []
+        heading_offset = 0
+        namespace_anchor_map = (
+            {heading.slug: f"{heading_namespace}-{heading.slug}" for heading in note.headings}
+            if heading_namespace
+            else None
+        )
+
+        for index, fragment in enumerate(segmented.fragments):
+            html, consumed = self._render_markdown_content(
+                fragment,
+                note,
+                heading_offset=heading_offset,
+                heading_namespace=heading_namespace,
+                namespace_anchor_map=namespace_anchor_map,
+            )
+            heading_offset += consumed
+            slides.append(
+                RenderedSlide(
+                    html=html,
+                    source_note_id=note.id,
+                    source_path=note.rel_path.as_posix(),
+                    index=index,
+                    mode=segmented.mode,
+                )
+            )
+
+        return slides
+
+    def _render_markdown_content(
+        self,
+        content: str,
+        note: NoteRecord,
+        embed_depth: int = 0,
+        heading_offset: int = 0,
+        heading_namespace: str | None = None,
+        namespace_anchor_map: dict[str, str] | None = None,
+    ) -> tuple[str, int]:
         content = strip_obsidian_comments(content)
         placeholders: dict[int, str] = {}
         counter = 0
@@ -98,7 +143,12 @@ class Renderer:
         )
 
         # Phase 3: Add anchors to headings from this note before restoring embedded HTML.
-        html = self._add_heading_anchors(html, note)
+        html, consumed_headings, anchor_map = self._add_heading_anchors(
+            html,
+            note,
+            heading_offset=heading_offset,
+            heading_namespace=heading_namespace,
+        )
 
         # Phase 4: Restore placeholders
         html = self._restore_placeholders(html, placeholders)
@@ -108,12 +158,27 @@ class Renderer:
         html = self._rewrite_local_anchor_tags(html, note)
         html = self._rewrite_local_html_urls(html, note)
 
+        if heading_namespace:
+            html = self._rewrite_fragment_anchor_links(html, namespace_anchor_map or anchor_map)
+
         # Phase 6: Sanitize and add external link attrs
         if self.config.html_safe_mode:
             html = sanitize_html(html)
         html = add_external_link_attrs(html)
 
-        return html
+        return html, consumed_headings
+
+    @staticmethod
+    def _rewrite_fragment_anchor_links(html: str, anchor_map: dict[str, str]) -> str:
+        def _replace(match: re.Match[str]) -> str:
+            source_slug = match.group("slug")
+            target_slug = anchor_map.get(source_slug) or anchor_map.get(_slugify(unquote(source_slug)))
+            if target_slug is None:
+                return match.group(0)
+            return f'{match.group("prefix")}#{escape(target_slug, quote=True)}{match.group("quote")}'
+
+        anchor_re = re.compile(r'(?P<prefix>\shref=["\'])(?P<hash>#)(?P<slug>[^"\']+)(?P<quote>["\'])')
+        return anchor_re.sub(_replace, html)
 
     def _placeholder(self, counter: int) -> str:
         return f"VAULTPUB_PLACEHOLDER_{counter}"
@@ -652,15 +717,27 @@ class Renderer:
         result = inline_re.sub(_replace_inline, result)
         return result, counter
 
-    def _add_heading_anchors(self, html: str, note: NoteRecord) -> str:
-        headings = iter(note.headings)
+    def _add_heading_anchors(
+        self,
+        html: str,
+        note: NoteRecord,
+        heading_offset: int = 0,
+        heading_namespace: str | None = None,
+    ) -> tuple[str, int, dict[str, str]]:
+        headings = iter(note.headings[heading_offset:])
+        consumed = 0
+        anchor_map: dict[str, str] = {}
 
         def _add_anchor(match: re.Match) -> str:
+            nonlocal consumed
             level = int(match.group("level"))
             attrs = match.group("attrs")
             body = match.group("body")
             heading = next(headings, None)
-            slug = heading.slug if heading is not None else _slugify(_strip_html_tags(body))
+            source_slug = heading.slug if heading is not None else _slugify(_strip_html_tags(body))
+            slug = f"{heading_namespace}-{source_slug}" if heading_namespace else source_slug
+            anchor_map.setdefault(source_slug, slug)
+            consumed += 1
             safe_slug = escape(slug, quote=True)
             attrs = re.sub(r'\s+id=(["\']).*?\1', "", attrs, flags=re.IGNORECASE | re.DOTALL)
             return (
@@ -672,7 +749,7 @@ class Renderer:
             r"<h(?P<level>[1-6])(?P<attrs>[^>]*)>(?P<body>.*?)</h(?P=level)>",
             re.DOTALL,
         )
-        return heading_re.sub(_add_anchor, html)
+        return heading_re.sub(_add_anchor, html), consumed, anchor_map
 
     def render_article_html(self, note: NoteRecord, current_path: str | None = None) -> str:
         body = self.render_note(note)

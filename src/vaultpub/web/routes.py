@@ -19,6 +19,7 @@ from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.paths import safe_join
 from vaultpub.core.render.renderer import Renderer
+from vaultpub.core.render.slides import SlideOptions, collect_directory_notes, slide_options
 from vaultpub.core.render.seo import build_meta_tags
 from vaultpub.core.render.templates import (
     base_page_template,
@@ -29,6 +30,8 @@ from vaultpub.core.render.templates import (
     graph_container_html,
     nav_tree_html,
     sidebar_graph_state,
+    slide_sections_html,
+    slides_page_template,
     topbar_context_html_for_directory,
     topbar_context_html_for_note,
     topbar_context_html_for_text_page,
@@ -110,6 +113,47 @@ async def page(request: Request) -> HTMLResponse:
         return _render_text_page(request, tp)
 
     return HTMLResponse("Not found", status_code=404)
+
+
+async def slides(request: Request) -> HTMLResponse:
+    state = _get_state(request)
+    path = request.path_params.get("path", "")
+    note = _build_url_maps(state.index)[0].get("/" + path)
+    if note is None or not is_path_public(note.rel_path.as_posix(), state.config):
+        return HTMLResponse("Not found", status_code=404)
+
+    page_html = slides_page_template(
+        title=f"{note.title} - Presentation",
+        slides_html=slide_sections_html(state.renderer.render_slides(note)),
+        options=slide_options(note.frontmatter),
+        return_url=note.url_path,
+        return_label="Article",
+    )
+    return HTMLResponse(page_html)
+
+
+async def slides_folder(request: Request) -> HTMLResponse:
+    state = _get_state(request)
+    path = request.path_params.get("path", "")
+    directory = _resolve_directory(state.index.nav_tree, path)
+    if directory is None or directory.path in ("", "."):
+        return HTMLResponse("Not found", status_code=404)
+
+    notes = collect_directory_notes(directory, state.index)
+    if not notes:
+        return HTMLResponse("Not found", status_code=404)
+
+    rendered_slides = []
+    for note in notes:
+        rendered_slides.extend(state.renderer.render_slides(note, heading_namespace=f"slide-{note.id[:12]}"))
+    page_html = slides_page_template(
+        title=f"{directory.label} - Presentation",
+        slides_html=slide_sections_html(rendered_slides),
+        options=SlideOptions(),
+        return_url=directory.url,
+        return_label="Folder",
+    )
+    return HTMLResponse(page_html)
 
 
 async def attachment(request: Request) -> Response:
@@ -245,7 +289,7 @@ def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:
     if state.index.nav_tree:
         nav_html = "<ul>" + nav_tree_html(state.index.nav_tree) + "</ul>"
     head = build_meta_tags(note, state.config)
-    topbar_context_html = topbar_context_html_for_note(note)
+    topbar_context_html = topbar_context_html_for_note(note, present_url=f"/_slides{note.url_path}")
     page_str = base_page_template(
         body_html,
         nav_html,
@@ -279,6 +323,7 @@ def _render_directory_page(request: Request, directory: NavNode) -> HTMLResponse
     topbar_context_html = topbar_context_html_for_directory(
         PurePosixPath(directory.path),
         current_url=directory.url,
+        present_url=(f"/_slides-folder/{directory.path}/" if collect_directory_notes(directory, state.index) else None),
     )
     page_str = base_page_template(
         body_html,

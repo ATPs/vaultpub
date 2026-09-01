@@ -1,0 +1,145 @@
+@import "./callouts.css";
+@import "./highlight.css";
+
+.vaultpub-slides {
+  --text-color: #1f2937;
+  --text-muted: #6b7280;
+  --link-color: #2563eb;
+  --link-hover-color: #1d4ed8;
+  --code-bg: rgba(127, 127, 127, 0.14);
+  --border-color: rgba(127, 127, 127, 0.35);
+  --shadow-sm: none;
+  --radius: 8px;
+  --callout-note-bg: rgba(59, 130, 246, 0.12);
+  --callout-note-border: #3b82f6;
+  --callout-tip-bg: rgba(34, 197, 94, 0.12);
+  --callout-tip-border: #22c55e;
+  --callout-warning-bg: rgba(245, 158, 11, 0.14);
+  --callout-warning-border: #f59e0b;
+  --callout-danger-bg: rgba(239, 68, 68, 0.12);
+  --callout-danger-border: #ef4444;
+}
+
+.vaultpub-slides[data-reveal-theme="black"],
+.vaultpub-slides[data-reveal-theme="black-contrast"],
+.vaultpub-slides[data-reveal-theme="blood"],
+.vaultpub-slides[data-reveal-theme="dracula"],
+.vaultpub-slides[data-reveal-theme="moon"],
+.vaultpub-slides[data-reveal-theme="night"] {
+  --text-color: #f3f4f6;
+  --text-muted: #cbd5e1;
+  --link-color: #93c5fd;
+  --link-hover-color: #bfdbfe;
+  --code-bg: rgba(255, 255, 255, 0.1);
+  --border-color: rgba(255, 255, 255, 0.3);
+}
+
+.vaultpub-slides .reveal {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.vaultpub-slides .reveal .slides > section.vaultpub-slide {
+  box-sizing: border-box;
+  height: 100%;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.vaultpub-slide-content {
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 1.25rem 2rem 2rem;
+  color: var(--text-color);
+  font-size: clamp(1rem, 1.45vw, 1.55rem);
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
+.vaultpub-slide-content h1,
+.vaultpub-slide-content h2,
+.vaultpub-slide-content h3,
+.vaultpub-slide-content h4,
+.vaultpub-slide-content h5,
+.vaultpub-slide-content h6 {
+  margin: 0.8em 0 0.45em;
+  color: inherit;
+  line-height: 1.2;
+}
+
+.vaultpub-slide-content h1:first-child,
+.vaultpub-slide-content h2:first-child,
+.vaultpub-slide-content h3:first-child {
+  margin-top: 0;
+}
+
+.vaultpub-slide-content h1 { font-size: 2.1em; }
+.vaultpub-slide-content h2 { font-size: 1.65em; }
+.vaultpub-slide-content h3 { font-size: 1.3em; }
+.vaultpub-slide-content p,
+.vaultpub-slide-content ul,
+.vaultpub-slide-content ol,
+.vaultpub-slide-content blockquote { margin: 0.7em 0; }
+.vaultpub-slide-content li + li { margin-top: 0.3em; }
+
+.vaultpub-slide-content a { color: var(--link-color); }
+.vaultpub-slide-content a:hover { color: var(--link-hover-color); }
+.vaultpub-slide-content img,
+.vaultpub-slide-content video,
+.vaultpub-slide-content iframe {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  height: auto;
+  margin: 0.8em auto;
+  object-fit: contain;
+}
+
+.vaultpub-slide-content .mermaid {
+  max-width: 100%;
+  max-height: 65vh;
+  overflow: auto;
+}
+
+.vaultpub-slide-content pre {
+  max-width: 100%;
+  max-height: 55vh;
+  padding: 0.75em 1em;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--code-bg);
+  font-size: 0.72em;
+}
+
+.vaultpub-slide-content code { overflow-wrap: anywhere; }
+.vaultpub-slide-content table { display: block; max-width: 100%; overflow-x: auto; font-size: 0.78em; }
+.vaultpub-slide-content th,
+.vaultpub-slide-content td { padding: 0.45em 0.65em; border: 1px solid var(--border-color); }
+.vaultpub-slide-content blockquote { border-left: 3px solid var(--border-color); padding-left: 0.8em; }
+.vaultpub-slide-content .heading-anchor { display: none; }
+
+.slides-return {
+  position: fixed;
+  z-index: 20;
+  bottom: 1rem;
+  left: 1rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.4rem;
+  color: inherit;
+  background: color-mix(in srgb, #000 55%, transparent);
+  font: 0.9rem/1.2 system-ui, sans-serif;
+  opacity: 0.55;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+
+.slides-return:hover,
+.slides-return:focus-visible { color: #fff; opacity: 1; }
+
+@media (max-width: 700px) {
+  .vaultpub-slide-content { padding: 0.75rem 1rem 1.5rem; font-size: clamp(0.9rem, 4vw, 1.15rem); }
+  .vaultpub-slide-content img,
+  .vaultpub-slide-content video,
+  .vaultpub-slide-content iframe { max-height: 55vh; }
+  .slides-return { bottom: 0.5rem; left: 0.5rem; }
+}

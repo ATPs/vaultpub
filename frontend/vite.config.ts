@@ -7,31 +7,35 @@ export default defineConfig({
     {
       name: "format-entry-bundle",
       async generateBundle(_, bundle) {
-        const entry = bundle["app.js"];
-        if (!entry || entry.type !== "chunk") return;
-
-        const formatted = await transform(entry.code, {
-          format: "esm",
-          legalComments: "none",
-          minify: false,
-          target: "esnext",
-        });
-        entry.code = formatted.code;
+        for (const entryName of ["app.js", "slides.js"]) {
+          const entry = bundle[entryName];
+          if (!entry || entry.type !== "chunk") continue;
+          const formatted = await transform(entry.code, {
+            format: "esm",
+            legalComments: "none",
+            minify: false,
+            target: "esnext",
+          });
+          entry.code = formatted.code;
+        }
       },
     },
   ],
   build: {
     outDir: "../src/vaultpub/django_app/static/vaultpub",
     emptyOutDir: true,
-    cssCodeSplit: false,
+    cssCodeSplit: true,
     rollupOptions: {
-      input: "src/app.ts",
+      input: {
+        app: "src/app.ts",
+        slides: "src/slides.ts",
+      },
       output: {
-        entryFileNames: "app.js",
+        entryFileNames: "[name].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: (assetInfo) => {
           const name = assetInfo.name || "";
-          if (name.endsWith(".css")) return "app.css";
+          if (name === "app.css" || name === "slides.css") return name;
           return "assets/[name]-[hash][extname]";
         },
       },

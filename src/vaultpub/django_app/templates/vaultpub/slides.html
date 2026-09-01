@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'vaultpub/slides.css' %}">
+  <link rel="stylesheet" href="{% static 'vaultpub/assets/reveal-themes/' %}{{ reveal_theme }}.css">
+</head>
+<body class="vaultpub-slides" data-reveal-theme="{{ reveal_theme }}">
+  <a class="slides-return" href="{{ return_url }}">&larr; {{ return_label }}</a>
+  <div class="reveal"><div class="slides">{{ slides_html|safe }}</div></div>
+  {{ reveal_config|json_script:"vaultpub-slides-config" }}
+  <script type="module" src="{% static 'vaultpub/slides.js' %}"></script>
+</body>
+</html>

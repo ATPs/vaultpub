@@ -2,8 +2,6 @@
  * Initialize syntax highlighting for code blocks using highlight.js.
  * Only loaded when <pre><code> elements exist on the page.
  */
-import "./styles/highlight.css";
-
 /**
  * Split a highlighted code block into line fragments without corrupting spans.
  *

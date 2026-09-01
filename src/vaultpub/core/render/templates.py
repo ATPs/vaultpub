@@ -3,10 +3,12 @@ from __future__ import annotations
 
 from html import escape
 from pathlib import PurePosixPath
+import json
 from typing import Callable, Iterable
 
 from vaultpub.core.models import GraphData, Heading, NavNode, NoteRecord, TextPageRecord
 from vaultpub.core.paths import directory_display_name, directory_path_to_url_path
+from vaultpub.core.render.slides import RenderedSlide, SlideOptions
 
 
 def build_local_graph(graph: GraphData, note: NoteRecord) -> GraphData:
@@ -150,18 +152,25 @@ def _language_label(text_page: TextPageRecord) -> str:
 def topbar_context_html_for_note(
     note: NoteRecord,
     url_transform: Callable[[str], str] | None = None,
+    present_url: str | None = None,
 ) -> str:
     heading = _preferred_heading(note)
     heading_href = f' href="#{escape(heading.slug, quote=True)}"' if heading is not None else ""
     heading_hidden = "" if heading is not None else " hidden"
     heading_text = escape(heading.text) if heading is not None else ""
 
+    present_html = (
+        f'<a class="topbar-present-action" href="{escape(present_url, quote=True)}">&#9654; Present</a>'
+        if present_url
+        else ""
+    )
     return f"""\
 <div class="topbar-context topbar-context-note" data-topbar-context="note">
   <nav class="topbar-breadcrumbs" aria-label="Current location">
     {_breadcrumbs_html(note.rel_path, note.url_path, url_transform)}
   </nav>
   <a class="topbar-current-heading" data-current-heading aria-live="polite"{heading_href}{heading_hidden}>{heading_text}</a>
+  {present_html}
 </div>"""
 
 
@@ -187,15 +196,60 @@ def topbar_context_html_for_directory(
     dir_path: PurePosixPath,
     current_url: str,
     url_transform: Callable[[str], str] | None = None,
+    present_url: str | None = None,
 ) -> str:
     directory_name = escape(directory_display_name(dir_path))
+    present_html = (
+        f'<a class="topbar-present-action" href="{escape(present_url, quote=True)}">&#9654; Present All</a>'
+        if present_url
+        else ""
+    )
     return f"""\
 <div class="topbar-context topbar-context-note" data-topbar-context="directory">
   <nav class="topbar-breadcrumbs" aria-label="Current location">
     {_breadcrumbs_html(dir_path, current_url, url_transform)}
   </nav>
   <span class="topbar-current-heading" data-current-heading>{directory_name}/</span>
+  {present_html}
 </div>"""
+
+
+def slide_sections_html(slides: Iterable[RenderedSlide]) -> str:
+    """Render sanitized slide fragments as Reveal sections."""
+    return "".join(
+        f'<section class="vaultpub-slide" data-source-note="{escape(slide.source_note_id, quote=True)}" '
+        f'data-source-path="{escape(slide.source_path, quote=True)}">'
+        f'<div class="markdown-body vaultpub-slide-content">{slide.html}</div></section>'
+        for slide in slides
+    )
+
+
+def slides_page_template(
+    title: str,
+    slides_html: str,
+    options: SlideOptions,
+    return_url: str,
+    return_label: str,
+) -> str:
+    """Return the standalone ASGI presentation document."""
+    config_json = json.dumps(options.reveal_config()).replace("<", "\\u003c").replace(">", "\\u003e")
+    return f"""\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{escape(title)}</title>
+  <link rel="stylesheet" href="/static/vaultpub/slides.css">
+  <link rel="stylesheet" href="/static/vaultpub/assets/reveal-themes/{escape(options.theme, quote=True)}.css">
+</head>
+<body class="vaultpub-slides" data-reveal-theme="{escape(options.theme, quote=True)}">
+  <a class="slides-return" href="{escape(return_url, quote=True)}">&larr; {escape(return_label)}</a>
+  <div class="reveal"><div class="slides">{slides_html}</div></div>
+  <script id="vaultpub-slides-config" type="application/json">{config_json}</script>
+  <script type="module" src="/static/vaultpub/slides.js"></script>
+</body>
+</html>"""
 
 
 def base_page_template(

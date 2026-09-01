@@ -40,6 +40,8 @@ def test_build_static_site(vault_basic) -> None:
         assert 'title="Expand all"' in home_html
         assert 'title="Collapse all"' in home_html
         assert 'href="/A.md.html"' in home_html
+        assert "Present" not in home_html
+        assert "_slides/" not in home_html
         assert 'class="sidebar-title">Directory<' in folder_html
         assert 'class="directory-context-nav"' in folder_html
         assert 'href="/A.md.html"' in folder_html
