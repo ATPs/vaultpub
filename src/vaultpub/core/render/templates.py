@@ -303,7 +303,7 @@ def base_page_template(
             <option value="name-desc">Name Z–A</option>
             <option value="created-desc">Created newest</option>
             <option value="created-asc">Created oldest</option>
-            <option value="modified-desc">Modified newest</option>
+            <option value="modified-desc" selected>Modified newest</option>
             <option value="modified-asc">Modified oldest</option>
           </select>
           <button class="sidebar-action" type="button" data-nav-folder-layout="top"
@@ -489,10 +489,12 @@ def _nav_sort_attrs(node: object) -> str:
     created = int(getattr(node, "created_ns", 0) or 0)
     modified = int(getattr(node, "modified_ns", 0) or 0)
     starred = "true" if bool(getattr(node, "starred", False)) else "false"
+    predefined_order = "true" if bool(getattr(node, "predefined_order", False)) else "false"
     return (
         f' data-nav-sort-item data-nav-name="{escape(raw_label, quote=True)}"'
         f' data-nav-kind="{kind}" data-nav-created="{created}"'
         f' data-nav-modified="{modified}" data-nav-starred="{starred}"'
+        f' data-nav-predefined-order="{predefined_order}"'
     )
 
 

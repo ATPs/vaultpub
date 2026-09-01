@@ -357,6 +357,8 @@ class VaultScanner:
             self._sort_nav(child, controls)
 
         control = controls.get(node.path, _DirectoryControl())
+        for child in node.children:
+            child.predefined_order = bool(control.order)
         starred = _ordered_children(node.children, control.star)
         for child in starred:
             child.starred = True

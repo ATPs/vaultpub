@@ -96,6 +96,7 @@ class NavNode:
     created_ns: int = 0
     modified_ns: int = 0
     starred: bool = False
+    predefined_order: bool = False
     nav_hidden: bool = False
     collapsed: bool = False
     description: str = ""

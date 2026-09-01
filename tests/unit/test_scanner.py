@@ -138,8 +138,10 @@ def test_navigation_json_controls_order_star_and_describe_direct_children(tmp_pa
     assert not attachments
     assert not text_pages
     assert [child.raw_label for child in nav.children] == ["C.md", "B.md", "Folder", "A.md"]
+    assert all(child.predefined_order for child in nav.children)
     assert nav.children[0].starred
     folder = next(child for child in nav.children if child.is_dir)
+    assert not folder.children[0].predefined_order
     assert folder.label == "Guides"
     assert folder.icon == "📘"
     assert folder.description == "Start here"

@@ -629,7 +629,7 @@ body {
 }
 
 .sidebar-peek-right {
-  right: 0.3rem;
+  right: 0.8rem;
 }
 
 .sidebar-resizer {
@@ -834,9 +834,26 @@ body.top-bar-hidden .app-layout.sidebar-right-collapsed.sidebar-right-peeking .s
   .app-layout.sidebar-right-collapsed.sidebar-right-peeking .sidebar-right {
     transform: translateX(0);
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.18);
+    overflow-y: auto;
+  }
+
+  .app-layout.sidebar-left-collapsed.sidebar-left-peeking .sidebar-left {
     height: auto;
     max-height: calc(100vh - var(--topbar-height));
-    overflow-y: auto;
+  }
+
+  .app-layout.sidebar-right-collapsed.sidebar-right-peeking .sidebar-right {
+    height: calc(100vh - var(--topbar-height));
+    max-height: calc(100vh - var(--topbar-height));
+  }
+
+  body.top-bar-hidden .app-layout.sidebar-right-collapsed.sidebar-right-peeking .sidebar-right {
+    height: 100vh;
+    max-height: 100vh;
+  }
+
+  .app-layout.sidebar-right-collapsed.sidebar-right-peeking .sidebar-right [data-sidebar-toggle="right"] {
+    visibility: hidden;
   }
 }
 

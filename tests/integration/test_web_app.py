@@ -323,7 +323,9 @@ def test_navigation_json_controls_are_not_published_and_shape_directory_page(tmp
 
     assert root.status_code == 200
     assert 'data-nav-sort' in root.text
+    assert '<option value="modified-desc" selected>Modified newest</option>' in root.text
     assert 'data-nav-starred="true"' in root.text
+    assert 'data-nav-predefined-order="true"' in root.text
     assert root.text.index("README.md") < root.text.index("B.md") < root.text.index("Documentation/")
     assert "__order__.json" not in root.text
     assert client.get("/__order__.json").status_code == 404

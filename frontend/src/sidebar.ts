@@ -73,6 +73,7 @@ function sortNavigationList(list: HTMLUListElement, mode: NavSortMode): void {
     (item): item is HTMLLIElement => item instanceof HTMLLIElement && item.hasAttribute("data-nav-sort-item"),
   );
   if (items.length < 2) return;
+  const hasPredefinedOrder = items.some((item) => item.dataset.navPredefinedOrder === "true");
   items.forEach((item, index) => {
     if (!item.dataset.navOriginalIndex) item.dataset.navOriginalIndex = String(index);
   });
@@ -81,7 +82,9 @@ function sortNavigationList(list: HTMLUListElement, mode: NavSortMode): void {
     const rightStarred = right.dataset.navStarred === "true";
     if (leftStarred !== rightStarred) return leftStarred ? -1 : 1;
     if (leftStarred) return Number(left.dataset.navOriginalIndex) - Number(right.dataset.navOriginalIndex);
-    if (mode === "predefined") return Number(left.dataset.navOriginalIndex) - Number(right.dataset.navOriginalIndex);
+    if (mode === "predefined" || (mode === "modified-desc" && hasPredefinedOrder)) {
+      return Number(left.dataset.navOriginalIndex) - Number(right.dataset.navOriginalIndex);
+    }
 
     const leftFolder = left.dataset.navKind === "folder";
     const rightFolder = right.dataset.navKind === "folder";
@@ -114,7 +117,7 @@ function initNavigationSort(): void {
   const select = document.querySelector<HTMLSelectElement>("[data-nav-sort]");
   if (!select) return;
   const state = readJson<SidebarState>(SIDEBAR_STATE_KEY);
-  const mode = isNavSortMode(state.navSort) ? state.navSort : "predefined";
+  const mode = isNavSortMode(state.navSort) ? state.navSort : "modified-desc";
   select.value = mode;
   applyNavigationSort(mode);
   select.addEventListener("change", () => {

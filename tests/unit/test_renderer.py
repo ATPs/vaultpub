@@ -443,6 +443,7 @@ def test_navigation_html_exposes_sort_metadata_and_starred_category_icon() -> No
     assert 'data-nav-sort-item' in html
     assert 'data-nav-kind="folder"' in html
     assert 'data-nav-starred="true"' in html
+    assert 'data-nav-predefined-order="false"' in html
     assert 'class="nav-star"' in html
     assert 'class="nav-icon"' in html
     assert '<details data-nav-key=' in html
