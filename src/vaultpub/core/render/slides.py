@@ -84,7 +84,7 @@ class SlideOptions:
             "height": self.height,
             "hash": self.hash,
             "codeWrap": self.code_wrap,
-            "split": split_override or "default",
+            "split": split_override or self.split,
         }
 
 
@@ -127,12 +127,14 @@ def segment_slides(raw_markdown: str, split: SlideSplitPolicy = "auto") -> Segme
     if normalized_split in ("explicit", "single"):
         return SegmentedSlides("single", (body,))
 
+    if normalized_split == "fit":
+        return SegmentedSlides("single", (body,))
+
     heading_tags = {
         "auto": {"h2"},
         "chapters": {"h1"},
         "sections": {"h2"},
         "detail": {"h2", "h3"},
-        "fit": {"h2"},
     }[normalized_split]
     heading_lines = sorted(
         {

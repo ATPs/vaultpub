@@ -67,9 +67,18 @@ def test_named_split_policies_route_to_their_semantic_heading_levels() -> None:
     assert len(segment_slides(source, "chapters").fragments) == 2
     assert len(segment_slides(source, "sections").fragments) == 2
     assert len(segment_slides(source, "detail").fragments) == 3
-    assert len(segment_slides(source, "fit").fragments) == 2
+    assert len(segment_slides(source, "fit").fragments) == 1
     assert segment_slides(source, "explicit").fragments == (source,)
     assert segment_slides(source, "single").fragments == (source,)
+
+
+def test_fit_preserves_explicit_boundaries_without_heading_splitting() -> None:
+    source = "# Title\n\n## First\n\nText\n\n---\n\n## Second\n\nText\n"
+
+    segmented = segment_slides(source, "fit")
+
+    assert segmented.mode == "explicit"
+    assert len(segmented.fragments) == 2
 
 
 def test_reveal_only_theme_falls_back_to_light() -> None:
