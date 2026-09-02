@@ -124,7 +124,8 @@ public/
   tags/project/demo/index.html  # Tag pages
   assets/...                  # Copied attachments
   static/vaultpub/
-    app.css                   # Frontend styles
+    common.css                # Shared reset, theme, and Markdown styles
+    app.css                   # Normal-view layout styles
     app.js                    # Frontend scripts
     assets/...                # Frontend chunks and fonts
   search-index.json           # Client-side search data
@@ -769,7 +770,8 @@ The `vaultpub build` command produces a fully self-contained static site. No ser
 | `tags/<tag>/index.html` | Tag listing pages |
 | `assets/...` | Copied attachments (images, PDFs, etc.) |
 | `static/vaultpub/boot.js` | Paint-critical theme and navigation preference bootstrap |
-| `static/vaultpub/app.css` | Bundled CSS |
+| `static/vaultpub/common.css` | Shared reset, theme, and Markdown CSS |
+| `static/vaultpub/app.css` | Normal-view layout CSS |
 | `static/vaultpub/app.js` | Bundled JavaScript |
 | `static/vaultpub/assets/...` | Bundled frontend chunks and fonts |
 | `search-index.json` | Client-side search data |

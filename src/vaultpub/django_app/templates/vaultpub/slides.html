@@ -1,14 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="theme-{{ reveal_theme }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }}</title>
   {% load static %}
-  <link rel="stylesheet" href="{% static 'vaultpub/slides.css' %}">
   <script src="{% static 'vaultpub/slides-boot.js' %}"></script>
+  <link rel="stylesheet" href="{% static 'vaultpub/common.css' %}">
+  <link rel="stylesheet" href="{% static 'vaultpub/slides.css' %}">
 </head>
-<body class="vaultpub-slides theme-{{ reveal_theme }}" data-return-url="{{ return_url }}" data-return-label="{{ return_label }}">
+<body class="vaultpub-slides" data-return-url="{{ return_url }}" data-return-label="{{ return_label }}">
   <div class="reveal"><div class="slides">{{ slides_html|safe }}</div></div>
   {{ reveal_config|json_script:"vaultpub-slides-config" }}
   {{ slide_settings|json_script:"vaultpub-slide-settings" }}

@@ -27,6 +27,7 @@ export default defineConfig({
     cssCodeSplit: true,
     rollupOptions: {
       input: {
+        common: "src/styles/common.css",
         app: "src/app.ts",
         slides: "src/slides.ts",
       },
@@ -35,7 +36,7 @@ export default defineConfig({
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: (assetInfo) => {
           const name = assetInfo.name || "";
-          if (name === "app.css" || name === "slides.css") return name;
+          if (name === "common.css" || name === "app.css" || name === "slides.css") return name;
           return "assets/[name]-[hash][extname]";
         },
       },

@@ -16,6 +16,13 @@
   --accent-4: var(--graph-tag-color);
   --accent-5: var(--graph-attachment-color);
   --accent-6: var(--graph-note-color);
+  --surface-elevated: color-mix(in srgb, var(--surface-bg) 92%, var(--bg-color));
+  --surface-hover: color-mix(in srgb, var(--surface-bg) 82%, var(--link-color));
+  --surface-active: color-mix(in srgb, var(--surface-bg) 70%, var(--link-color));
+  --border-strong: color-mix(in srgb, var(--border-color) 70%, var(--text-color));
+  --focus-ring: color-mix(in srgb, var(--link-color) 62%, transparent);
+  --control-bg: color-mix(in srgb, var(--surface-bg) 84%, var(--bg-color));
+  --overlay-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
 }
 
 /* ============================================================

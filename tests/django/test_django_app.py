@@ -108,7 +108,8 @@ def test_django_page_uses_packaged_template(django_setup) -> None:
     assert b"README" in response.content
     assert b'data-url-prefix="/notes/"' in response.content
     assert b'src="/static/vaultpub/boot.js"' in response.content
-    assert response.content.index(b"vaultpub/boot.js") < response.content.index(b"vaultpub/app.css")
+    assert b'href="/static/vaultpub/common.css"' in response.content
+    assert response.content.index(b"vaultpub/boot.js") < response.content.index(b"vaultpub/common.css") < response.content.index(b"vaultpub/app.css")
     assert b'href="/notes/"' in response.content
     assert b"README.md" in response.content
     assert b'class="slides-return"' not in response.content
@@ -265,11 +266,13 @@ def test_django_slide_page_uses_dedicated_layout_and_mount_prefix(django_setup, 
     assert b'class="top-bar"' not in response.content
     assert b'data-return-url="/notes/README.md"' in response.content
     assert b'src="/notes/assets/images/figure.png"' in response.content
-    assert b'class="vaultpub-slides theme-dracula"' in response.content
+    assert b'<html lang="en" class="theme-dracula">' in response.content
+    assert b'<body class="vaultpub-slides"' in response.content
     assert b'reveal-themes/' not in response.content
     assert b'"transition": "fade"' in response.content
     assert b'vaultpub-slide-settings' in response.content
     assert b'slides-boot.js' in response.content
+    assert response.content.index(b"vaultpub/common.css") < response.content.index(b"vaultpub/slides.css")
     assert response.headers["Vary"] == "Cookie"
 
 

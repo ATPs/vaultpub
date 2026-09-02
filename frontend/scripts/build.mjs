@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -24,9 +24,19 @@ function run(command, args) {
   }
 }
 
+function assertBundle(fileName, requiredSelector) {
+  const file = resolve(outputDir, fileName);
+  if (!existsSync(file) || !readFileSync(file, "utf8").includes(requiredSelector)) {
+    throw new Error(`${fileName} is missing its required ${requiredSelector} styles`);
+  }
+}
+
 try {
   run("npm", hasLockfile ? ["ci"] : ["install", "--no-package-lock"]);
   run("npm", ["run", "build:bundle"]);
+  assertBundle("common.css", ".file-tree");
+  assertBundle("app.css", ".app-layout");
+  assertBundle("slides.css", ".vaultpub-slides");
   mkdirSync(resolve(outputDir, "assets"), { recursive: true });
   cpSync(
     resolve(nodeModulesDir, "reveal.js/dist/theme"),

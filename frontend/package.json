@@ -12,6 +12,7 @@
     "dompurify": "^3.2.0",
     "highlight.js": "^11.11.1",
     "katex": "^0.16.0",
+    "lucide": "^1.39.0",
     "mermaid": "^11.4.0",
     "minisearch": "^7.1.0",
     "reveal.js": "6.0.1"

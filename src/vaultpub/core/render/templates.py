@@ -244,15 +244,16 @@ def slides_page_template(
     settings_json = json.dumps(options.client_config(split_override)).replace("<", "\\u003c").replace(">", "\\u003e")
     return f"""\
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="theme-{escape(options.theme, quote=True)}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{escape(title)}</title>
-  <link rel="stylesheet" href="/static/vaultpub/slides.css">
   <script src="/static/vaultpub/slides-boot.js"></script>
+  <link rel="stylesheet" href="/static/vaultpub/common.css">
+  <link rel="stylesheet" href="/static/vaultpub/slides.css">
 </head>
-<body class="vaultpub-slides theme-{escape(options.theme, quote=True)}" data-return-url="{escape(return_url, quote=True)}" data-return-label="{escape(return_label, quote=True)}">
+<body class="vaultpub-slides" data-return-url="{escape(return_url, quote=True)}" data-return-label="{escape(return_label, quote=True)}">
   <div class="reveal"><div class="slides">{slides_html}</div></div>
   <script id="vaultpub-slides-config" type="application/json">{config_json}</script>
   <script id="vaultpub-slide-settings" type="application/json">{settings_json}</script>
@@ -295,6 +296,7 @@ def base_page_template(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   {head_html}
   <script src="/static/vaultpub/boot.js"></script>
+  <link rel="stylesheet" href="/static/vaultpub/common.css">
   <link rel="stylesheet" href="/static/vaultpub/app.css">
 </head>
 <body data-realtime="{realtime}"{vault_slides_attr}>

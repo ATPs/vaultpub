@@ -66,6 +66,7 @@ packages = ["src/vaultpub"]
 [tool.hatch.build.targets.wheel.force-include]
 "src/vaultpub/django_app/static/vaultpub/app.css" = "vaultpub/django_app/static/vaultpub/app.css"
 "src/vaultpub/django_app/static/vaultpub/app.js" = "vaultpub/django_app/static/vaultpub/app.js"
+"src/vaultpub/django_app/static/vaultpub/common.css" = "vaultpub/django_app/static/vaultpub/common.css"
 "src/vaultpub/django_app/static/vaultpub/slides.css" = "vaultpub/django_app/static/vaultpub/slides.css"
 "src/vaultpub/django_app/static/vaultpub/slides.js" = "vaultpub/django_app/static/vaultpub/slides.js"
 "src/vaultpub/django_app/static/vaultpub/assets" = "vaultpub/django_app/static/vaultpub/assets"

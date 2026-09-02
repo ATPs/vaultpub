@@ -26,7 +26,8 @@ def test_build_static_site(vault_basic) -> None:
         folder_html = (out / "Folder" / "index.html").read_text(encoding="utf-8")
         folder_note_html = (out / "Folder" / "B.md.html").read_text(encoding="utf-8")
         assert 'src="/static/vaultpub/boot.js"' in home_html
-        assert home_html.index("vaultpub/boot.js") < home_html.index("vaultpub/app.css")
+        assert 'href="/static/vaultpub/common.css"' in home_html
+        assert home_html.index("vaultpub/boot.js") < home_html.index("vaultpub/common.css") < home_html.index("vaultpub/app.css")
         boot_js = (out / "static" / "vaultpub" / "boot.js").read_text(encoding="utf-8")
         assert "vaultpub.settings" in boot_js
         assert "vaultpub.sidebarState" in boot_js
@@ -73,7 +74,8 @@ def test_static_tag_page_loads_boot_before_styles(tmp_path: Path) -> None:
 
     tag_html = (out / "tags" / "demo" / "index.html").read_text(encoding="utf-8")
     assert 'src="/static/vaultpub/boot.js"' in tag_html
-    assert tag_html.index("vaultpub/boot.js") < tag_html.index("vaultpub/app.css")
+    assert 'href="/static/vaultpub/common.css"' in tag_html
+    assert tag_html.index("vaultpub/boot.js") < tag_html.index("vaultpub/common.css") < tag_html.index("vaultpub/app.css")
 
 
 def test_build_static_site_ignores_permalink_and_alias_routes(tmp_path: Path) -> None:

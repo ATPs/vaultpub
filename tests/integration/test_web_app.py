@@ -24,7 +24,8 @@ def test_root_returns_home(client) -> None:
     assert response.status_code == 200
     assert "README" in response.text or "Welcome" in response.text
     assert 'src="/static/vaultpub/boot.js"' in response.text
-    assert response.text.index("vaultpub/boot.js") < response.text.index("vaultpub/app.css")
+    assert 'href="/static/vaultpub/common.css"' in response.text
+    assert response.text.index("vaultpub/boot.js") < response.text.index("vaultpub/common.css") < response.text.index("vaultpub/app.css")
 
 
 def test_root_renders_top_folder_navigation_toggle(client) -> None:
@@ -97,7 +98,7 @@ def test_note_page_code_blocks_default_wrap_and_line_numbers(tmp_path: Path) -> 
     app = create_app(PublisherConfig(vault_path=tmp_path, realtime=False))
     client = TestClient(app)
 
-    css_response = client.get("/static/vaultpub/app.css")
+    css_response = client.get("/static/vaultpub/common.css")
     assert css_response.status_code == 200
     assert "code-line-content" in css_response.text
     assert "grid-template-columns:3.2em minmax(0,1fr)" in css_response.text
@@ -174,6 +175,14 @@ def test_frontend_static_assets(client) -> None:
     assert "vaultpub.sidebarState" in boot_response.text
     assert "vaultpub-top-folders-booting" in boot_response.text
 
+    common_response = client.get("/static/vaultpub/common.css")
+    assert common_response.status_code == 200
+    assert "text/css" in common_response.headers["content-type"]
+    assert ".file-tree" in common_response.text
+    assert "list-style:none" in common_response.text
+    assert "--bg-color" in common_response.text
+    assert ".markdown-body" in common_response.text
+
     css_response = client.get("/static/vaultpub/app.css")
     assert css_response.status_code == 200
     assert "text/css" in css_response.headers["content-type"]
@@ -217,7 +226,8 @@ def test_standalone_slide_page_uses_reveal_without_article_chrome(tmp_path: Path
     assert 'class="top-bar"' not in response.text
     assert 'class="slides-return"' not in response.text
     assert 'reveal-themes/' not in response.text
-    assert 'class="vaultpub-slides theme-light"' in response.text
+    assert '<html lang="en" class="theme-light">' in response.text
+    assert '<body class="vaultpub-slides"' in response.text
     assert 'href="/Target.md"' in response.text
 
 
@@ -238,6 +248,7 @@ def test_standalone_slide_settings_honor_frontmatter_cookie_and_query_override(t
     assert '"codeWrap": false' in default.text
     assert default.headers["vary"] == "Cookie"
     assert 'slides-boot.js' in default.text
+    assert default.text.index("vaultpub/common.css") < default.text.index("vaultpub/slides.css")
 
 
 def test_standalone_folder_slides_follow_navigation_order(tmp_path: Path) -> None:
