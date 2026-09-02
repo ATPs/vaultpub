@@ -498,6 +498,103 @@ body {
   font-size: 0.85em;
 }
 
+/* ============================================================
+   Vault Slide View launch dialog
+   ============================================================ */
+.slide-launch-dialog {
+  width: min(30rem, calc(100vw - 2rem));
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: var(--search-modal-bg);
+  color: var(--text-color);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+
+.slide-launch-dialog::backdrop {
+  background: var(--search-overlay-bg);
+}
+
+.slide-launch-form {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.slide-launch-form header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.slide-launch-form header p {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.slide-launch-fieldset {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.slide-launch-fieldset legend {
+  padding: 0 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.slide-launch-fieldset label,
+.slide-launch-order {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.slide-launch-fieldset select,
+.slide-launch-order select {
+  min-width: 0;
+  flex: 1;
+  padding: 0.42rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: var(--bg-color);
+  color: inherit;
+  font: inherit;
+}
+
+.slide-launch-fieldset select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.slide-launch-form footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.slide-launch-form footer button {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: var(--bg-color);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.slide-launch-form footer button[type="submit"] {
+  border-color: var(--link-color);
+  background: var(--link-color);
+  color: #fff;
+}
+
 
 /* ============================================================
    Left sidebar

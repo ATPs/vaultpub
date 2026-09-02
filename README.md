@@ -487,7 +487,7 @@ Automatically generated for every note. A note's backlinks section shows all not
 
 ## Presentation Mode
 
-Presentation Mode is another view of the same source Markdown: it does not edit, summarize, or require converting notes into a slide format. On live pages, open **Settings** for Note in Slide View, Folder in Slide View, or Vault in Slide View. Text and code pages offer the vault action only.
+Presentation Mode is another view of the same source Markdown: it does not edit, summarize, or require converting notes into a slide format. On live pages, open **Settings** for Note in Slide View or Vault in Slide View. Vault in Slide View opens a launch dialog where you can choose the whole vault or an eligible recursive subfolder, then choose a deck-only order; text and code pages offer the vault action only.
 
 For existing notes, slides are chosen in this order:
 
@@ -545,23 +545,32 @@ Optional frontmatter safely configures an individual note deck. Only the documen
 ---
 slides: true
 slide:
-  theme: white
+  theme: light
   transition: slide
-  controls: true
   progress: true
   slideNumber: true
   center: true
   width: 1600
   height: 900
   hash: true
+  split: auto
+  codeWrap: true
 ---
 ```
 
-Bundled themes are `beige`, `black`, `black-contrast`, `blood`, `dracula`, `league`, `moon`, `night`, `serif`, `simple`, `sky`, `solarized`, `white`, and `white-contrast`. Valid transitions are `none`, `fade`, `slide`, `convex`, `concave`, and `zoom`.
+Slide View uses the same reading themes as Article Mode: `light`, `dark`, `nord`, `solarized`, `dracula`, `forest`, `glass-light`, `glass-dark`, `obsidian`, `catppuccin`, `colorful`, and `colorful-dark`. Reveal-only theme names such as `white` and `moon` safely fall back to `light`. Valid transitions are `none`, `fade`, `slide`, `convex`, `concave`, and `zoom`.
 
-The standalone server uses `/_slides/<note-path>`, `/_slides-folder/<directory-path>/`, and `/_slides-vault`; for example, `/_slides/AI-course/introduction.md`. Django uses the same routes below its mount, such as `/notes/_slides/AI-course/introduction.md`. Folder and whole-vault decks recursively follow VaultPub's navigation order, include only published visible Markdown notes, and use safe default presentation settings.
+While presenting, move the pointer to reveal the compact presenter dock. Every dock button has a hover/focus explanation. Its gear opens a popup with reading-theme colour swatches, transition, text size from 75% to 300%, aspect ratio, code wrapping, split, centering, progress, slide-number, and reduced-motion preferences. The popup closes after the pointer leaves both it and the dock, after an outside click/tap, or with Escape; keyboard focus inside it keeps it open. Viewer preferences are remembered in the browser and **Reset to deck defaults** restores the note's frontmatter choices. Code wrapping is on by default.
 
-Reveal.js provides arrow/space navigation, overview with `Esc`, slide numbers, hash navigation, controls, fullscreen-compatible display, and browser print/PDF support. Speaker notes and static-export presentation pages are not included yet; static export continues to publish article pages only.
+Aspect choices are **Fit available space**, `21:9`, `16:10`, `16:9`, `3:2`, `4:3`, `1:1`, and a browser-only custom `width:height` or decimal ratio. Fit available space uses the actual viewport without a fixed 16:9 canvas.
+
+Split choices are `auto`, `chapters`, `sections`, `detail`, `fit`, `explicit`, and `single` (legacy `h1`, `h2`, and `h3` URLs remain accepted). `auto` keeps the normal behavior: standalone `---` first, then H2 headings, then one scrollable slide. Chapters uses H1, Sections H2, and Detail H2/H3. **Fit viewport** keeps explicit source boundaries and paginates rendered text to the current visible slide area; its boundaries intentionally change with the viewport, theme, text size, wrapping, and media layout. Oversized media, diagrams, tables, callouts, and code remain intact and scroll internally. A shareable `?split=sections` URL temporarily overrides all defaults. A saved browser split preference applies after that, followed by `slide.split` frontmatter and `auto`.
+
+The presenter dock owns previous/next navigation, a searchable slide-title chooser, a full-screen multi-column slide grid, fullscreen, laser pointer, magnifier, pen, timer, blackout, shortcut help, and return controls. The grid scrolls vertically and never advances the deck while scrolling; select a thumbnail to jump. Laser, magnifier, and pen are mutually exclusive. Pen marks are temporary to the current browser tab, retained while navigating between slides, and provide colour, width, undo, redo, and clear controls. On touch devices, tap once after the dock fades to reveal it; drawing disables one-finger navigation until the tool is closed. Use `?` for the shortcut list; `G`, `F`, `L`, `Z`, `D`, and `B` open the chooser, fullscreen, laser, magnifier, drawing, and blackout controls.
+
+The standalone server uses `/_slides/<note-path>`, `/_slides-folder/<directory-path>/`, and `/_slides-vault`; for example, `/_slides/AI-course/introduction.md`. Django uses the same routes below its mount, such as `/notes/_slides/AI-course/introduction.md`. Folder and whole-vault decks recursively include only published visible Markdown notes. Each source file starts with a title/path divider slide, then its rendered content. The launch dialog supports the same Order, Name, Created, and Modified choices as normal navigation; its choice is encoded as `?sort=...` for that deck only. Bookmarked folder routes remain available.
+
+Reveal.js provides arrow/space navigation, slide numbers, hash navigation, fullscreen display, and browser print/PDF support. Speaker notes, presenter windows, remote control, auto-advance, and static-export presentation pages are not included; static export continues to publish article pages only.
 
 ---
 

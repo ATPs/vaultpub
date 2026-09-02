@@ -33,7 +33,7 @@ from vaultpub.core.parser.obsidian_links import (
 )
 from vaultpub.core.paths import file_display_name, safe_join
 from vaultpub.core.render.sanitize import add_external_link_attrs, sanitize_html
-from vaultpub.core.render.slides import RenderedSlide, segment_slides
+from vaultpub.core.render.slides import RenderedSlide, SlideSplitPolicy, segment_slides, slide_options
 from vaultpub.core.security import infer_language, is_path_excluded, is_text_file
 
 _PLACEHOLDER_RE = re.compile(r"VAULTPUB_PLACEHOLDER_(\d+)")
@@ -84,9 +84,14 @@ class Renderer:
         html, _consumed = self._render_markdown_content(content, note, embed_depth=embed_depth)
         return html
 
-    def render_slides(self, note: NoteRecord, heading_namespace: str | None = None) -> list[RenderedSlide]:
+    def render_slides(
+        self,
+        note: NoteRecord,
+        heading_namespace: str | None = None,
+        split_override: SlideSplitPolicy | None = None,
+    ) -> list[RenderedSlide]:
         """Render one note as independently navigable slide fragments."""
-        segmented = segment_slides(note.raw_markdown)
+        segmented = segment_slides(note.raw_markdown, split_override or slide_options(note.frontmatter).split)
         slides: list[RenderedSlide] = []
         heading_offset = 0
         namespace_anchor_map = (

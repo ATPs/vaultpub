@@ -98,6 +98,8 @@ def test_django_page_uses_packaged_template(django_setup) -> None:
     assert b'class="topbar-context topbar-context-note"' in response.content
     assert b'data-slide-note-url="/notes/_slides/README.md"' in response.content
     assert b'data-vault-slides-url="/notes/_slides-vault"' in response.content
+    assert b'id="vaultpub-slide-scopes"' in response.content
+    assert b'"label": "Whole vault"' in response.content
     assert b'topbar-present-action' not in response.content
     assert b'data-nav-folder-layout="top"' in response.content
     assert b'title="Move folders to top bar"' in response.content
@@ -109,7 +111,7 @@ def test_django_page_uses_packaged_template(django_setup) -> None:
     assert response.content.index(b"vaultpub/boot.js") < response.content.index(b"vaultpub/app.css")
     assert b'href="/notes/"' in response.content
     assert b"README.md" in response.content
-    assert b'href="/notes/README.md"' in response.content
+    assert b'class="slides-return"' not in response.content
     assert b'href="/README.md"' not in response.content
     assert b"{% toc %}" not in response.content
 
@@ -261,10 +263,14 @@ def test_django_slide_page_uses_dedicated_layout_and_mount_prefix(django_setup, 
     assert b'<div class="reveal"><div class="slides">' in response.content
     assert response.content.count(b'<section class="vaultpub-slide"') == 2
     assert b'class="top-bar"' not in response.content
-    assert b'href="/notes/README.md"' in response.content
+    assert b'data-return-url="/notes/README.md"' in response.content
     assert b'src="/notes/assets/images/figure.png"' in response.content
-    assert b'reveal-themes/dracula.css' in response.content
+    assert b'class="vaultpub-slides theme-dracula"' in response.content
+    assert b'reveal-themes/' not in response.content
     assert b'"transition": "fade"' in response.content
+    assert b'vaultpub-slide-settings' in response.content
+    assert b'slides-boot.js' in response.content
+    assert response.headers["Vary"] == "Cookie"
 
 
 @override_settings(ROOT_URLCONF=__name__)
@@ -287,11 +293,12 @@ def test_django_folder_slides_are_recursive_and_reject_missing_or_private_notes(
         private = client.get("/notes/_slides/private/Secret.md")
 
     assert directory.status_code == 200
-    assert b'data-slide-folder-url="/notes/_slides-folder/Course/"' in directory.content
+    assert b'data-slide-folder-url=' not in directory.content
     assert response.status_code == 200
-    assert response.content.count(b'<section class="vaultpub-slide"') == 3
+    assert response.content.count(b'<section class="vaultpub-slide') == 5
+    assert response.content.count(b'data-slide-kind="note-divider"') == 2
     assert response.content.find(b"Course/Nested/B.md") < response.content.find(b"Course/A.md")
-    assert b'href="/notes/Course/"' in response.content
+    assert b'data-return-url="/notes/Course/"' in response.content
     assert missing.status_code == 404
     assert private.status_code == 404
 
@@ -315,10 +322,11 @@ def test_django_whole_vault_slides_follow_navigation_order_and_mount_prefix(djan
         response = Client().get("/notes/_slides-vault")
 
     assert response.status_code == 200
-    assert response.content.count(b'<section class="vaultpub-slide"') == 4
+    assert response.content.count(b'<section class="vaultpub-slide') == 7
+    assert response.content.count(b'data-slide-kind="note-divider"') == 3
     assert response.content.find(b"Course/Nested/B.md") < response.content.find(b"Course/A.md") < response.content.find(b"README.md")
     assert b"Secret.md" not in response.content
-    assert b'href="/notes/"' in response.content
+    assert b'data-return-url="/notes/"' in response.content
     assert b'"transition": "slide"' in response.content
 
 

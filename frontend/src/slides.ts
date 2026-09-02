@@ -1,38 +1,152 @@
 import Reveal from "reveal.js";
 import "reveal.js/reveal.css";
+import "./styles/base.css";
+import "./styles/themes.css";
 import "./styles/slides.css";
+import { READING_THEME_IDS, READING_THEMES } from "./theme-data";
 import { initCalloutFold } from "./stacked-pages";
 import { initMath } from "./math-init";
 import { initMermaid } from "./mermaid-init";
 
 type RevealConfig = Record<string, boolean | number | string>;
+type SplitPolicy = "default" | "auto" | "chapters" | "sections" | "detail" | "fit" | "explicit" | "single";
+type Aspect = "fit" | "21:9" | "16:10" | "16:9" | "3:2" | "4:3" | "1:1" | "custom";
+type Tool = "laser" | "magnify" | "pen" | null;
 
-function readRevealConfig(): RevealConfig {
-  const element = document.getElementById("vaultpub-slides-config");
-  if (!element?.textContent) return {};
+interface SlideSettings extends RevealConfig { theme: string; codeWrap: boolean; split: SplitPolicy; }
+interface StoredPreferences { theme?: string; transition?: string; codeWrap?: boolean; textScale?: number; aspect?: Aspect; customRatio?: string; split?: SplitPolicy; center?: boolean; progress?: boolean; slideNumber?: boolean; reducedMotion?: boolean; }
+interface Point { x: number; y: number; }
+interface Stroke { color: string; width: number; points: Point[]; }
 
+const SETTINGS_KEY = "vaultpub.slideSettings.v2";
+const LEGACY_SETTINGS_KEY = "vaultpub.slideSettings.v1";
+const SPLIT_COOKIE = "vaultpub_slide_split";
+const SPLIT_OPTIONS: Array<[SplitPolicy, string, string]> = [
+  ["auto", "Auto", "Use --- when present, otherwise split at H2 headings."],
+  ["chapters", "Chapters", "Split at H1 headings."],
+  ["sections", "Sections", "Split at H2 headings."],
+  ["detail", "Detail", "Split at H2 and H3 headings."],
+  ["fit", "Fit viewport", "Paginate rendered text to the available screen; boundaries can change on resize."],
+  ["explicit", "Explicit only", "Use only standalone --- boundaries."],
+  ["single", "Single slide", "Keep the entire note together."],
+];
+const ASPECT_OPTIONS: Array<[Aspect, string, string]> = [
+  ["fit", "Fit available space", "Use the full available browser viewport."],
+  ["21:9", "21:9", "Ultrawide displays."], ["16:10", "16:10", "Modern laptops."], ["16:9", "16:9", "Standard presentation screens."],
+  ["3:2", "3:2", "Compact landscape."], ["4:3", "4:3", "Classic projector format."], ["1:1", "1:1", "Square displays."], ["custom", "Custom", "Enter a ratio such as 1920:1080 or 1.7778."],
+];
+const TRANSITIONS = ["none", "fade", "slide", "convex", "concave", "zoom"];
+
+function readJson<T>(id: string, fallback: T): T { try { return JSON.parse(document.getElementById(id)?.textContent || "") as T; } catch { return fallback; } }
+function text(value: string | null | undefined): string { return value?.trim() || "Untitled slide"; }
+function swatches(colors: string[]): string { return colors.map((color) => `<span style="background:${color}"></span>`).join(""); }
+function card(kind: string, value: string, label: string, description: string, active: boolean, content = ""): string { return `<button type="button" class="slides-choice${active ? " is-selected" : ""}" data-${kind}="${value}" data-description="${description}" aria-label="${label}: ${description}" aria-pressed="${active}" title="${description}">${content}<span>${label}</span></button>`; }
+function ratio(value: string): number | null { const parts = value.trim().split(":"); const number = parts.length === 2 ? Number(parts[0]) / Number(parts[1]) : Number(value); return Number.isFinite(number) && number > 0.1 && number < 10 ? number : null; }
+
+function readStored(): StoredPreferences {
   try {
-    return JSON.parse(element.textContent) as RevealConfig;
-  } catch {
-    return {};
+    const source = localStorage.getItem(SETTINGS_KEY) || localStorage.getItem(LEGACY_SETTINGS_KEY) || "{}";
+    const raw = JSON.parse(source) as Record<string, unknown>;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    return {
+      theme: typeof raw.theme === "string" && READING_THEME_IDS.has(raw.theme) ? raw.theme : undefined,
+      transition: typeof raw.transition === "string" && TRANSITIONS.includes(raw.transition) ? raw.transition : undefined,
+      codeWrap: typeof raw.codeWrap === "boolean" ? raw.codeWrap : undefined,
+      textScale: typeof raw.textScale === "number" && raw.textScale >= 75 && raw.textScale <= 300 && raw.textScale % 5 === 0 ? raw.textScale : undefined,
+      aspect: typeof raw.aspect === "string" && ASPECT_OPTIONS.some(([id]) => id === raw.aspect) ? raw.aspect as Aspect : undefined,
+      customRatio: typeof raw.customRatio === "string" && ratio(raw.customRatio) ? raw.customRatio : undefined,
+      center: typeof raw.center === "boolean" ? raw.center : undefined,
+      progress: typeof raw.progress === "boolean" ? raw.progress : undefined,
+      slideNumber: typeof raw.slideNumber === "boolean" ? raw.slideNumber : undefined,
+      reducedMotion: typeof raw.reducedMotion === "boolean" ? raw.reducedMotion : undefined,
+    };
+  } catch { return {}; }
+}
+function saveStored(preferences: StoredPreferences): void { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(preferences)); } catch { /* optional storage */ } }
+function setSplitCookie(value: Exclude<SplitPolicy, "default"> | null): void { document.cookie = value ? `${SPLIT_COOKIE}=${encodeURIComponent(value)}; max-age=31536000; path=/; SameSite=Lax` : `${SPLIT_COOKIE}=; max-age=0; path=/; SameSite=Lax`; }
+
+function buildInterface(defaults: SlideSettings, preferences: StoredPreferences): HTMLElement {
+  const returnUrl = document.body.dataset.returnUrl || "/";
+  const returnLabel = document.body.dataset.returnLabel || "Return";
+  const themeCards = READING_THEMES.map((theme) => card("theme", theme.id, theme.name, `${theme.group === "dark" ? "Dark" : "Light"} reading theme`, (preferences.theme || defaults.theme) === theme.id, `<span class="slides-theme-swatch">${swatches(theme.preview)}</span>`)).join("");
+  const split = defaults.split === "default" ? "auto" : defaults.split;
+  const root = document.createElement("div");
+  root.className = "slides-ui";
+  root.innerHTML = `
+    <div class="slides-toast" role="status" aria-live="polite"></div><canvas class="slides-ink" aria-label="Drawing canvas"></canvas><div class="slides-laser" aria-hidden="true"></div>
+    <nav class="slides-dock" aria-label="Presentation controls">
+      <a class="slides-ui-button" href="${returnUrl}" data-tooltip="${returnLabel}">↩</a>
+      <button class="slides-ui-button" type="button" data-action="previous" data-tooltip="Previous slide">‹</button>
+      <button class="slides-ui-button slides-counter" type="button" data-action="picker" data-tooltip="Jump to a slide">0 / 0</button>
+      <button class="slides-ui-button" type="button" data-action="next" data-tooltip="Next slide">›</button>
+      <button class="slides-ui-button" type="button" data-action="overview" data-tooltip="Scrollable slide grid">▦</button>
+      <button class="slides-ui-button" type="button" data-action="fullscreen" data-tooltip="Fullscreen">⛶</button>
+      <button class="slides-ui-button" type="button" data-tool="laser" aria-pressed="false" data-tooltip="Laser pointer">●</button><button class="slides-ui-button" type="button" data-tool="magnify" aria-pressed="false" data-tooltip="Magnify">⌕</button><button class="slides-ui-button" type="button" data-tool="pen" aria-pressed="false" data-tooltip="Draw">✎</button>
+      <button class="slides-ui-button slides-timer-display" type="button" data-action="timer" data-tooltip="Presentation timer">00:00</button><button class="slides-ui-button" type="button" data-action="blackout" aria-pressed="false" data-tooltip="Blackout">◼</button>
+      <button class="slides-ui-button" type="button" data-action="help" data-tooltip="Keyboard shortcuts">?</button><button class="slides-ui-button slides-settings-button" type="button" data-action="settings" aria-expanded="false" data-tooltip="Slide settings">⚙</button>
+    </nav>
+    <section class="slides-panel slides-settings-panel" hidden aria-label="Slide settings" tabindex="-1">
+      <header><strong>Slide settings</strong><button type="button" data-action="close-settings" aria-label="Close settings">×</button></header>
+      <p class="slides-choice-description" data-choice-description>Choose a setting to see what it changes.</p>
+      <h2>Reading theme</h2><div class="slides-theme-cards">${themeCards}</div>
+      <h2>Transition</h2><div class="slides-choice-row">${TRANSITIONS.map((item) => card("transition", item, item, `Use the ${item} transition.`, (preferences.transition || defaults.transition) === item)).join("")}</div>
+      <h2>Text size</h2><label class="slides-range"><input data-setting="textScale" type="range" min="75" max="300" step="5" value="${preferences.textScale || 100}"><output data-output="textScale">${preferences.textScale || 100}%</output></label>
+      <h2>Aspect ratio</h2><div class="slides-choice-row slides-aspect-cards">${ASPECT_OPTIONS.map(([id, label, description]) => card("aspect", id, label, description, (preferences.aspect || "fit") === id)).join("")}</div><label class="slides-custom-ratio" ${preferences.aspect === "custom" ? "" : "hidden"}>Custom ratio <input data-setting="customRatio" value="${preferences.customRatio || ""}" placeholder="1920:1080"></label>
+      <h2>Split slides</h2><div class="slides-choice-row">${SPLIT_OPTIONS.map(([id, label, description]) => card("split", id, label, description, split === id)).join("")}</div>
+      <div class="slides-switches"><label title="Wrap long code lines"><input data-setting="codeWrap" type="checkbox"> Wrap code</label><label title="Centre short slide content vertically"><input data-setting="center" type="checkbox"> Vertically center</label><label title="Show the progress bar"><input data-setting="progress" type="checkbox"> Progress bar</label><label title="Show the slide number"><input data-setting="slideNumber" type="checkbox"> Slide number</label><label title="Remove animation"><input data-setting="reducedMotion" type="checkbox"> Reduce motion</label></div>
+      <button class="slides-panel-action" type="button" data-action="reset">Reset to deck defaults</button>
+    </section>
+    <section class="slides-panel slides-tools-panel" hidden aria-label="Drawing tools"><header><strong>Draw</strong><button type="button" data-action="close-tools">×</button></header><div class="slides-ink-colors">${["#ef4444", "#facc15", "#3b82f6", "#111827"].map((color, index) => `<button type="button" data-ink-color="${color}" class="${index === 0 ? "is-selected" : ""}" style="--ink-color:${color}" title="Ink colour"></button>`).join("")}</div><label class="slides-range">Width <input data-setting="inkWidth" type="range" min="2" max="16" value="4"></label><div class="slides-panel-row"><button data-action="eraser">Eraser</button><button data-action="undo">Undo</button><button data-action="redo">Redo</button><button data-action="clear">Clear</button></div></section>
+    <section class="slides-panel slides-picker-panel" hidden aria-label="Slide chooser"><header><strong>Jump to slide</strong><button data-action="close-picker">×</button></header><input data-action="search" type="search" placeholder="Search slide titles"><div class="slides-picker-list" role="listbox"></div></section>
+    <section class="slides-panel slides-timer-panel" hidden aria-label="Presentation timer"><header><strong>Timer</strong><button data-action="close-timer">×</button></header><div class="slides-clock"></div><div class="slides-panel-row"><button data-action="timer-start">Start</button><button data-action="timer-pause">Pause</button><button data-action="timer-reset">Reset</button></div></section>
+    <section class="slides-panel slides-help-panel" hidden aria-label="Keyboard shortcuts"><header><strong>Keyboard shortcuts</strong><button data-action="close-help">×</button></header><p>Arrows/Space navigate · G jump · F fullscreen · L laser · Z magnify · D draw · B blackout · Esc closes a tool or panel.</p></section>
+    <section class="slides-grid" hidden aria-label="Slide grid"><header><strong>Slide grid</strong><button data-action="close-grid">×</button></header><div class="slides-grid-list"></div></section>`;
+  for (const setting of ["codeWrap", "center", "progress", "slideNumber", "reducedMotion"] as const) {
+    const input = root.querySelector<HTMLInputElement>(`[data-setting="${setting}"]`);
+    if (input) input.checked = preferences[setting] ?? (setting === "reducedMotion" ? matchMedia("(prefers-reduced-motion: reduce)").matches : Boolean(defaults[setting]));
   }
+  return root;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  const revealElement = document.querySelector<HTMLElement>(".reveal");
-  if (!revealElement) return;
-
-  const deck = new Reveal(revealElement, readRevealConfig());
+  const revealElement = document.querySelector<HTMLElement>(".reveal"); if (!revealElement) return;
+  const defaults = readJson<SlideSettings>("vaultpub-slide-settings", { theme: "light", codeWrap: true, split: "auto" });
+  const deck = new Reveal(revealElement, { ...readJson<RevealConfig>("vaultpub-slides-config", {}), controls: false }) as any;
   void deck.initialize().then(() => {
-    initCalloutFold();
-    initMermaid();
-    initMath();
-    // Keep the slide entry's lazy highlighter isolated from the article entry.
-    // Vite otherwise moves the article implementation into a shared chunk.
-    void import("./code-highlight?slides").then((module) => {
-      const { initCodeHighlight } = module as unknown as typeof import("./code-highlight");
-      initCodeHighlight();
-    });
-    requestAnimationFrame(() => deck.layout());
+    initCalloutFold(); initMermaid(); initMath(); void import("./code-highlight?slides").then((module) => (module as unknown as typeof import("./code-highlight")).initCodeHighlight());
+    const ui = buildInterface(defaults, readStored()); document.body.appendChild(ui);
+    const dock = ui.querySelector<HTMLElement>(".slides-dock")!; const settings = ui.querySelector<HTMLElement>(".slides-settings-panel")!; const canvas = ui.querySelector<HTMLCanvasElement>(".slides-ink")!; const context = canvas.getContext("2d")!; const laser = ui.querySelector<HTMLElement>(".slides-laser")!; const toast = ui.querySelector<HTMLElement>(".slides-toast")!; const counter = ui.querySelector<HTMLElement>(".slides-counter")!; const picker = ui.querySelector<HTMLElement>(".slides-picker-list")!; const grid = ui.querySelector<HTMLElement>(".slides-grid")!; const gridList = ui.querySelector<HTMLElement>(".slides-grid-list")!;
+    let tool: Tool = null; let magnified = false; let inkColor = "#ef4444"; let inkWidth = 4; let drawing = false; let stroke: Stroke | null = null; let timerStarted: number | null = null; let elapsed = 0; let idle = 0; let resizeTimer = 0;
+    const ink = new Map<string, Stroke[]>(); const redo = new Map<string, Stroke[]>(); const originalSlides = Array.from(revealElement.querySelectorAll<HTMLElement>(".slides > section.vaultpub-slide")).map((slide) => slide.cloneNode(true) as HTMLElement);
+    const key = (): string => { const index = deck.getIndices(); return `${index.h || 0}-${index.v || 0}`; };
+    const strokes = (): Stroke[] => ink.get(key()) || [];
+    const say = (message: string): void => { toast.textContent = message; toast.classList.add("is-visible"); setTimeout(() => toast.classList.remove("is-visible"), 1600); };
+    const wake = (): void => { document.body.classList.remove("slides-ui-idle"); clearTimeout(idle); if (!ui.querySelector(".slides-panel:not([hidden]), .slides-grid:not([hidden])")) idle = window.setTimeout(() => document.body.classList.add("slides-ui-idle"), 2500); };
+    const draw = (): void => { context.clearRect(0, 0, innerWidth, innerHeight); strokes().forEach((item) => { context.beginPath(); context.strokeStyle = item.color; context.lineWidth = item.width; context.lineCap = "round"; item.points.forEach((point, index) => index ? context.lineTo(point.x * innerWidth, point.y * innerHeight) : context.moveTo(point.x * innerWidth, point.y * innerHeight)); context.stroke(); }); };
+    const sizeCanvas = (): void => { const pixel = devicePixelRatio || 1; canvas.width = innerWidth * pixel; canvas.height = innerHeight * pixel; canvas.style.width = `${innerWidth}px`; canvas.style.height = `${innerHeight}px`; context.setTransform(pixel, 0, 0, pixel, 0, 0); draw(); };
+    const saved = (): StoredPreferences => readStored();
+    const dimensions = (): { width: number; height: number } => { const pref = saved(); const chosen = pref.aspect || "fit"; if (chosen === "fit") return { width: innerWidth, height: innerHeight }; const value = chosen === "custom" ? ratio(pref.customRatio || "") : ratio(chosen); const safe = value || 16 / 9; return { width: 1600, height: Math.round(1600 / safe) }; };
+    const apply = (): void => { const pref = saved(); const selectedTheme = pref.theme || defaults.theme; const reduced = pref.reducedMotion ?? matchMedia("(prefers-reduced-motion: reduce)").matches; document.body.className = document.body.className.replace(/\btheme-[\w-]+\b/g, "").trim() + ` theme-${selectedTheme}`; document.documentElement.style.setProperty("--vaultpub-slide-scale", String((pref.textScale || 100) / 100)); document.body.classList.toggle("slides-code-wrap", pref.codeWrap ?? defaults.codeWrap); document.body.classList.toggle("slides-center-content", pref.center ?? Boolean(defaults.center)); document.body.classList.toggle("slides-reduced-motion", reduced); const size = dimensions(); deck.configure({ controls: false, transition: reduced ? "none" : (pref.transition || defaults.transition), progress: pref.progress ?? defaults.progress, slideNumber: pref.slideNumber ?? defaults.slideNumber, center: pref.center ?? defaults.center, width: size.width, height: size.height }); requestAnimationFrame(() => { deck.layout(); sizeCanvas(); if ((defaults.split === "fit" || pref.split === "fit")) paginateFit(); }); };
+    const close = (): void => { ui.querySelectorAll<HTMLElement>(".slides-panel").forEach((panel) => panel.hidden = true); settings.hidden = true; grid.hidden = true; dock.querySelector<HTMLButtonElement>('[data-action="settings"]')?.setAttribute("aria-expanded", "false"); wake(); };
+    const panel = (selector: string): void => { const element = ui.querySelector<HTMLElement>(selector); if (!element) return; const open = element.hidden; close(); element.hidden = !open; if (selector === ".slides-settings-panel") dock.querySelector<HTMLButtonElement>('[data-action="settings"]')?.setAttribute("aria-expanded", String(open)); if (open) { clearTimeout(idle); document.body.classList.remove("slides-ui-idle"); } };
+    const setTool = (next: Tool): void => { if (magnified) { document.body.classList.remove("slides-magnified"); magnified = false; } tool = tool === next ? null : next; canvas.style.pointerEvents = tool === "pen" ? "auto" : "none"; canvas.classList.toggle("is-active", tool === "pen"); laser.classList.toggle("is-active", tool === "laser"); ui.querySelectorAll<HTMLElement>("[data-tool]").forEach((button) => { const active = button.dataset.tool === tool; button.classList.toggle("is-active", active); button.setAttribute("aria-pressed", String(active)); }); if (tool === "pen") panel(".slides-tools-panel"); else ui.querySelector<HTMLElement>(".slides-tools-panel")!.hidden = true; if (tool) say(tool === "magnify" ? "Magnifier armed: click the slide" : `${tool} active`); wake(); };
+    const slideIndex = (): number => Math.max(0, (deck.getSlides() as HTMLElement[]).indexOf(deck.getCurrentSlide()));
+    const updateNavigation = (): void => { const slides = deck.getSlides() as HTMLElement[]; const current = slideIndex(); counter.textContent = `${current + 1} / ${slides.length}`; picker.querySelectorAll<HTMLElement>("[data-slide-index]").forEach((item) => item.classList.toggle("is-current", Number(item.dataset.slideIndex) === current)); gridList.querySelectorAll<HTMLElement>("[data-slide-index]").forEach((item) => item.classList.toggle("is-current", Number(item.dataset.slideIndex) === current)); draw(); };
+    const buildNavigation = (): void => { const slides = deck.getSlides() as HTMLElement[]; const label = (slide: HTMLElement): string => { const heading = text(slide.querySelector("h1,h2,h3")?.textContent); return slide.dataset.slideKind === "note-divider" ? `File: ${heading}` : heading; }; const buttons = slides.map((slide, index) => { const heading = label(slide); const path = slide.dataset.sourcePath || ""; return `<button type="button" data-slide-index="${index}" data-search="${heading} ${path}"><strong>${index + 1}. ${heading}</strong>${path ? `<small>${path}</small>` : ""}</button>`; }).join(""); picker.innerHTML = buttons; gridList.innerHTML = slides.map((slide, index) => `<button type="button" data-slide-index="${index}"><span class="slides-grid-thumb">${slide.querySelector(".vaultpub-slide-content")?.innerHTML || ""}</span><strong>${index + 1}. ${label(slide)}</strong><small>${slide.dataset.sourcePath || ""}</small></button>`).join(""); updateNavigation(); };
+    const paginateFit = (): void => { if ((saved().split || defaults.split) !== "fit") return; const currentSlide = deck.getCurrentSlide() as HTMLElement | null; const currentPath = currentSlide?.dataset.sourcePath; const currentKind = currentSlide?.dataset.slideKind || ""; const currentHeading = text(currentSlide?.querySelector("h1,h2,h3")?.textContent); const slidesRoot = revealElement.querySelector<HTMLElement>(".slides")!; const measure = document.createElement("div"); measure.className = "slides-fit-measure"; measure.style.width = `${Math.max(320, innerWidth - 80)}px`; document.body.appendChild(measure); const pages: HTMLElement[] = []; const fits = (page: HTMLElement, candidate: HTMLElement): boolean => { const trial = page.cloneNode(true) as HTMLElement; trial.querySelector(".vaultpub-slide-content")!.appendChild(candidate.cloneNode(true)); measure.replaceChildren(trial); return measure.scrollHeight <= innerHeight * .78; }; const textPieces = (node: HTMLElement): DocumentFragment[] => { const textNodes: Text[] = []; const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT); while (walker.nextNode()) textNodes.push(walker.currentNode as Text); const sourceText = node.textContent || ""; const words = Array.from(sourceText.matchAll(/\S+\s*/g)); if (!textNodes.length || !words.length) return [document.createDocumentFragment()]; const endpoint = (offset: number): [Text, number] => { let remaining = offset; for (const textNode of textNodes) { if (remaining <= textNode.length) return [textNode, remaining]; remaining -= textNode.length; } const last = textNodes[textNodes.length - 1]; return [last, last.length]; }; return words.map((word) => { const range = document.createRange(); const [startNode, startOffset] = endpoint(word.index || 0); const [endNode, endOffset] = endpoint((word.index || 0) + word[0].length); range.setStart(startNode, startOffset); range.setEnd(endNode, endOffset); return range.cloneContents(); }); }; originalSlides.forEach((source) => { const content = source.querySelector<HTMLElement>(".vaultpub-slide-content")!; let page = source.cloneNode(false) as HTMLElement; let pageContent = content.cloneNode(false) as HTMLElement; page.appendChild(pageContent); const addPage = (): void => { if (pageContent.childElementCount) pages.push(page); page = source.cloneNode(false) as HTMLElement; pageContent = content.cloneNode(false) as HTMLElement; page.appendChild(pageContent); }; Array.from(content.children).forEach((node) => { const copy = node.cloneNode(true) as HTMLElement; if (fits(page, copy)) { pageContent.appendChild(copy); return; } if (pageContent.childElementCount) { addPage(); if (fits(page, copy)) { pageContent.appendChild(copy); return; } } if (!/^(P|LI)$/i.test(copy.tagName)) { copy.classList.add("slides-fit-overflow"); pageContent.appendChild(copy); addPage(); return; } let piece = copy.cloneNode(false) as HTMLElement; textPieces(copy).forEach((word) => { const candidate = piece.cloneNode(true) as HTMLElement; candidate.appendChild(word.cloneNode(true)); if (piece.hasChildNodes() && !fits(page, candidate)) { pageContent.appendChild(piece); addPage(); piece = copy.cloneNode(false) as HTMLElement; } piece.appendChild(word.cloneNode(true)); }); if (piece.hasChildNodes()) pageContent.appendChild(piece); }); addPage(); }); measure.remove(); slidesRoot.replaceChildren(...pages); deck.sync(); const slides = deck.getSlides() as HTMLElement[]; const target = slides.findIndex((slide) => slide.dataset.sourcePath === currentPath && (slide.dataset.slideKind || "") === currentKind && text(slide.querySelector("h1,h2,h3")?.textContent) === currentHeading); deck.slide(Math.max(0, target >= 0 ? target : slides.findIndex((slide) => slide.dataset.sourcePath === currentPath && (slide.dataset.slideKind || "") === currentKind))); initCalloutFold(); initMath(); initMermaid(); buildNavigation(); };
+    const tick = (): void => { const total = elapsed + (timerStarted === null ? 0 : Date.now() - timerStarted); const seconds = Math.floor(total / 1000); const label = `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; ui.querySelector<HTMLElement>(".slides-timer-display")!.textContent = label; ui.querySelector<HTMLElement>(".slides-clock")!.textContent = `${label} · ${new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date())}`; };
+    apply(); buildNavigation(); sizeCanvas(); tick(); setInterval(tick, 1000); wake();
+    dock.addEventListener("click", (event) => { const target = (event.target as HTMLElement).closest<HTMLElement>("[data-action],[data-tool]"); if (!target) return; if (target.dataset.tool) return setTool(target.dataset.tool as Exclude<Tool, null>); const action = target.dataset.action; if (action === "previous") deck.prev(); else if (action === "next") deck.next(); else if (action === "picker") panel(".slides-picker-panel"); else if (action === "overview") { close(); grid.hidden = false; } else if (action === "settings") panel(".slides-settings-panel"); else if (action === "help") panel(".slides-help-panel"); else if (action === "timer") panel(".slides-timer-panel"); else if (action === "blackout") { deck.togglePause(); target.classList.toggle("is-active"); } else if (action === "fullscreen") { if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen?.().catch(() => say("Fullscreen is unavailable")); } });
+    ui.addEventListener("click", (event) => { const target = (event.target as HTMLElement).closest<HTMLElement>("[data-action],[data-theme],[data-transition],[data-aspect],[data-split],[data-ink-color],[data-slide-index]"); if (!target || dock.contains(target)) return; const action = target.dataset.action; if (target.dataset.slideIndex) { deck.slide(Number(target.dataset.slideIndex)); close(); return; } if (action?.startsWith("close-")) return close(); if (action === "reset") { localStorage.removeItem(SETTINGS_KEY); setSplitCookie(null); const url = new URL(location.href); url.searchParams.delete("split"); location.assign(url.toString()); return; } if (action === "timer-start") { if (timerStarted === null) timerStarted = Date.now(); } else if (action === "timer-pause") { if (timerStarted !== null) { elapsed += Date.now() - timerStarted; timerStarted = null; } } else if (action === "timer-reset") { elapsed = 0; timerStarted = null; } else if (action === "eraser" || action === "undo") { const current = strokes(); if (current.length) { const removed = current[current.length - 1]; ink.set(key(), current.slice(0, -1)); redo.set(key(), [...(redo.get(key()) || []), removed]); draw(); } } else if (action === "redo") { const removed = redo.get(key()) || []; const restored = removed.pop(); if (restored) { redo.set(key(), removed); ink.set(key(), [...strokes(), restored]); draw(); } } else if (action === "clear") { if (strokes().length) { redo.set(key(), [...(redo.get(key()) || []), ...strokes()]); ink.set(key(), []); draw(); } } else if (target.dataset.inkColor) { inkColor = target.dataset.inkColor; ui.querySelectorAll("[data-ink-color]").forEach((item) => item.classList.toggle("is-selected", (item as HTMLElement).dataset.inkColor === inkColor)); } else { const kind = target.dataset.theme ? "theme" : target.dataset.transition ? "transition" : target.dataset.aspect ? "aspect" : target.dataset.split ? "split" : ""; const value = target.dataset[kind]; if (!value) return; const preferences = saved(); if (kind === "split") { setSplitCookie(value as Exclude<SplitPolicy, "default">); const url = new URL(location.href); url.searchParams.delete("split"); location.assign(url.toString()); return; } (preferences as Record<string, unknown>)[kind] = value; saveStored(preferences); ui.querySelectorAll<HTMLElement>(`[data-${kind}]`).forEach((item) => { const active = item.dataset[kind] === value; item.classList.toggle("is-selected", active); item.setAttribute("aria-pressed", String(active)); }); ui.querySelector<HTMLElement>(".slides-custom-ratio")!.hidden = !(kind === "aspect" && value === "custom"); explainChoice(target); apply(); } });
+    const explainChoice = (target: HTMLElement | null): void => { if (target?.dataset.description) ui.querySelector<HTMLElement>("[data-choice-description]")!.textContent = target.dataset.description; };
+    ui.addEventListener("pointerover", (event) => explainChoice((event.target as HTMLElement).closest<HTMLElement>("[data-description]")));
+    ui.addEventListener("focusin", (event) => explainChoice((event.target as HTMLElement).closest<HTMLElement>("[data-description]")));
+    ui.querySelectorAll<HTMLInputElement>("[data-setting]").forEach((input) => input.addEventListener("input", () => { const preferences = saved(); const setting = input.dataset.setting!; if (setting === "inkWidth") { inkWidth = Number(input.value); return; } const value: string | number | boolean = input.type === "checkbox" ? input.checked : setting === "textScale" ? Number(input.value) : input.value; if (setting === "customRatio" && value && !ratio(String(value))) { input.setCustomValidity("Use width:height or a decimal ratio"); return; } input.setCustomValidity(""); (preferences as Record<string, unknown>)[setting] = value; saveStored(preferences); if (setting === "textScale") ui.querySelector<HTMLOutputElement>("[data-output=textScale]")!.textContent = `${value}%`; apply(); }));
+    ui.querySelector<HTMLInputElement>("[data-action=search]")?.addEventListener("input", (event) => { const query = (event.target as HTMLInputElement).value.toLowerCase(); picker.querySelectorAll<HTMLElement>("[data-search]").forEach((item) => item.hidden = !item.dataset.search!.toLowerCase().includes(query)); });
+    canvas.addEventListener("pointerdown", (event) => { if (tool !== "pen") return; drawing = true; canvas.setPointerCapture(event.pointerId); stroke = { color: inkColor, width: inkWidth, points: [{ x: event.clientX / innerWidth, y: event.clientY / innerHeight }] }; ink.set(key(), [...strokes(), stroke]); redo.delete(key()); draw(); event.preventDefault(); }); canvas.addEventListener("pointermove", (event) => { if (!drawing || !stroke) return; stroke.points.push({ x: event.clientX / innerWidth, y: event.clientY / innerHeight }); draw(); }); canvas.addEventListener("pointerup", () => { drawing = false; stroke = null; });
+    revealElement.addEventListener("pointermove", (event) => { wake(); if (tool === "laser") { laser.style.left = `${event.clientX}px`; laser.style.top = `${event.clientY}px`; laser.classList.add("is-visible"); } if (tool === "magnify" && magnified) { document.documentElement.style.setProperty("--slides-zoom-x", `${event.clientX}px`); document.documentElement.style.setProperty("--slides-zoom-y", `${event.clientY}px`); } }); revealElement.addEventListener("pointerdown", (event) => { if (tool === "magnify") { if (magnified) return setTool(null); magnified = true; document.documentElement.style.setProperty("--slides-zoom-x", `${event.clientX}px`); document.documentElement.style.setProperty("--slides-zoom-y", `${event.clientY}px`); document.body.classList.add("slides-magnified"); event.preventDefault(); } });
+    grid.addEventListener("wheel", (event) => event.stopPropagation(), { passive: true }); grid.addEventListener("touchmove", (event) => event.stopPropagation(), { passive: true });
+    const scheduleApply = (): void => { clearTimeout(resizeTimer); resizeTimer = window.setTimeout(apply, 180); };
+    deck.on("slidechanged", () => { setTool(null); updateNavigation(); }); window.addEventListener("resize", scheduleApply); revealElement.querySelectorAll("img,video,iframe").forEach((media) => media.addEventListener("load", scheduleApply)); window.setTimeout(scheduleApply, 500); document.addEventListener("pointermove", wake, { passive: true }); document.addEventListener("focusin", wake); document.addEventListener("pointerdown", (event) => { if (!ui.contains(event.target as Node) && !grid.contains(event.target as Node)) close(); }, true); [dock, settings].forEach((element) => { element.addEventListener("pointerenter", () => clearTimeout(idle)); element.addEventListener("pointerleave", () => { setTimeout(() => { if (!settings.matches(":hover") && !dock.matches(":hover") && !settings.contains(document.activeElement)) close(); }, 120); }); }); document.addEventListener("keydown", (event) => { if (event.key === "Escape") { if (tool) { setTool(null); event.stopPropagation(); } else close(); return; } if (event.target instanceof HTMLInputElement) return; if (event.key === "?") panel(".slides-help-panel"); else if (event.key.toLowerCase() === "g") panel(".slides-picker-panel"); else if (event.key.toLowerCase() === "f") { if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen?.().catch(() => say("Fullscreen is unavailable")); } else if (event.key.toLowerCase() === "l") setTool("laser"); else if (event.key.toLowerCase() === "z") setTool("magnify"); else if (event.key.toLowerCase() === "d") setTool("pen"); else if (event.key.toLowerCase() === "b") deck.togglePause(); });
   });
 });

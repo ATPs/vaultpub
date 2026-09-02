@@ -191,12 +191,10 @@ def topbar_context_html_for_directory(
     dir_path: PurePosixPath,
     current_url: str,
     url_transform: Callable[[str], str] | None = None,
-    present_url: str | None = None,
 ) -> str:
     directory_name = escape(directory_display_name(dir_path))
-    present_attr = f' data-slide-folder-url="{escape(present_url, quote=True)}"' if present_url else ""
     return f"""\
-<div class="topbar-context topbar-context-note" data-topbar-context="directory"{present_attr}>
+<div class="topbar-context topbar-context-note" data-topbar-context="directory">
   <nav class="topbar-breadcrumbs" aria-label="Current location">
     {_breadcrumbs_html(dir_path, current_url, url_transform)}
   </nav>
@@ -214,15 +212,36 @@ def slide_sections_html(slides: Iterable[RenderedSlide]) -> str:
     )
 
 
+def multi_note_slide_sections_html(note_slides: Iterable[tuple[NoteRecord, Iterable[RenderedSlide]]]) -> str:
+    """Render multi-note decks with a source-note divider before every note."""
+    sections: list[str] = []
+    for note, slides in note_slides:
+        note_id = escape(note.id, quote=True)
+        source_path = escape(note.rel_path.as_posix(), quote=True)
+        sections.append(
+            f'<section class="vaultpub-slide vaultpub-slide-divider" data-source-note="{note_id}" '
+            f'data-source-path="{source_path}" data-slide-kind="note-divider">'
+            '<div class="markdown-body vaultpub-slide-content">'
+            '<p class="vaultpub-slide-divider-kicker">Now showing</p>'
+            f'<h1>{escape(note.title)}</h1>'
+            f'<p class="vaultpub-slide-divider-path">{escape(note.rel_path.as_posix())}</p>'
+            '</div></section>'
+        )
+        sections.append(slide_sections_html(slides))
+    return "".join(sections)
+
+
 def slides_page_template(
     title: str,
     slides_html: str,
     options: SlideOptions,
     return_url: str,
     return_label: str,
+    split_override: str | None = None,
 ) -> str:
     """Return the standalone ASGI presentation document."""
     config_json = json.dumps(options.reveal_config()).replace("<", "\\u003c").replace(">", "\\u003e")
+    settings_json = json.dumps(options.client_config(split_override)).replace("<", "\\u003c").replace(">", "\\u003e")
     return f"""\
 <!DOCTYPE html>
 <html lang="en">
@@ -231,12 +250,12 @@ def slides_page_template(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{escape(title)}</title>
   <link rel="stylesheet" href="/static/vaultpub/slides.css">
-  <link rel="stylesheet" href="/static/vaultpub/assets/reveal-themes/{escape(options.theme, quote=True)}.css">
+  <script src="/static/vaultpub/slides-boot.js"></script>
 </head>
-<body class="vaultpub-slides" data-reveal-theme="{escape(options.theme, quote=True)}">
-  <a class="slides-return" href="{escape(return_url, quote=True)}">&larr; {escape(return_label)}</a>
+<body class="vaultpub-slides theme-{escape(options.theme, quote=True)}" data-return-url="{escape(return_url, quote=True)}" data-return-label="{escape(return_label, quote=True)}">
   <div class="reveal"><div class="slides">{slides_html}</div></div>
   <script id="vaultpub-slides-config" type="application/json">{config_json}</script>
+  <script id="vaultpub-slide-settings" type="application/json">{settings_json}</script>
   <script type="module" src="/static/vaultpub/slides.js"></script>
 </body>
 </html>"""
@@ -252,6 +271,7 @@ def base_page_template(
     graph_html: str = "",
     topbar_context_html: str = "",
     vault_slides_url: str | None = None,
+    slide_scopes: list[dict[str, str]] | None = None,
 ) -> str:
     """Wrap content in a basic HTML page template."""
     site_name = getattr(config, "site_name", "vaultpub") if config else "vaultpub"
@@ -260,6 +280,10 @@ def base_page_template(
     logo_html = f'<img src="{site_logo}" alt="{site_name}" class="site-logo">' if site_logo else ""
     search_trigger = '<button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>'
     vault_slides_attr = f' data-vault-slides-url="{escape(vault_slides_url, quote=True)}"' if vault_slides_url else ""
+    scopes_json = ""
+    if slide_scopes:
+        scope_data = json.dumps(slide_scopes).replace("<", "\\u003c").replace(">", "\\u003e")
+        scopes_json = f'<script id="vaultpub-slide-scopes" type="application/json">{scope_data}</script>'
     right_sidebar = sidebar_right_html + graph_html
     right_sidebar_title_html = escape(sidebar_right_title)
 
@@ -330,6 +354,7 @@ def base_page_template(
       {right_sidebar}
     </aside>
   </div>
+  {scopes_json}
   <script type="module" src="/static/vaultpub/app.js"></script>
 </body>
 </html>"""

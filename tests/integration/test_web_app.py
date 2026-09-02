@@ -33,6 +33,8 @@ def test_root_renders_top_folder_navigation_toggle(client) -> None:
     assert response.status_code == 200
     assert 'data-nav-folder-layout="top"' in response.text
     assert 'data-vault-slides-url="/_slides-vault"' in response.text
+    assert 'id="vaultpub-slide-scopes"' in response.text
+    assert '"label": "Whole vault"' in response.text
     assert 'title="Move folders to top bar"' in response.text
 
 
@@ -102,7 +104,7 @@ def test_note_page_code_blocks_default_wrap_and_line_numbers(tmp_path: Path) -> 
 
     js_response = client.get("/static/vaultpub/app.js")
     assert js_response.status_code == 200
-    assert "lineNumbersReady" in js_response.text
+    assert "__vite__mapDeps" in js_response.text
     assert "code-line-content" in js_response.text
 
 
@@ -213,8 +215,29 @@ def test_standalone_slide_page_uses_reveal_without_article_chrome(tmp_path: Path
     assert '<div class="reveal"><div class="slides">' in response.text
     assert response.text.count('<section class="vaultpub-slide"') == 2
     assert 'class="top-bar"' not in response.text
-    assert 'href="/README.md"' in response.text
+    assert 'class="slides-return"' not in response.text
+    assert 'reveal-themes/' not in response.text
+    assert 'class="vaultpub-slides theme-light"' in response.text
     assert 'href="/Target.md"' in response.text
+
+
+def test_standalone_slide_settings_honor_frontmatter_cookie_and_query_override(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text(
+        "---\nslide:\n  split: single\n  codeWrap: false\n---\n\n# Title\n\n## Second\n",
+        encoding="utf-8",
+    )
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
+
+    default = client.get("/_slides/README.md")
+    cookie = client.get("/_slides/README.md", cookies={"vaultpub_slide_split": "sections"})
+    query = client.get("/_slides/README.md?split=single", cookies={"vaultpub_slide_split": "sections"})
+
+    assert default.text.count('<section class="vaultpub-slide"') == 1
+    assert cookie.text.count('<section class="vaultpub-slide"') == 2
+    assert query.text.count('<section class="vaultpub-slide"') == 1
+    assert '"codeWrap": false' in default.text
+    assert default.headers["vary"] == "Cookie"
+    assert 'slides-boot.js' in default.text
 
 
 def test_standalone_folder_slides_follow_navigation_order(tmp_path: Path) -> None:
@@ -228,11 +251,12 @@ def test_standalone_folder_slides_follow_navigation_order(tmp_path: Path) -> Non
     response = client.get("/_slides-folder/Course/")
 
     assert directory.status_code == 200
-    assert 'data-slide-folder-url="/_slides-folder/Course/"' in directory.text
+    assert 'data-slide-folder-url=' not in directory.text
     assert response.status_code == 200
-    assert response.text.count('<section class="vaultpub-slide"') == 3
+    assert response.text.count("<section class=\"vaultpub-slide") == 5
+    assert response.text.count('data-slide-kind="note-divider"') == 2
     assert response.text.find("Course/Nested/B.md") < response.text.find("Course/A.md")
-    assert 'href="/Course/"' in response.text
+    assert 'data-return-url="/Course/"' in response.text
 
 
 def test_standalone_slide_routes_reject_private_non_markdown_and_empty_directories(tmp_path: Path) -> None:
@@ -263,10 +287,11 @@ def test_standalone_whole_vault_slides_follow_navigation_order_and_exclusions(tm
     response = client.get("/_slides-vault")
 
     assert response.status_code == 200
-    assert response.text.count('<section class="vaultpub-slide"') == 4
+    assert response.text.count("<section class=\"vaultpub-slide") == 7
+    assert response.text.count('data-slide-kind="note-divider"') == 3
     assert response.text.find("Course/Nested/B.md") < response.text.find("Course/A.md") < response.text.find("README.md")
     assert "Secret.md" not in response.text
-    assert 'href="/"' in response.text
+    assert 'data-return-url="/"' in response.text
     assert '"transition": "slide"' in response.text
 
 
@@ -275,6 +300,25 @@ def test_standalone_whole_vault_slides_reject_empty_vault(tmp_path: Path) -> Non
     client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
 
     assert client.get("/_slides-vault").status_code == 404
+
+
+def test_standalone_multi_note_slides_validate_sort_and_scope_payload(tmp_path: Path) -> None:
+    (tmp_path / "Course").mkdir()
+    (tmp_path / "Empty").mkdir()
+    (tmp_path / "A.md").write_text("# A\n", encoding="utf-8")
+    (tmp_path / "Z.md").write_text("# Z\n", encoding="utf-8")
+    (tmp_path / "Course" / "B.md").write_text("# B\n", encoding="utf-8")
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
+
+    page = client.get("/A.md")
+    descending = client.get("/_slides-vault?sort=name-desc&split=single")
+    fallback = client.get("/_slides-vault?sort=invalid&split=single")
+
+    assert '"label": "Course/"' in page.text
+    assert "Empty/" not in page.text
+    assert descending.text.find("Course/B.md") < descending.text.find("Z.md") < descending.text.find("A.md")
+    assert fallback.text.find("Course/B.md") < fallback.text.find("A.md") < fallback.text.find("Z.md")
+    assert descending.text.count('data-slide-kind="note-divider"') == 3
 
 
 def test_api_page(client) -> None:

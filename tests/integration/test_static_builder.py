@@ -38,6 +38,7 @@ def test_build_static_site(vault_basic) -> None:
         assert 'data-nav-folder-layout="top"' in home_html
         assert 'title="Move folders to top bar"' in home_html
         assert 'data-vault-slides-url' not in home_html
+        assert 'vaultpub-slide-scopes' not in home_html
         assert 'data-slide-note-url' not in home_html
         assert 'title="Expand all"' in home_html
         assert 'title="Collapse all"' in home_html
@@ -115,6 +116,7 @@ def test_build_static_site_renders_topbar_code_tools_for_text_pages(tmp_path: Pa
     assert 'class="topbar-context topbar-context-code"' in code_html
     assert 'data-layout-action="toggle-wide"' not in code_html
     assert 'data-vault-slides-url' not in code_html
+    assert 'vaultpub-slide-scopes' not in code_html
     assert 'href="/tools/index.html" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in code_html
     assert 'href="/tools/example.py.html" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in code_html
     assert 'data-code-action="copy-path"' in code_html

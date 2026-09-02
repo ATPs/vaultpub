@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import cmp_to_key
 from typing import Literal
 
 from vaultpub.core.frontmatter import parse_frontmatter
@@ -10,23 +11,34 @@ from vaultpub.core.parser.markdown import create_markdown_parser
 from vaultpub.core.parser.obsidian_links import strip_obsidian_comments
 
 SlideSplitMode = Literal["explicit", "headings", "single"]
+SlideSplitPolicy = Literal[
+    "auto", "chapters", "sections", "detail", "fit", "explicit", "single", "h1", "h2", "h3"
+]
+SlideDeckOrder = Literal[
+    "predefined", "name-asc", "name-desc", "created-desc", "created-asc", "modified-desc", "modified-asc"
+]
 
-REVEAL_THEMES = frozenset(
+SLIDE_SPLIT_POLICIES = frozenset(
+    {"auto", "chapters", "sections", "detail", "fit", "explicit", "single", "h1", "h2", "h3"}
+)
+SLIDE_DECK_ORDERS = frozenset(
+    {"predefined", "name-asc", "name-desc", "created-desc", "created-asc", "modified-desc", "modified-asc"}
+)
+
+READING_THEMES = frozenset(
     {
-        "beige",
-        "black",
-        "black-contrast",
-        "blood",
-        "dracula",
-        "league",
-        "moon",
-        "night",
-        "serif",
-        "simple",
-        "sky",
+        "light",
+        "dark",
+        "nord",
         "solarized",
-        "white",
-        "white-contrast",
+        "dracula",
+        "forest",
+        "glass-light",
+        "glass-dark",
+        "obsidian",
+        "catppuccin",
+        "colorful",
+        "colorful-dark",
     }
 )
 REVEAL_TRANSITIONS = frozenset({"none", "fade", "slide", "convex", "concave", "zoom"})
@@ -36,26 +48,43 @@ REVEAL_TRANSITIONS = frozenset({"none", "fade", "slide", "convex", "concave", "z
 class SlideOptions:
     """Validated, serializable Reveal configuration for one note deck."""
 
-    theme: str = "white"
+    theme: str = "light"
     transition: str = "slide"
-    controls: bool = True
+    controls: bool = False
     progress: bool = True
     slide_number: bool = True
     center: bool = True
     width: int = 1600
     height: int = 900
     hash: bool = True
+    split: SlideSplitPolicy = "auto"
+    code_wrap: bool = True
 
     def reveal_config(self) -> dict[str, bool | int | str]:
         return {
             "transition": self.transition,
-            "controls": self.controls,
+            "controls": False,
             "progress": self.progress,
             "slideNumber": self.slide_number,
             "center": self.center,
             "width": self.width,
             "height": self.height,
             "hash": self.hash,
+        }
+
+    def client_config(self, split_override: SlideSplitPolicy | None = None) -> dict[str, bool | int | str]:
+        """Return safe deck defaults consumed by the presentation controls."""
+        return {
+            "theme": self.theme,
+            "transition": self.transition,
+            "progress": self.progress,
+            "slideNumber": self.slide_number,
+            "center": self.center,
+            "width": self.width,
+            "height": self.height,
+            "hash": self.hash,
+            "codeWrap": self.code_wrap,
+            "split": split_override or "default",
         }
 
 
@@ -74,7 +103,7 @@ class RenderedSlide:
     mode: SlideSplitMode
 
 
-def segment_slides(raw_markdown: str) -> SegmentedSlides:
+def segment_slides(raw_markdown: str, split: SlideSplitPolicy = "auto") -> SegmentedSlides:
     """Split one source note into presentation fragments without changing its content."""
     _frontmatter, body, _body_start = parse_frontmatter(raw_markdown)
     body = strip_obsidian_comments(body)
@@ -91,18 +120,29 @@ def segment_slides(raw_markdown: str) -> SegmentedSlides:
             and lines[token.map[0]].strip() == "---"
         }
     )
-    if separator_lines:
+    normalized_split = {"h1": "chapters", "h2": "sections", "h3": "detail"}.get(split, split)
+    if normalized_split in ("auto", "chapters", "sections", "detail", "fit", "explicit") and separator_lines:
         return SegmentedSlides("explicit", tuple(_split_at_lines(lines, separator_lines)))
 
-    h2_lines = sorted(
+    if normalized_split in ("explicit", "single"):
+        return SegmentedSlides("single", (body,))
+
+    heading_tags = {
+        "auto": {"h2"},
+        "chapters": {"h1"},
+        "sections": {"h2"},
+        "detail": {"h2", "h3"},
+        "fit": {"h2"},
+    }[normalized_split]
+    heading_lines = sorted(
         {
             token.map[0]
             for token in tokens
-            if token.type == "heading_open" and token.tag == "h2" and token.map is not None
+            if token.type == "heading_open" and token.tag in heading_tags and token.map is not None
         }
     )
-    if h2_lines:
-        return SegmentedSlides("headings", tuple(_split_at_lines(lines, h2_lines, keep_first=True)))
+    if heading_lines:
+        return SegmentedSlides("headings", tuple(_split_at_lines(lines, heading_lines, keep_first=True)))
 
     return SegmentedSlides("single", (body,))
 
@@ -120,30 +160,50 @@ def slide_options(frontmatter: object) -> SlideOptions:
     transition = raw.get("transition")
     width = raw.get("width")
     height = raw.get("height")
+    split = raw.get("split")
 
     return SlideOptions(
-        theme=theme if isinstance(theme, str) and theme in REVEAL_THEMES else defaults.theme,
+        theme=theme if isinstance(theme, str) and theme in READING_THEMES else defaults.theme,
         transition=(
             transition if isinstance(transition, str) and transition in REVEAL_TRANSITIONS else defaults.transition
         ),
-        controls=_bool_or_default(raw.get("controls"), defaults.controls),
+        controls=False,
         progress=_bool_or_default(raw.get("progress"), defaults.progress),
         slide_number=_bool_or_default(raw.get("slideNumber"), defaults.slide_number),
         center=_bool_or_default(raw.get("center"), defaults.center),
         width=_positive_int_or_default(width, defaults.width),
         height=_positive_int_or_default(height, defaults.height),
         hash=_bool_or_default(raw.get("hash"), defaults.hash),
+        split=validated_slide_split(split) or defaults.split,
+        code_wrap=_bool_or_default(raw.get("codeWrap"), defaults.code_wrap),
     )
 
 
-def collect_directory_notes(directory: NavNode, index: VaultIndex) -> list[NoteRecord]:
-    """Return visible descendant notes in the scanner's established navigation order."""
+def validated_slide_split(value: object) -> SlideSplitPolicy | None:
+    """Return one safe slide split policy, or None for missing/invalid input."""
+    return value if isinstance(value, str) and value in SLIDE_SPLIT_POLICIES else None
+
+
+def slide_split_override(query_value: object, cookie_value: object) -> SlideSplitPolicy | None:
+    """Resolve an optional viewer override, preferring a shareable query value."""
+    return validated_slide_split(query_value) or validated_slide_split(cookie_value)
+
+
+def validated_slide_deck_order(value: object) -> SlideDeckOrder | None:
+    """Return one supported multi-note deck order, or None for invalid input."""
+    return value if isinstance(value, str) and value in SLIDE_DECK_ORDERS else None
+
+
+def collect_directory_notes(
+    directory: NavNode,
+    index: VaultIndex,
+    order: SlideDeckOrder = "predefined",
+) -> list[NoteRecord]:
+    """Return visible descendant notes using the matching normal-navigation order."""
     notes: list[NoteRecord] = []
 
     def _visit(node: NavNode) -> None:
-        for child in node.children:
-            if child.nav_hidden:
-                continue
+        for child in _ordered_visible_children(node, order):
             if child.is_dir:
                 _visit(child)
                 continue
@@ -153,6 +213,65 @@ def collect_directory_notes(directory: NavNode, index: VaultIndex) -> list[NoteR
 
     _visit(directory)
     return notes
+
+
+def collect_slide_scope_directories(directory: NavNode, index: VaultIndex) -> list[NavNode]:
+    """Return visible descendant folders that can produce a non-empty note deck."""
+    scopes: list[NavNode] = []
+
+    def _visit(node: NavNode) -> None:
+        for child in node.children:
+            if child.nav_hidden or not child.is_dir:
+                continue
+            if collect_directory_notes(child, index):
+                scopes.append(child)
+            _visit(child)
+
+    _visit(directory)
+    return scopes
+
+
+def _ordered_visible_children(node: NavNode, order: SlideDeckOrder) -> list[NavNode]:
+    indexed = [(position, child) for position, child in enumerate(node.children) if not child.nav_hidden]
+    if len(indexed) < 2:
+        return [child for _position, child in indexed]
+
+    has_predefined_order = any(child.predefined_order for _position, child in indexed)
+
+    def _compare(left: tuple[int, NavNode], right: tuple[int, NavNode]) -> int:
+        left_position, left_node = left
+        right_position, right_node = right
+        if left_node.starred != right_node.starred:
+            return -1 if left_node.starred else 1
+        if left_node.starred:
+            return left_position - right_position
+        if order == "predefined" or (order == "modified-desc" and has_predefined_order):
+            return left_position - right_position
+        if left_node.is_dir != right_node.is_dir:
+            return -1 if left_node.is_dir else 1
+        if order == "name-asc":
+            return _compare_navigation_names(left_node, right_node)
+        if order == "name-desc":
+            return _compare_navigation_names(right_node, left_node)
+
+        timestamp_name = "created_ns" if order.startswith("created") else "modified_ns"
+        left_time = int(getattr(left_node, timestamp_name, 0) or 0)
+        right_time = int(getattr(right_node, timestamp_name, 0) or 0)
+        if left_time != right_time:
+            if not left_time:
+                return 1
+            if not right_time:
+                return -1
+            return (right_time - left_time) if order.endswith("desc") else (left_time - right_time)
+        return _compare_navigation_names(left_node, right_node)
+
+    return [child for _position, child in sorted(indexed, key=cmp_to_key(_compare))]
+
+
+def _compare_navigation_names(left: NavNode, right: NavNode) -> int:
+    left_name = (left.raw_label or left.label).casefold()
+    right_name = (right.raw_label or right.label).casefold()
+    return (left_name > right_name) - (left_name < right_name)
 
 
 def _split_at_lines(lines: list[str], boundary_lines: list[int], keep_first: bool = False) -> list[str]:

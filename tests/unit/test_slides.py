@@ -3,7 +3,16 @@ from __future__ import annotations
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index import VaultIndexer
 from vaultpub.core.render import Renderer
-from vaultpub.core.render.slides import SlideOptions, collect_directory_notes, segment_slides, slide_options
+from vaultpub.core.render.slides import (
+    SlideOptions,
+    collect_directory_notes,
+    collect_slide_scope_directories,
+    segment_slides,
+    slide_options,
+    slide_split_override,
+    validated_slide_deck_order,
+)
+from vaultpub.core.render.templates import multi_note_slide_sections_html
 
 
 def test_explicit_separators_override_heading_splitting() -> None:
@@ -38,6 +47,42 @@ def test_single_slide_fallback_without_h2() -> None:
 
     assert segmented.mode == "single"
     assert segmented.fragments == ("# Title\n\nLong text\n",)
+
+
+def test_manual_split_policies_are_predictable_and_keep_rules_when_not_explicit() -> None:
+    source = "# Title\n\n---\n\n## Topic\n\n### Detail\n\n# Next\n"
+
+    assert segment_slides(source, "explicit").mode == "explicit"
+    assert len(segment_slides(source, "h1").fragments) == 2
+    assert len(segment_slides(source, "h2").fragments) == 2
+    assert len(segment_slides(source, "h3").fragments) == 2
+    assert segment_slides(source, "single").fragments == (source,)
+    assert segment_slides(source, "h2").mode == "explicit"
+    assert "---" not in segment_slides(source, "h2").fragments[0]
+
+
+def test_named_split_policies_route_to_their_semantic_heading_levels() -> None:
+    source = "# Chapter\n\n## Section\n\n### Detail\n\nText\n\n# Next chapter\n"
+
+    assert len(segment_slides(source, "chapters").fragments) == 2
+    assert len(segment_slides(source, "sections").fragments) == 2
+    assert len(segment_slides(source, "detail").fragments) == 3
+    assert len(segment_slides(source, "fit").fragments) == 2
+    assert segment_slides(source, "explicit").fragments == (source,)
+    assert segment_slides(source, "single").fragments == (source,)
+
+
+def test_reveal_only_theme_falls_back_to_light() -> None:
+    assert slide_options({"slide": {"theme": "white"}}).theme == "light"
+    assert slide_options({"slide": {"theme": "moon"}}).theme == "light"
+    assert slide_options({"slide": {"theme": "dracula"}}).theme == "dracula"
+
+
+def test_controls_are_always_disabled_and_split_overrides_are_validated() -> None:
+    assert slide_options({"slide": {"controls": True}}).controls is False
+    assert slide_split_override("fit", "single") == "fit"
+    assert slide_split_override("detail", "single") == "detail"
+    assert slide_split_override("white", "single") == "single"
 
 
 def test_frontmatter_comments_and_fenced_separators_do_not_split() -> None:
@@ -82,6 +127,8 @@ def test_slide_options_are_allowlisted() -> None:
                 "width": 1920,
                 "height": -1,
                 "hash": False,
+                "split": "h3",
+                "codeWrap": False,
                 "plugins": "unsafe",
             }
         }
@@ -97,7 +144,71 @@ def test_slide_options_are_allowlisted() -> None:
         width=1920,
         height=900,
         hash=False,
+        split="h3",
+        code_wrap=False,
     )
+
+
+def test_slide_split_override_prefers_valid_query_then_valid_cookie() -> None:
+    assert slide_split_override("h1", "single") == "h1"
+    assert slide_split_override("invalid", "single") == "single"
+    assert slide_split_override(None, "invalid") is None
+
+
+def test_slide_deck_orders_match_navigation_rules_and_ignore_hidden_nodes(tmp_path) -> None:
+    (tmp_path / "Folder").mkdir()
+    (tmp_path / "A.md").write_text("# A\n", encoding="utf-8")
+    (tmp_path / "B.md").write_text("# B\n", encoding="utf-8")
+    (tmp_path / "D.md").write_text("# D\n", encoding="utf-8")
+    (tmp_path / "Folder" / "C.md").write_text("# C\n", encoding="utf-8")
+    (tmp_path / "__order__.json").write_text('["B.md", "Folder/", "A.md"]', encoding="utf-8")
+    index = VaultIndexer(PublisherConfig(vault_path=tmp_path)).build()
+
+    assert index.nav_tree is not None
+    root = index.nav_tree
+    by_path = {child.path: child for child in root.children}
+    by_path["A.md"].starred = True
+    by_path["A.md"].created_ns = 1
+    by_path["B.md"].created_ns = 10
+    by_path["D.md"].created_ns = 3
+    by_path["Folder"].created_ns = 5
+    by_path["A.md"].modified_ns = 1
+    by_path["B.md"].modified_ns = 10
+    by_path["D.md"].modified_ns = 3
+    by_path["Folder"].modified_ns = 5
+
+    paths = lambda order: [note.rel_path.as_posix() for note in collect_directory_notes(root, index, order)]
+    assert paths("predefined") == ["A.md", "B.md", "Folder/C.md", "D.md"]
+    assert paths("modified-desc") == ["A.md", "B.md", "Folder/C.md", "D.md"]
+    assert paths("name-asc") == ["A.md", "Folder/C.md", "B.md", "D.md"]
+    assert paths("name-desc") == ["A.md", "Folder/C.md", "D.md", "B.md"]
+    assert paths("created-desc") == ["A.md", "Folder/C.md", "B.md", "D.md"]
+    assert paths("created-asc") == ["A.md", "Folder/C.md", "D.md", "B.md"]
+
+    by_path["B.md"].nav_hidden = True
+    assert paths("predefined") == ["A.md", "Folder/C.md", "D.md"]
+    assert validated_slide_deck_order("name-asc") == "name-asc"
+    assert validated_slide_deck_order("unknown") is None
+
+
+def test_slide_scope_directories_and_note_dividers_are_safe(tmp_path) -> None:
+    (tmp_path / "Course" / "Nested").mkdir(parents=True)
+    (tmp_path / "Empty").mkdir()
+    (tmp_path / "Course" / "Nested" / "One.md").write_text("# One\n", encoding="utf-8")
+    (tmp_path / "Course" / "Two.md").write_text("---\ntitle: <Unsafe>\n---\n# Two\n", encoding="utf-8")
+    index = VaultIndexer(PublisherConfig(vault_path=tmp_path)).build()
+
+    assert index.nav_tree is not None
+    scopes = collect_slide_scope_directories(index.nav_tree, index)
+    assert [scope.path for scope in scopes] == ["Course", "Course/Nested"]
+    note = index.notes_by_id[index.notes_by_path["Course/Two.md"]]
+    slides = Renderer(PublisherConfig(vault_path=tmp_path), index).render_slides(note)
+    html = multi_note_slide_sections_html([(note, slides)])
+
+    assert html.count("<section") == 2
+    assert 'data-slide-kind="note-divider"' in html
+    assert "&lt;Unsafe&gt;" in html
+    assert "Course/Two.md" in html
 
 
 def test_renderer_renders_later_slide_links_embeds_and_heading_ids(tmp_path) -> None:

@@ -21,9 +21,11 @@ import { initScroller } from "./scroller";
 import { initNavHighlightAll } from "./nav-highlight";
 import { initCodeHighlight } from "./code-highlight";
 import { initTopbarContext } from "./topbar-context";
+import { initSlideLaunch } from "./slide-launch";
 
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
+  initSlideLaunch();
   initSearch();
   initPreview();
   initGraph();

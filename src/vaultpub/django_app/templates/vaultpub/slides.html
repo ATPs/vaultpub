@@ -6,12 +6,12 @@
   <title>{{ title }}</title>
   {% load static %}
   <link rel="stylesheet" href="{% static 'vaultpub/slides.css' %}">
-  <link rel="stylesheet" href="{% static 'vaultpub/assets/reveal-themes/' %}{{ reveal_theme }}.css">
+  <script src="{% static 'vaultpub/slides-boot.js' %}"></script>
 </head>
-<body class="vaultpub-slides" data-reveal-theme="{{ reveal_theme }}">
-  <a class="slides-return" href="{{ return_url }}">&larr; {{ return_label }}</a>
+<body class="vaultpub-slides theme-{{ reveal_theme }}" data-return-url="{{ return_url }}" data-return-label="{{ return_label }}">
   <div class="reveal"><div class="slides">{{ slides_html|safe }}</div></div>
   {{ reveal_config|json_script:"vaultpub-slides-config" }}
+  {{ slide_settings|json_script:"vaultpub-slide-settings" }}
   <script type="module" src="{% static 'vaultpub/slides.js' %}"></script>
 </body>
 </html>

@@ -19,7 +19,14 @@ from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.paths import safe_join
 from vaultpub.core.render.renderer import Renderer
-from vaultpub.core.render.slides import SlideOptions, collect_directory_notes, slide_options
+from vaultpub.core.render.slides import (
+    SlideOptions,
+    collect_directory_notes,
+    collect_slide_scope_directories,
+    slide_options,
+    slide_split_override,
+    validated_slide_deck_order,
+)
 from vaultpub.core.render.seo import build_meta_tags
 from vaultpub.core.render.templates import (
     base_page_template,
@@ -28,6 +35,7 @@ from vaultpub.core.render.templates import (
     directory_sibling_files_html,
     find_nav_directory,
     graph_container_html,
+    multi_note_slide_sections_html,
     nav_tree_html,
     sidebar_graph_state,
     slide_sections_html,
@@ -122,14 +130,17 @@ async def slides(request: Request) -> HTMLResponse:
     if note is None or not is_path_public(note.rel_path.as_posix(), state.config):
         return HTMLResponse("Not found", status_code=404)
 
+    options = slide_options(note.frontmatter)
+    split_override = slide_split_override(request.query_params.get("split"), request.cookies.get("vaultpub_slide_split"))
     page_html = slides_page_template(
         title=f"{note.title} - Presentation",
-        slides_html=slide_sections_html(state.renderer.render_slides(note)),
-        options=slide_options(note.frontmatter),
+        slides_html=slide_sections_html(state.renderer.render_slides(note, split_override=split_override)),
+        options=options,
         return_url=note.url_path,
         return_label="Article",
+        split_override=split_override,
     )
-    return HTMLResponse(page_html)
+    return HTMLResponse(page_html, headers={"Vary": "Cookie"})
 
 
 async def slides_folder(request: Request) -> HTMLResponse:
@@ -139,21 +150,21 @@ async def slides_folder(request: Request) -> HTMLResponse:
     if directory is None or directory.path in ("", "."):
         return HTMLResponse("Not found", status_code=404)
 
-    notes = collect_directory_notes(directory, state.index)
+    order = validated_slide_deck_order(request.query_params.get("sort")) or "predefined"
+    notes = collect_directory_notes(directory, state.index, order)
     if not notes:
         return HTMLResponse("Not found", status_code=404)
 
-    rendered_slides = []
-    for note in notes:
-        rendered_slides.extend(state.renderer.render_slides(note, heading_namespace=f"slide-{note.id[:12]}"))
+    split_override = slide_split_override(request.query_params.get("split"), request.cookies.get("vaultpub_slide_split"))
     page_html = slides_page_template(
         title=f"{directory.label} - Presentation",
-        slides_html=slide_sections_html(rendered_slides),
+        slides_html=_multi_note_slides_html(notes, state.renderer, split_override),
         options=SlideOptions(),
         return_url=directory.url,
         return_label="Folder",
+        split_override=split_override,
     )
-    return HTMLResponse(page_html)
+    return HTMLResponse(page_html, headers={"Vary": "Cookie"})
 
 
 async def slides_vault(request: Request) -> HTMLResponse:
@@ -161,20 +172,20 @@ async def slides_vault(request: Request) -> HTMLResponse:
     if state.index.nav_tree is None:
         return HTMLResponse("Not found", status_code=404)
 
-    notes = collect_directory_notes(state.index.nav_tree, state.index)
+    order = validated_slide_deck_order(request.query_params.get("sort")) or "predefined"
+    notes = collect_directory_notes(state.index.nav_tree, state.index, order)
     if not notes:
         return HTMLResponse("Not found", status_code=404)
 
-    rendered_slides = []
-    for note in notes:
-        rendered_slides.extend(state.renderer.render_slides(note, heading_namespace=f"slide-{note.id[:12]}"))
+    split_override = slide_split_override(request.query_params.get("split"), request.cookies.get("vaultpub_slide_split"))
     return HTMLResponse(slides_page_template(
         title=f"{state.config.site_name} - Presentation",
-        slides_html=slide_sections_html(rendered_slides),
+        slides_html=_multi_note_slides_html(notes, state.renderer, split_override),
         options=SlideOptions(),
         return_url="/",
         return_label="Vault",
-    ))
+        split_override=split_override,
+    ), headers={"Vary": "Cookie"})
 
 
 async def attachment(request: Request) -> Response:
@@ -298,8 +309,36 @@ async def api_graph(request: Request) -> JSONResponse:
     })
 
 
+def _slide_launch_data(state: AppState) -> tuple[str | None, list[dict[str, str]]]:
+    nav_tree = state.index.nav_tree
+    if nav_tree is None or not collect_directory_notes(nav_tree, state.index):
+        return None, []
+
+    scopes = [{"label": "Whole vault", "url": "/_slides-vault"}]
+    scopes.extend(
+        {"label": f"{directory.path}/", "url": f"/_slides-folder/{directory.path}/"}
+        for directory in collect_slide_scope_directories(nav_tree, state.index)
+    )
+    return scopes[0]["url"], scopes
+
+
+def _multi_note_slides_html(notes: list[NoteRecord], renderer: Renderer, split_override: str | None) -> str:
+    return multi_note_slide_sections_html(
+        (
+            note,
+            renderer.render_slides(
+                note,
+                heading_namespace=f"slide-{note.id[:12]}",
+                split_override=split_override,
+            ),
+        )
+        for note in notes
+    )
+
+
 def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:
     state = _get_state(request)
+    vault_slides_url, slide_scopes = _slide_launch_data(state)
     body_html = state.renderer.render_article_html(note)
     toc_html = state.renderer.render_toc_html(note) if state.config.show_toc else ""
     backlinks_html = state.renderer.render_backlinks_html(note) if state.config.show_backlinks else ""
@@ -319,13 +358,15 @@ def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:
         sidebar_right_html,
         graph_html=graph_html,
         topbar_context_html=topbar_context_html,
-        vault_slides_url="/_slides-vault",
+        vault_slides_url=vault_slides_url,
+        slide_scopes=slide_scopes,
     )
     return HTMLResponse(page_str)
 
 
 def _render_directory_page(request: Request, directory: NavNode) -> HTMLResponse:
     state = _get_state(request)
+    vault_slides_url, slide_scopes = _slide_launch_data(state)
     body_html = directory_page_html(
         directory,
         current_path=directory.url,
@@ -345,7 +386,6 @@ def _render_directory_page(request: Request, directory: NavNode) -> HTMLResponse
     topbar_context_html = topbar_context_html_for_directory(
         PurePosixPath(directory.path),
         current_url=directory.url,
-        present_url=(f"/_slides-folder/{directory.path}/" if collect_directory_notes(directory, state.index) else None),
     )
     page_str = base_page_template(
         body_html,
@@ -356,13 +396,15 @@ def _render_directory_page(request: Request, directory: NavNode) -> HTMLResponse
         sidebar_right_title="Directory",
         graph_html=graph_html,
         topbar_context_html=topbar_context_html,
-        vault_slides_url="/_slides-vault",
+        vault_slides_url=vault_slides_url,
+        slide_scopes=slide_scopes,
     )
     return HTMLResponse(page_str)
 
 
 def _render_text_page(request: Request, tp: TextPageRecord) -> HTMLResponse:
     state = _get_state(request)
+    vault_slides_url, slide_scopes = _slide_launch_data(state)
     body_html = _render_text_page_content(tp)
     nav_html = ""
     if state.index.nav_tree:
@@ -379,7 +421,8 @@ def _render_text_page(request: Request, tp: TextPageRecord) -> HTMLResponse:
         "",
         graph_html="",
         topbar_context_html=topbar_context_html,
-        vault_slides_url="/_slides-vault",
+        vault_slides_url=vault_slides_url,
+        slide_scopes=slide_scopes,
     )
     return HTMLResponse(page_str)
 

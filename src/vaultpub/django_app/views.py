@@ -8,6 +8,7 @@ from pathlib import PurePosixPath
 
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.utils.cache import patch_vary_headers
 
 from vaultpub.core.attachments import (
     attachment_content_disposition,
@@ -18,13 +19,21 @@ from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.render import Renderer
-from vaultpub.core.render.slides import SlideOptions, collect_directory_notes, slide_options
+from vaultpub.core.render.slides import (
+    SlideOptions,
+    collect_directory_notes,
+    collect_slide_scope_directories,
+    slide_options,
+    slide_split_override,
+    validated_slide_deck_order,
+)
 from vaultpub.core.render.seo import build_meta_tags, build_page_description, build_page_title
 from vaultpub.core.render.templates import (
     directory_page_html,
     directory_preview_map,
     directory_sibling_files_html,
     find_nav_directory,
+    multi_note_slide_sections_html,
     nav_tree_html,
     sidebar_graph_state,
     slide_sections_html,
@@ -557,8 +566,8 @@ def _render_note(request: HttpRequest, note: NoteRecord, state: dict | None = No
             url_transform=lambda url: _prefix_public_url(config, url),
             present_url=_prefix_public_url(config, _slide_url(note)),
         ),
-        "vault_slides_url": _prefix_public_url(config, _vault_slide_url()),
     }
+    context.update(_slide_launch_context(config, index))
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, note)
     context["show_graph"] = show_graph
     context["graph_note_id"] = graph_note_id
@@ -591,8 +600,8 @@ def _render_text_page(request: HttpRequest, tp: TextPageRecord, state: dict | No
             tp,
             url_transform=lambda url: _prefix_public_url(config, url),
         ),
-        "vault_slides_url": _prefix_public_url(config, _vault_slide_url()),
     }
+    context.update(_slide_launch_context(config, index))
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, None)
     context["show_graph"] = show_graph
     context["graph_note_id"] = graph_note_id
@@ -635,14 +644,9 @@ def _render_directory_page(request: HttpRequest, directory: NavNode, state: dict
             PurePosixPath(directory.path),
             current_url=directory.url,
             url_transform=lambda url: _prefix_public_url(config, url),
-            present_url=(
-                _prefix_public_url(config, _folder_slide_url(directory))
-                if collect_directory_notes(directory, index)
-                else None
-            ),
         ),
-        "vault_slides_url": _prefix_public_url(config, _vault_slide_url()),
     }
+    context.update(_slide_launch_context(config, index))
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, None)
     context["show_graph"] = show_graph
     context["graph_note_id"] = graph_note_id
@@ -656,9 +660,10 @@ def _slides_from_state(request: HttpRequest, note_path: str, state: dict) -> Htt
 
     config = state["config"]
     options = slide_options(note.frontmatter)
+    split_override = slide_split_override(request.GET.get("split"), request.COOKIES.get("vaultpub_slide_split"))
     rendered_slides = [
         replace(slide, html=_prefix_html_urls(slide.html, config))
-        for slide in state["renderer"].render_slides(note)
+        for slide in state["renderer"].render_slides(note, split_override=split_override)
     ]
     return _render_slides(
         request,
@@ -667,6 +672,7 @@ def _slides_from_state(request: HttpRequest, note_path: str, state: dict) -> Htt
         options=options,
         return_url=_prefix_public_url(config, _note_public_url(note)),
         return_label="Article",
+        split_override=split_override,
     )
 
 
@@ -675,23 +681,22 @@ def _slides_folder_from_state(request: HttpRequest, directory_path: str, state: 
     if directory is None or directory.path in ("", "."):
         raise Http404("Not found")
 
-    notes = collect_directory_notes(directory, state["index"])
+    order = validated_slide_deck_order(request.GET.get("sort")) or "predefined"
+    notes = collect_directory_notes(directory, state["index"], order)
     if not notes:
         raise Http404("Not found")
 
     config = state["config"]
-    rendered_slides = []
-    for note in notes:
-        namespace = f"slide-{note.id[:12]}"
-        rendered_slides.extend(state["renderer"].render_slides(note, heading_namespace=namespace))
-    rendered_slides = [replace(slide, html=_prefix_html_urls(slide.html, config)) for slide in rendered_slides]
+    split_override = slide_split_override(request.GET.get("split"), request.COOKIES.get("vaultpub_slide_split"))
+    slides_html = _multi_note_slides_html(notes, state["renderer"], config, split_override)
     return _render_slides(
         request,
         title=f"{directory.label} - Presentation",
-        slides_html=slide_sections_html(rendered_slides),
+        slides_html=slides_html,
         options=SlideOptions(),
         return_url=_prefix_public_url(config, directory.url),
         return_label="Folder",
+        split_override=split_override,
     )
 
 
@@ -700,23 +705,22 @@ def _slides_vault_from_state(request: HttpRequest, state: dict) -> HttpResponse:
     if nav_tree is None:
         raise Http404("Not found")
 
-    notes = collect_directory_notes(nav_tree, state["index"])
+    order = validated_slide_deck_order(request.GET.get("sort")) or "predefined"
+    notes = collect_directory_notes(nav_tree, state["index"], order)
     if not notes:
         raise Http404("Not found")
 
     config = state["config"]
-    rendered_slides = []
-    for note in notes:
-        namespace = f"slide-{note.id[:12]}"
-        rendered_slides.extend(state["renderer"].render_slides(note, heading_namespace=namespace))
-    rendered_slides = [replace(slide, html=_prefix_html_urls(slide.html, config)) for slide in rendered_slides]
+    split_override = slide_split_override(request.GET.get("split"), request.COOKIES.get("vaultpub_slide_split"))
+    slides_html = _multi_note_slides_html(notes, state["renderer"], config, split_override)
     return _render_slides(
         request,
         title=f"{config.site_name} - Presentation",
-        slides_html=slide_sections_html(rendered_slides),
+        slides_html=slides_html,
         options=SlideOptions(),
         return_url=_prefix_public_url(config, "/"),
         return_label="Vault",
+        split_override=split_override,
     )
 
 
@@ -727,8 +731,9 @@ def _render_slides(
     options: SlideOptions,
     return_url: str,
     return_label: str,
+    split_override: str | None = None,
 ) -> HttpResponse:
-    return render(
+    response = render(
         request,
         "vaultpub/slides.html",
         {
@@ -736,10 +741,13 @@ def _render_slides(
             "slides_html": slides_html,
             "reveal_theme": options.theme,
             "reveal_config": options.reveal_config(),
+            "slide_settings": options.client_config(split_override),
             "return_url": return_url,
             "return_label": return_label,
         },
     )
+    patch_vary_headers(response, ("Cookie",))
+    return response
 
 
 def _slide_url(note: NoteRecord) -> str:
@@ -752,6 +760,39 @@ def _folder_slide_url(directory: NavNode) -> str:
 
 def _vault_slide_url() -> str:
     return "/_slides-vault"
+
+
+def _slide_launch_context(config: PublisherConfig, index: VaultIndex) -> dict[str, object]:
+    nav_tree = index.nav_tree
+    if nav_tree is None or not collect_directory_notes(nav_tree, index):
+        return {}
+
+    scopes = [{"label": "Whole vault", "url": _prefix_public_url(config, _vault_slide_url())}]
+    scopes.extend(
+        {
+            "label": f"{directory.path}/",
+            "url": _prefix_public_url(config, _folder_slide_url(directory)),
+        }
+        for directory in collect_slide_scope_directories(nav_tree, index)
+    )
+    return {"vault_slides_url": scopes[0]["url"], "slide_scopes": scopes}
+
+
+def _multi_note_slides_html(
+    notes: list[NoteRecord],
+    renderer: Renderer,
+    config: PublisherConfig,
+    split_override: str | None,
+) -> str:
+    note_slides = []
+    for note in notes:
+        rendered = renderer.render_slides(
+            note,
+            heading_namespace=f"slide-{note.id[:12]}",
+            split_override=split_override,
+        )
+        note_slides.append((note, [replace(slide, html=_prefix_html_urls(slide.html, config)) for slide in rendered]))
+    return multi_note_slide_sections_html(note_slides)
 
 
 def _render_text_page_content(tp: TextPageRecord, current_path: str | None = None) -> str:
