@@ -26,7 +26,7 @@ async function loadSearchIndex(): Promise<void> {
   } catch {
     // Fallback: try API
     try {
-      const resp = await fetch(withUrlPrefix("/api/search?q="));
+      const resp = await fetch(withUrlPrefix("/__api__/search?q="));
       if (resp.ok) {
         const data = await resp.json();
         searchDocs = data.results || [];

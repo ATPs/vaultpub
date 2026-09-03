@@ -31,7 +31,7 @@ async function loadGraphData(): Promise<GraphData | null> {
     return await resp.json();
   } catch {
     try {
-      const resp = await fetch(withUrlPrefix("/api/graph"));
+      const resp = await fetch(withUrlPrefix("/__api__/graph"));
       if (!resp.ok) return null;
       return await resp.json();
     } catch {

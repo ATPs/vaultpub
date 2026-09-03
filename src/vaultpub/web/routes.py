@@ -5,6 +5,7 @@ import threading
 from dataclasses import dataclass
 from html import escape
 from pathlib import PurePosixPath
+from urllib.parse import urlparse
 
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
@@ -17,7 +18,21 @@ from vaultpub.core.attachments import (
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord, TextPageRecord, VaultIndex
-from vaultpub.core.paths import safe_join
+from vaultpub.core.navigation_order import (
+    NavigationOrderConflict,
+    NavigationOrderError,
+    order_editor_payload,
+    reset_navigation_order,
+    save_navigation_order,
+)
+from vaultpub.core.paths import (
+    API_URL_PREFIX,
+    SETTINGS_URL_PREFIX,
+    SLIDES_FOLDER_URL_PREFIX,
+    SLIDES_URL_PREFIX,
+    SLIDES_VAULT_URL,
+    safe_join,
+)
 from vaultpub.core.render.renderer import Renderer
 from vaultpub.core.render.seo import build_meta_tags
 from vaultpub.core.render.slides import (
@@ -40,6 +55,7 @@ from vaultpub.core.render.templates import (
     multi_note_slide_placeholders_html,
     multi_note_slide_sections_html,
     nav_tree_html,
+    order_editor_page_html,
     sidebar_graph_state,
     slide_sections_html,
     slides_page_template,
@@ -94,6 +110,70 @@ async def index_page(request: Request) -> HTMLResponse:
     if home_note is None:
         return HTMLResponse("<h1>No notes found</h1>", status_code=404)
     return _render_note_page(request, home_note)
+
+
+async def order_editor(request: Request) -> HTMLResponse:
+    state = _get_state(request)
+    try:
+        payload = order_editor_payload(state.config, state.index, request.query_params.get("directory"))
+    except NavigationOrderError:
+        return HTMLResponse("Not found", status_code=404)
+    nav_html = ""
+    if state.index.nav_tree:
+        nav_html = "<ul>" + nav_tree_html(state.index.nav_tree) + "</ul>"
+    page_str = base_page_template(
+        order_editor_page_html(
+            f"{API_URL_PREFIX}/settings/order", f"{API_URL_PREFIX}/settings/order", payload["directory"]
+        ),
+        nav_html,
+        f"<title>Custom order - {escape(state.config.site_name)}</title>",
+        state.config,
+        sidebar_right_title="Order",
+        order_editor_url=f"{SETTINGS_URL_PREFIX}/order",
+    )
+    return HTMLResponse(page_str)
+
+
+async def api_order_editor(request: Request) -> JSONResponse:
+    state = _get_state(request)
+    directory = request.query_params.get("directory")
+    if request.method == "GET":
+        try:
+            return JSONResponse(order_editor_payload(state.config, state.index, directory))
+        except NavigationOrderError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=404)
+
+    if not _is_same_origin(request):
+        return JSONResponse({"error": "Cross-origin ordering requests are not allowed"}, status_code=403)
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Expected a JSON request body"}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "Expected a JSON object"}, status_code=400)
+
+    directory = body.get("directory")
+    try:
+        if body.get("action") == "reset":
+            reset_navigation_order(state.config, state.index, directory, body.get("revision"))
+        elif body.get("action") == "save":
+            save_navigation_order(
+                state.config,
+                state.index,
+                directory,
+                body.get("folders"),
+                body.get("files"),
+                body.get("revision"),
+            )
+        else:
+            return JSONResponse({"error": "Unknown ordering action"}, status_code=400)
+    except NavigationOrderConflict as exc:
+        return JSONResponse({"error": str(exc)}, status_code=409)
+    except NavigationOrderError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+
+    _refresh_state(state)
+    return JSONResponse(order_editor_payload(state.config, state.index, directory))
 
 
 async def page(request: Request) -> HTMLResponse:
@@ -359,12 +439,30 @@ def _slide_launch_data(state: AppState) -> tuple[str | None, list[dict[str, str]
     if nav_tree is None or not collect_directory_notes(nav_tree, state.index):
         return None, []
 
-    scopes = [{"label": "Whole vault", "url": "/_slides-vault"}]
+    scopes = [{"label": "Whole vault", "url": SLIDES_VAULT_URL}]
     scopes.extend(
-        {"label": f"{directory.path}/", "url": f"/_slides-folder/{directory.path}/"}
+        {"label": f"{directory.path}/", "url": f"{SLIDES_FOLDER_URL_PREFIX}/{directory.path}/"}
         for directory in collect_slide_scope_directories(nav_tree, state.index)
     )
     return scopes[0]["url"], scopes
+
+
+def _refresh_state(state: AppState) -> None:
+    index = state.indexer.build()
+    renderer = Renderer(state.config, index)
+    state.index = index
+    state.renderer = renderer
+    if state.rt_state is not None:
+        state.rt_state.index = index
+        state.rt_state.renderer = renderer
+
+
+def _is_same_origin(request: Request) -> bool:
+    origin = request.headers.get("origin")
+    if not origin:
+        return True
+    parsed = urlparse(origin)
+    return parsed.scheme in {"http", "https"} and parsed.netloc == request.headers.get("host")
 
 
 def _multi_note_slides_html(notes: list[NoteRecord], renderer: Renderer, split_override: str | None) -> str:
@@ -387,7 +485,7 @@ def _multi_note_slide_manifest(notes: list[NoteRecord], split_override: str | No
             "id": descriptor.id,
             "title": descriptor.title,
             "sourcePath": descriptor.source_path,
-            "payloadUrl": f"/api/slides{note.url_path}",
+            "payloadUrl": f"{API_URL_PREFIX}/slides{note.url_path}",
             "fragments": [{"index": fragment.index, "title": fragment.title} for fragment in descriptor.fragments],
         }
         for note in notes
@@ -408,7 +506,7 @@ def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:
     if state.index.nav_tree:
         nav_html = "<ul>" + nav_tree_html(state.index.nav_tree) + "</ul>"
     head = build_meta_tags(note, state.config)
-    topbar_context_html = topbar_context_html_for_note(note, present_url=f"/_slides{note.url_path}")
+    topbar_context_html = topbar_context_html_for_note(note, present_url=f"{SLIDES_URL_PREFIX}{note.url_path}")
     page_str = base_page_template(
         body_html,
         nav_html,
@@ -419,6 +517,7 @@ def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:
         topbar_context_html=topbar_context_html,
         vault_slides_url=vault_slides_url,
         slide_scopes=slide_scopes,
+        order_editor_url=f"{SETTINGS_URL_PREFIX}/order",
     )
     return HTMLResponse(page_str)
 
@@ -457,6 +556,7 @@ def _render_directory_page(request: Request, directory: NavNode) -> HTMLResponse
         topbar_context_html=topbar_context_html,
         vault_slides_url=vault_slides_url,
         slide_scopes=slide_scopes,
+        order_editor_url=f"{SETTINGS_URL_PREFIX}/order",
     )
     return HTMLResponse(page_str)
 
@@ -482,6 +582,7 @@ def _render_text_page(request: Request, tp: TextPageRecord) -> HTMLResponse:
         topbar_context_html=topbar_context_html,
         vault_slides_url=vault_slides_url,
         slide_scopes=slide_scopes,
+        order_editor_url=f"{SETTINGS_URL_PREFIX}/order",
     )
     return HTMLResponse(page_str)
 

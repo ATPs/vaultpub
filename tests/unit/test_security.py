@@ -36,3 +36,10 @@ def test_is_path_public_normal() -> None:
 def test_is_path_public_forbidden_names() -> None:
     assert not is_path_public("metadata.json", None)
     assert not is_path_public(".vaultpub.yml", None)
+
+
+def test_is_path_public_excludes_reserved_dunder_url_roots() -> None:
+    assert not is_path_public("__assets__/image.png", None)
+    assert not is_path_public("__slides__/Deck.md", None)
+    assert not is_path_public("__slides-vault__/Deck.md", None)
+    assert is_path_public("Folder/__assets__/image.png", None)

@@ -9,6 +9,7 @@ from typing import Any
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.paths import (
+    RESERVED_URL_ROOTS,
     attachment_rel_path_to_url_path,
     directory_path_to_url_path,
     normalize_rel_path,
@@ -122,6 +123,8 @@ def _classify_changes(
 
         # Skip hidden directories/files
         parts = rel.split("/")
+        if parts[0] in RESERVED_URL_ROOTS:
+            continue
         if any(part.startswith(".") for part in parts):
             continue
 

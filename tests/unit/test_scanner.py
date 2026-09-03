@@ -159,3 +159,20 @@ def test_all_dunder_json_files_are_reserved_but_dunder_markdown_remains_a_note(t
     assert [child.raw_label for child in nav.children] == ["__future__.md", "README.md"]
     assert not is_path_public("__future__.json", None)
     assert is_path_public("__future__.md", None)
+
+
+def test_scan_excludes_reserved_dunder_url_roots_but_not_nested_dunder_names(tmp_path) -> None:
+    (tmp_path / "README.md").write_text("# README", encoding="utf-8")
+    for root_name in ("__api__", "__assets__", "__settings__", "__slides__", "__slides-folder__", "__slides-vault__"):
+        (tmp_path / root_name).mkdir()
+        (tmp_path / root_name / "Hidden.md").write_text("# Hidden", encoding="utf-8")
+
+    (tmp_path / "Folder" / "__api__").mkdir(parents=True)
+    (tmp_path / "Folder" / "__api__" / "Visible.md").write_text("# Visible", encoding="utf-8")
+
+    notes, _attachments, _text_pages, nav = VaultScanner(PublisherConfig(vault_path=tmp_path)).scan()
+
+    assert {note.rel_path.as_posix() for note in notes} == {"README.md", "Folder/__api__/Visible.md"}
+    assert [child.raw_label for child in nav.children] == ["Folder", "README.md"]
+    assert not is_path_public("__api__/Hidden.md", None)
+    assert is_path_public("Folder/__api__/Visible.md", None)

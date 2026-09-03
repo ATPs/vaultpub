@@ -4,6 +4,23 @@ from pathlib import Path, PurePosixPath
 
 from vaultpub.core.exceptions import PathTraversalError
 
+ASSET_URL_PREFIX = "/__assets__"
+API_URL_PREFIX = "/__api__"
+SLIDES_URL_PREFIX = "/__slides__"
+SLIDES_FOLDER_URL_PREFIX = "/__slides-folder__"
+SLIDES_VAULT_URL = "/__slides-vault__"
+SETTINGS_URL_PREFIX = "/__settings__"
+RESERVED_URL_ROOTS = frozenset(
+    {
+        ASSET_URL_PREFIX.lstrip("/"),
+        API_URL_PREFIX.lstrip("/"),
+        SLIDES_URL_PREFIX.lstrip("/"),
+        SLIDES_FOLDER_URL_PREFIX.lstrip("/"),
+        SLIDES_VAULT_URL.lstrip("/"),
+        SETTINGS_URL_PREFIX.lstrip("/"),
+    }
+)
+
 
 def safe_join(vault_root: Path, rel: str) -> Path:
     """Join a relative path to vault root, ensuring no traversal outside root."""
@@ -35,7 +52,7 @@ def rel_path_to_url_path(rel_path: str) -> str:
 
 def attachment_rel_path_to_url_path(rel_path: str) -> str:
     """Convert a file-relative attachment path to the canonical asset URL."""
-    return "/assets/" + PurePosixPath(rel_path).as_posix()
+    return ASSET_URL_PREFIX + "/" + PurePosixPath(rel_path).as_posix()
 
 
 def directory_path_to_url_path(rel_path: str) -> str:

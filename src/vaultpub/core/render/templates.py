@@ -317,6 +317,7 @@ def base_page_template(
     topbar_context_html: str = "",
     vault_slides_url: str | None = None,
     slide_scopes: list[dict[str, str]] | None = None,
+    order_editor_url: str | None = None,
 ) -> str:
     """Wrap content in a basic HTML page template."""
     site_name = getattr(config, "site_name", "vaultpub") if config else "vaultpub"
@@ -325,6 +326,9 @@ def base_page_template(
     logo_html = f'<img src="{site_logo}" alt="{site_name}" class="site-logo">' if site_logo else ""
     search_trigger = '<button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>'
     vault_slides_attr = f' data-vault-slides-url="{escape(vault_slides_url, quote=True)}"' if vault_slides_url else ""
+    order_editor_attr = (
+        f' data-order-editor-url="{escape(order_editor_url, quote=True)}"' if order_editor_url else ""
+    )
     scopes_json = ""
     if slide_scopes:
         scope_data = json.dumps(slide_scopes).replace("<", "\\u003c").replace(">", "\\u003e")
@@ -343,7 +347,7 @@ def base_page_template(
   <link rel="stylesheet" href="/static/vaultpub/common.css">
   <link rel="stylesheet" href="/static/vaultpub/app.css">
 </head>
-<body data-realtime="{realtime}"{vault_slides_attr}>
+<body data-realtime="{realtime}"{vault_slides_attr}{order_editor_attr}>
   <header class="top-bar">
     <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle navigation">&#9776;</button>
     {logo_html}
@@ -404,6 +408,43 @@ def base_page_template(
   <script type="module" src="/static/vaultpub/app.js"></script>
 </body>
 </html>"""
+
+
+def order_editor_page_html(
+    data_url: str,
+    save_url: str,
+    initial_directory: str,
+    csrf_token: str = "",
+) -> str:
+    """Render the live-only navigation ordering workspace."""
+    return f"""\
+<article class="order-editor" data-order-editor
+         data-order-data-url="{escape(data_url, quote=True)}"
+         data-order-save-url="{escape(save_url, quote=True)}"
+         data-initial-directory="{escape(initial_directory, quote=True)}"
+         data-csrf-token="{escape(csrf_token, quote=True)}">
+  <header class="order-editor-header">
+    <div><h1>Custom order</h1><p data-order-editor-path></p></div>
+    <div class="order-editor-actions">
+      <button type="button" class="order-editor-icon-button" data-order-reset title="Use default order" aria-label="Use default order"><i data-lucide="rotate-ccw" aria-hidden="true"></i></button>
+      <button type="button" class="order-editor-save" data-order-save><i data-lucide="save" aria-hidden="true"></i><span>Save order</span></button>
+    </div>
+  </header>
+  <label class="order-editor-folder">Folder
+    <input type="search" list="order-editor-folders" data-order-directory aria-label="Folder">
+    <datalist id="order-editor-folders"></datalist>
+  </label>
+  <p class="order-editor-status" data-order-status role="status" aria-live="polite"></p>
+  <section class="order-editor-section" data-order-pinned-section hidden>
+    <h2>Pinned</h2><ul class="order-editor-list" data-order-pinned></ul>
+  </section>
+  <section class="order-editor-section">
+    <h2>Folders</h2><ul class="order-editor-list" data-order-folders></ul>
+  </section>
+  <section class="order-editor-section">
+    <h2>Files</h2><ul class="order-editor-list" data-order-files></ul>
+  </section>
+</article>"""
 
 
 def find_nav_directory(node: NavNode | None, dir_path: str) -> NavNode | None:

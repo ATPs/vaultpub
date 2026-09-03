@@ -13,7 +13,7 @@ async function fetchPreview(url: string): Promise<string | null> {
   if (cache.has(url)) return cache.get(url)!;
 
   try {
-    const apiUrl = withUrlPrefix("/api/page" + withoutUrlPrefix(url));
+    const apiUrl = withUrlPrefix("/__api__/page" + withoutUrlPrefix(url));
     const resp = await fetch(apiUrl);
     if (!resp.ok) return null;
     const data = await resp.json();

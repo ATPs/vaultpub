@@ -4,7 +4,7 @@ import fnmatch
 import re
 from pathlib import Path
 
-from vaultpub.core.paths import safe_join
+from vaultpub.core.paths import RESERVED_URL_ROOTS, safe_join
 
 ALWAYS_FORBIDDEN = {".git", ".obsidian", "metadata.json", ".vaultpub.yml", ".obsidian-publish.yml"}
 
@@ -44,6 +44,9 @@ def is_path_excluded(rel_path: str, config: object) -> bool:
     """
     pp = rel_path.replace("\\", "/")
     parts = pp.split("/")
+
+    if parts[0] in RESERVED_URL_ROOTS:
+        return True
 
     if is_control_file_name(parts[-1]):
         return True

@@ -91,6 +91,14 @@ function buildSettingsMenu(): void {
     </div>
   `;
 
+  const orderEditorUrl = document.body.dataset.orderEditorUrl;
+  if (orderEditorUrl) {
+    const orderSection = document.createElement("div");
+    orderSection.className = "settings-section settings-order-action";
+    orderSection.innerHTML = `<a class="settings-option" role="menuitem" href="${orderEditorUrl}">Custom order</a>`;
+    dropdown.appendChild(orderSection);
+  }
+
   const appearanceSection = document.createElement("div");
   appearanceSection.className = "settings-section settings-appearance";
   appearanceSection.innerHTML = `

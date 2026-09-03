@@ -96,7 +96,7 @@ def test_render_mixed_wikilinks_and_embeds_preserves_content_order(tmp_path: Pat
 
     assert html.count('class="embed-image"') == len(image_names)
     assert "!" + "[[" not in html
-    assert html.index('href="/First.md"') < html.index('src="/assets/image-0.png"') < html.index('href="/Last.md"')
+    assert html.index('href="/First.md"') < html.index('src="/__assets__/image-0.png"') < html.index('href="/Last.md"')
     assert '<h1 id="repeat">Repeat ' in html
     assert '<h2 id="repeat-1">Repeat ' in html
     assert 'href="#repeat"' in toc_html
@@ -116,7 +116,7 @@ def test_render_standalone_wikilinks_and_images_keep_paragraph_spacing(tmp_path:
     html = renderer.render_note(note)
 
     assert '<p><a href="/Linked.md" class="internal-link">Linked.md</a></p>' in html
-    assert '<p><img src="/assets/image.png" alt="image.png" class="embed-image"></p>' in html
+    assert '<p><img src="/__assets__/image.png" alt="image.png" class="embed-image"></p>' in html
 
 
 def test_render_obsidian_syntax_outputs_real_html(vault_obsidian_syntax) -> None:
@@ -129,7 +129,7 @@ def test_render_obsidian_syntax_outputs_real_html(vault_obsidian_syntax) -> None
         return renderer.render_note(note)
 
     embeds = render("Embeds")
-    assert '<img src="/assets/image.png"' in embeds
+    assert '<img src="/__assets__/image.png"' in embeds
     assert "&lt;!-- VAULTPUB" not in embeds
 
     callouts = render("Callouts")
@@ -198,11 +198,11 @@ def test_render_local_resources_use_canonical_urls(vault_local_resources) -> Non
 
     html = renderer.render_note(note)
 
-    assert '<img src="/assets/subdir/image.png"' in html
-    assert 'href="/assets/subdir/doc.pdf"' in html
+    assert '<img src="/__assets__/subdir/image.png"' in html
+    assert 'href="/__assets__/subdir/doc.pdf"' in html
     assert "PDF Link" in html
-    assert '<a href="/assets/subdir/archive.pin.gz" download="archive.pin.gz">Archive Download</a>' in html
-    assert '<a href="/assets/subdir/archive.pin.gz" download="archive.pin.gz">Archive Link</a>' in html
+    assert '<a href="/__assets__/subdir/archive.pin.gz" download="archive.pin.gz">Archive Download</a>' in html
+    assert '<a href="/__assets__/subdir/archive.pin.gz" download="archive.pin.gz">Archive Link</a>' in html
     assert 'href="/subdir/tool.py"' in html
     assert 'href="/subdir/Other.md"' in html
     assert 'data-embed-source="/subdir/tool.py"' in html
@@ -232,7 +232,7 @@ def test_render_bare_attachment_names_use_vault_wide_obsidian_lookup(tmp_path: P
 
     html = renderer.render_note(note)
 
-    assert html.count('src="/assets/shared.png"') == 2
+    assert html.count('src="/__assets__/shared.png"') == 2
     assert "is-unresolved" not in html
 
 
@@ -255,7 +255,7 @@ def test_render_raw_html_local_urls_are_rewritten(tmp_path: Path) -> None:
 
     html = renderer.render_note(note)
 
-    assert '<img src="/assets/image.png">' in html
+    assert '<img src="/__assets__/image.png">' in html
     assert 'href="/tool.py"' in html
 
 
@@ -279,7 +279,7 @@ def test_render_local_resources_decode_percent_escapes_and_fallback_parent_segme
 
     html = renderer.render_note(note)
 
-    assert html.count('/assets/attachments/Exported image 20260608223536-1.png') == 2
+    assert html.count('/__assets__/attachments/Exported image 20260608223536-1.png') == 2
 
 
 def test_render_local_resources_leave_missing_targets_unchanged(tmp_path: Path) -> None:
@@ -312,7 +312,7 @@ def test_render_obsidian_embed_dynamic_text_file_without_force_include(tmp_path:
     html = renderer.render_note(note)
 
     assert 'class="embed-wrapper"' in html
-    assert 'data-embed-source="/assets/attachments/config.toml"' in html
+    assert 'data-embed-source="/__assets__/attachments/config.toml"' in html
     assert 'class="text-page-embed-tools"' in html
     assert 'class="topbar-code-btn"' in html
     assert 'data-code-action="toggle-wrap"' in html
@@ -333,7 +333,7 @@ def test_render_obsidian_link_dynamic_text_file_uses_asset_url(tmp_path: Path) -
 
     html = renderer.render_note(note)
 
-    assert 'href="/assets/attachments/config.toml"' in html
+    assert 'href="/__assets__/attachments/config.toml"' in html
     assert ">config.toml<" in html
 
 

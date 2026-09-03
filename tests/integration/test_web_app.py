@@ -33,7 +33,7 @@ def test_root_renders_top_folder_navigation_toggle(client) -> None:
 
     assert response.status_code == 200
     assert 'data-nav-folder-layout="top"' in response.text
-    assert 'data-vault-slides-url="/_slides-vault"' in response.text
+    assert 'data-vault-slides-url="/__slides-vault__"' in response.text
     assert 'id="vaultpub-slide-scopes"' in response.text
     assert '"label": "Whole vault"' in response.text
     assert 'title="Move folders to top bar"' in response.text
@@ -61,11 +61,11 @@ def test_scoped_notes_can_render_and_serve_vault_wide_attachments(tmp_path: Path
 
     home = client.get("/")
     assert home.status_code == 200
-    assert home.text.count('src="/assets/shared.png"') == 2
+    assert home.text.count('src="/__assets__/shared.png"') == 2
     assert "Elsewhere" not in home.text
-    assert client.get("/assets/shared.png").status_code == 200
+    assert client.get("/__assets__/shared.png").status_code == 200
     assert client.get("/Elsewhere/Private.md").status_code == 404
-    assert client.get("/api/search?q=Private").json() == {"results": []}
+    assert client.get("/__api__/search?q=Private").json() == {"results": []}
 
 
 def test_note_page(client) -> None:
@@ -82,11 +82,74 @@ def test_note_page(client) -> None:
     assert "Page" in response.text
     assert 'class="topbar-context topbar-context-note"' in response.text
     assert 'data-layout-action="toggle-wide"' not in response.text
-    assert 'data-slide-note-url="/_slides/README.md"' in response.text
-    assert 'data-vault-slides-url="/_slides-vault"' in response.text
+    assert 'data-slide-note-url="/__slides__/README.md"' in response.text
+    assert 'data-vault-slides-url="/__slides-vault__"' in response.text
     assert 'data-current-heading' in response.text
     assert "Home" in response.text
     assert "README.md" in response.text
+
+
+def test_live_order_editor_saves_only_navigation_metadata(tmp_path: Path) -> None:
+    (tmp_path / "Folder").mkdir()
+    (tmp_path / "Folder" / "README.md").write_text("# Folder", encoding="utf-8")
+    (tmp_path / "A.md").write_text("# A", encoding="utf-8")
+    (tmp_path / "B.md").write_text("# B", encoding="utf-8")
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
+
+    home = client.get("/")
+    assert 'data-order-editor-url="/__settings__/order"' in home.text
+    editor = client.get("/__settings__/order")
+    assert editor.status_code == 200
+    assert 'data-order-editor' in editor.text
+
+    payload = client.get("/__api__/settings/order?directory=.").json()
+    saved = client.post(
+        "/__api__/settings/order",
+        json={
+            "action": "save",
+            "directory": ".",
+            "revision": payload["revision"],
+            "folders": ["Folder/"],
+            "files": ["B.md", "A.md"],
+        },
+    )
+    assert saved.status_code == 200
+    assert (tmp_path / "__order__.json").read_text(encoding="utf-8") == '[\n  "Folder/",\n  "B.md",\n  "A.md"\n]\n'
+    assert (tmp_path / "A.md").read_text(encoding="utf-8") == "# A"
+
+    reset = client.post(
+        "/__api__/settings/order",
+        json={
+            "action": "reset",
+            "directory": ".",
+            "revision": saved.json()["revision"],
+        },
+    )
+    assert reset.status_code == 200
+    assert not (tmp_path / "__order__.json").exists()
+
+
+def test_live_order_editor_rejects_cross_origin_writes(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# Home", encoding="utf-8")
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
+    response = client.post("/__api__/settings/order", headers={"Origin": "https://other.example"}, json={})
+    assert response.status_code == 403
+
+
+def test_former_special_roots_now_serve_vault_content(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# Home", encoding="utf-8")
+    for root_name in ("_slides", "_settings", "_slides-vault", "api", "assets"):
+        (tmp_path / root_name).mkdir()
+        (tmp_path / root_name / "Note.md").write_text(f"# {root_name}", encoding="utf-8")
+
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
+
+    for root_name in ("_slides", "_settings", "_slides-vault", "api", "assets"):
+        response = client.get(f"/{root_name}/Note.md")
+        assert response.status_code == 200
+        assert "vaultpub-slides" not in response.text
+    assert client.get("/_slides-vault").status_code == 404
+    assert client.get("/api/search").status_code == 404
 
 
 def test_note_page_code_blocks_default_wrap_and_line_numbers(tmp_path: Path) -> None:
@@ -124,7 +187,7 @@ def test_note_page_uses_local_graph_placeholder(client) -> None:
 
 
 def test_api_search(client) -> None:
-    response = client.get("/api/search?q=README")
+    response = client.get("/__api__/search?q=README")
     assert response.status_code == 200
     data = response.json()
     assert "results" in data
@@ -140,7 +203,7 @@ def test_search_index_json(client) -> None:
 
 
 def test_api_graph(client) -> None:
-    response = client.get("/api/graph")
+    response = client.get("/__api__/graph")
     assert response.status_code == 200
     data = response.json()
     assert "nodes" in data
@@ -216,10 +279,10 @@ def test_standalone_slide_page_uses_reveal_without_article_chrome(tmp_path: Path
     client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
 
     article = client.get("/README.md")
-    response = client.get("/_slides/README.md")
+    response = client.get("/__slides__/README.md")
 
     assert article.status_code == 200
-    assert 'data-slide-note-url="/_slides/README.md"' in article.text
+    assert 'data-slide-note-url="/__slides__/README.md"' in article.text
     assert response.status_code == 200
     assert '<div class="reveal"><div class="slides">' in response.text
     assert response.text.count('<section class="vaultpub-slide"') == 2
@@ -238,9 +301,9 @@ def test_standalone_slide_settings_honor_frontmatter_cookie_and_query_override(t
     )
     client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
 
-    default = client.get("/_slides/README.md")
-    cookie = client.get("/_slides/README.md", cookies={"vaultpub_slide_split": "sections"})
-    query = client.get("/_slides/README.md?split=single", cookies={"vaultpub_slide_split": "sections"})
+    default = client.get("/__slides__/README.md")
+    cookie = client.get("/__slides__/README.md", cookies={"vaultpub_slide_split": "sections"})
+    query = client.get("/__slides__/README.md?split=single", cookies={"vaultpub_slide_split": "sections"})
 
     assert default.text.count('<section class="vaultpub-slide"') == 1
     assert cookie.text.count('<section class="vaultpub-slide"') == 2
@@ -262,7 +325,7 @@ def test_standalone_folder_slides_follow_navigation_order(tmp_path: Path) -> Non
     client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
 
     directory = client.get("/Course/")
-    response = client.get("/_slides-folder/Course/")
+    response = client.get("/__slides-folder__/Course/")
 
     assert directory.status_code == 200
     assert 'data-slide-folder-url=' not in directory.text
@@ -281,9 +344,9 @@ def test_standalone_slide_routes_reject_private_non_markdown_and_empty_directori
     (tmp_path / "Empty").mkdir()
     client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
 
-    assert client.get("/_slides/private/Secret.md").status_code == 404
-    assert client.get("/_slides/notes.txt").status_code == 404
-    assert client.get("/_slides-folder/Empty/").status_code == 404
+    assert client.get("/__slides__/private/Secret.md").status_code == 404
+    assert client.get("/__slides__/notes.txt").status_code == 404
+    assert client.get("/__slides-folder__/Empty/").status_code == 404
 
 
 def test_standalone_whole_vault_slides_follow_navigation_order_and_exclusions(tmp_path: Path) -> None:
@@ -298,7 +361,7 @@ def test_standalone_whole_vault_slides_follow_navigation_order_and_exclusions(tm
     (tmp_path / "Course" / "__order__.json").write_text('["Nested/", "A.md"]', encoding="utf-8")
     client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
 
-    response = client.get("/_slides-vault")
+    response = client.get("/__slides-vault__")
 
     assert response.status_code == 200
     assert response.text.count("class=\"vaultpub-note-slot\"") == 3
@@ -313,7 +376,7 @@ def test_standalone_whole_vault_slides_reject_empty_vault(tmp_path: Path) -> Non
     (tmp_path / "Empty").mkdir()
     client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
 
-    assert client.get("/_slides-vault").status_code == 404
+    assert client.get("/__slides-vault__").status_code == 404
 
 
 def test_standalone_multi_note_slides_validate_sort_and_scope_payload(tmp_path: Path) -> None:
@@ -325,8 +388,8 @@ def test_standalone_multi_note_slides_validate_sort_and_scope_payload(tmp_path: 
     client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
 
     page = client.get("/A.md")
-    descending = client.get("/_slides-vault?sort=name-desc&split=single")
-    fallback = client.get("/_slides-vault?sort=invalid&split=single")
+    descending = client.get("/__slides-vault__?sort=name-desc&split=single")
+    fallback = client.get("/__slides-vault__?sort=invalid&split=single")
 
     assert '"label": "Course/"' in page.text
     assert "Empty/" not in page.text
@@ -335,7 +398,7 @@ def test_standalone_multi_note_slides_validate_sort_and_scope_payload(tmp_path: 
     assert descending.text.count('data-slide-kind="note-divider"') == 3
     assert 'data-vaultpub-multi-note="true"' in descending.text
     assert 'vaultpub-slide-manifest' in descending.text
-    assert 'slides-print-notice' in client.get("/_slides-vault?print-pdf").text
+    assert 'slides-print-notice' in client.get("/__slides-vault__?print-pdf").text
 
 
 def test_standalone_multi_note_slide_payload_is_rendered_per_note_and_defers_media(tmp_path: Path) -> None:
@@ -344,8 +407,8 @@ def test_standalone_multi_note_slide_payload_is_rendered_per_note_and_defers_med
     (tmp_path / "image.png").write_bytes(b"png")
     client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
 
-    deck = client.get("/_slides-vault")
-    payload = client.get("/api/slides/B.md")
+    deck = client.get("/__slides-vault__")
+    payload = client.get("/__api__/slides/B.md")
 
     assert deck.status_code == 200
     assert "A-only-body" not in deck.text
@@ -356,12 +419,12 @@ def test_standalone_multi_note_slide_payload_is_rendered_per_note_and_defers_med
     data = payload.json()
     assert data["sourcePath"] == "B.md"
     assert "B-only-body" in data["slides"][0]["html"]
-    assert 'data-vaultpub-src="/assets/image.png"' in data["slides"][0]["html"]
-    assert client.get("/api/slides/missing.md").status_code == 404
+    assert 'data-vaultpub-src="/__assets__/image.png"' in data["slides"][0]["html"]
+    assert client.get("/__api__/slides/missing.md").status_code == 404
 
 
 def test_api_page(client) -> None:
-    response = client.get("/api/page/README.md")
+    response = client.get("/__api__/page/README.md")
     assert response.status_code == 200
     data = response.json()
     assert "html" in data
@@ -435,7 +498,7 @@ def test_force_included_text_page_renders_topbar_code_tools(tmp_path: Path) -> N
     assert response.status_code == 200
     assert 'class="topbar-context topbar-context-code"' in response.text
     assert 'data-layout-action="toggle-wide"' not in response.text
-    assert 'data-vault-slides-url="/_slides-vault"' in response.text
+    assert 'data-vault-slides-url="/__slides-vault__"' in response.text
     assert 'href="/tools/" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in response.text
     assert 'href="/tools/example.py" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in response.text
     assert 'data-code-action="copy-path"' in response.text
@@ -455,20 +518,20 @@ def test_local_resource_links_render_and_serve(vault_local_resources) -> None:
 
     page = client.get("/subdir/README.md")
     assert page.status_code == 200
-    assert 'src="/assets/subdir/image.png"' in page.text
-    assert 'href="/assets/subdir/doc.pdf"' in page.text
-    assert '<a href="/assets/subdir/archive.pin.gz" download="archive.pin.gz">Archive Download</a>' in page.text
-    assert '<a href="/assets/subdir/archive.pin.gz" download="archive.pin.gz">Archive Link</a>' in page.text
+    assert 'src="/__assets__/subdir/image.png"' in page.text
+    assert 'href="/__assets__/subdir/doc.pdf"' in page.text
+    assert '<a href="/__assets__/subdir/archive.pin.gz" download="archive.pin.gz">Archive Download</a>' in page.text
+    assert '<a href="/__assets__/subdir/archive.pin.gz" download="archive.pin.gz">Archive Link</a>' in page.text
     assert 'href="/subdir/tool.py"' in page.text
     assert 'href="/subdir/Other.md"' in page.text
     assert 'href="./missing.gz"' in page.text
     assert 'href="./missing.txt"' in page.text
 
-    asset = client.get("/assets/subdir/image.png")
+    asset = client.get("/__assets__/subdir/image.png")
     assert asset.status_code == 200
     assert "image/png" in asset.headers["content-type"]
 
-    archive = client.get("/assets/subdir/archive.pin.gz")
+    archive = client.get("/__assets__/subdir/archive.pin.gz")
     assert archive.status_code == 200
     assert "application/gzip" in archive.headers["content-type"]
     assert archive.headers["content-disposition"] == 'attachment; filename="archive.pin.gz"'
@@ -496,9 +559,9 @@ def test_local_resource_links_decode_percent_escapes_and_fallback_parent_segment
 
     page = client.get("/general/README.md")
     assert page.status_code == 200
-    assert '/assets/attachments/Exported image 20260608223536-1.png' in page.text
+    assert '/__assets__/attachments/Exported image 20260608223536-1.png' in page.text
 
-    asset = client.get("/assets/attachments/Exported%20image%2020260608223536-1.png")
+    asset = client.get("/__assets__/attachments/Exported%20image%2020260608223536-1.png")
     assert asset.status_code == 200
     assert asset.headers["content-type"].startswith("image/png")
 
@@ -512,18 +575,18 @@ def test_obsidian_dynamic_text_file_embed_renders_and_serves_asset(tmp_path: Pat
     app = create_app(PublisherConfig(vault_path=tmp_path, realtime=False))
     client = TestClient(app)
 
-    asset_before = client.get("/assets/attachments/config.toml")
+    asset_before = client.get("/__assets__/attachments/config.toml")
     assert asset_before.status_code == 404
 
     page = client.get("/general/README.md")
     assert page.status_code == 200
-    assert 'data-embed-source="/assets/attachments/config.toml"' in page.text
+    assert 'data-embed-source="/__assets__/attachments/config.toml"' in page.text
     assert 'class="text-page-embed-tools"' in page.text
     assert 'class="topbar-code-btn"' in page.text
     assert 'data-code-action="toggle-wrap"' in page.text
     assert 'class="language-toml"' in page.text
 
-    asset_after = client.get("/assets/attachments/config.toml")
+    asset_after = client.get("/__assets__/attachments/config.toml")
     assert asset_after.status_code == 200
     assert asset_after.text == 'name = "vaultpub"\n'
 
@@ -545,7 +608,7 @@ def test_permalink_and_alias_routes_and_api(tmp_path: Path) -> None:
     alias_response = client.get("/Old%20Home")
     assert alias_response.status_code == 404
 
-    api_response = client.get("/api/page/README.md")
+    api_response = client.get("/__api__/page/README.md")
     assert api_response.status_code == 200
     assert api_response.json()["url"] == "/README.md"
 

@@ -249,7 +249,7 @@ def test_renderer_renders_later_slide_links_embeds_and_heading_ids(tmp_path) -> 
     assert 'id="title"' in slides[0].html
     assert 'id="second"' in slides[1].html
     assert 'href="/Target.md"' in slides[1].html
-    assert 'src="/assets/Folder/image.png"' in slides[1].html
+    assert 'src="/__assets__/Folder/image.png"' in slides[1].html
 
 
 def test_renderer_preserves_supported_content_and_does_not_split_embedded_note(tmp_path) -> None:

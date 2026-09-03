@@ -18,10 +18,12 @@ import { initNavHighlightAll } from "./nav-highlight";
 import { initCodeHighlight } from "./code-highlight";
 import { initTopbarContext } from "./topbar-context";
 import { initSlideLaunch } from "./slide-launch";
+import { initOrderEditor } from "./order-editor";
 
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
   initSlideLaunch();
+  initOrderEditor();
   initSearch();
   initPreview();
   initGraph();

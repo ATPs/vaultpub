@@ -14,6 +14,7 @@ from vaultpub.core.config import PublisherConfig
 from vaultpub.core.exceptions import PathTraversalError
 from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord, TextPageRecord
 from vaultpub.core.paths import (
+    RESERVED_URL_ROOTS,
     attachment_rel_path_to_url_path,
     directory_path_to_url_path,
     file_display_name,
@@ -58,6 +59,8 @@ class VaultScanner:
             # Filter dirnames for os.walk pruning
             kept_dirs = []
             for d in dirnames:
+                if dirpath == root and d in RESERVED_URL_ROOTS:
+                    continue
                 if d in ALWAYS_FORBIDDEN:
                     continue
                 if self._is_hidden(d) and not self.config.hidden_file_access:
@@ -82,6 +85,8 @@ class VaultScanner:
             for fname in sorted(filenames):
                 fpath = dirpath / fname
 
+                if dirpath == root and fname in RESERVED_URL_ROOTS:
+                    continue
                 if not self.config.follow_symlinks and fpath.is_symlink():
                     continue
                 if self._is_hidden(fname) and not self.config.hidden_file_access:

@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="{% static 'vaultpub/common.css' %}">
   <link rel="stylesheet" href="{% static 'vaultpub/app.css' %}">
 </head>
-<body data-realtime="{% if realtime %}true{% else %}false{% endif %}" data-url-prefix="{{ url_prefix|default:'/' }}"{% if vault_slides_url %} data-vault-slides-url="{{ vault_slides_url }}"{% endif %}>
+<body data-realtime="{% if realtime %}true{% else %}false{% endif %}" data-url-prefix="{{ url_prefix|default:'/' }}"{% if vault_slides_url %} data-vault-slides-url="{{ vault_slides_url }}"{% endif %}{% if order_editor_url %} data-order-editor-url="{{ order_editor_url }}"{% endif %}>
   <header class="top-bar">
     <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle navigation">&#9776;</button>
     {% if site_logo %}<img src="{{ site_logo }}" alt="{{ site_name }}" class="site-logo">{% endif %}

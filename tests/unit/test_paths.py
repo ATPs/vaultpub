@@ -40,8 +40,8 @@ def test_rel_path_to_url_path() -> None:
 
 
 def test_attachment_rel_path_to_url_path() -> None:
-    assert attachment_rel_path_to_url_path("image.png") == "/assets/image.png"
-    assert attachment_rel_path_to_url_path("Folder/image.png") == "/assets/Folder/image.png"
+    assert attachment_rel_path_to_url_path("image.png") == "/__assets__/image.png"
+    assert attachment_rel_path_to_url_path("Folder/image.png") == "/__assets__/Folder/image.png"
 
 
 def test_generate_note_id_stable() -> None:

@@ -90,7 +90,7 @@ vaultpub serve \
 | `--force-include-regex` | none | Regex to force-include non-Markdown text files (repeatable). See `--help` for examples |
 | `--force-exclude-regex` | none | Regex to force-exclude paths from publishing (repeatable). See `--help` for examples |
 
-When `--sub-path` is omitted, `serve` preserves `publish.include_folders` from YAML. Without that setting, it publishes from the vault root (`.`). An explicit `--sub-path .` overrides YAML and publishes from the vault root. Sub-paths must be existing directories inside the vault. Scoped note sharing still makes all otherwise-public vault attachments available under `/assets/...`.
+When `--sub-path` is omitted, `serve` preserves `publish.include_folders` from YAML. Without that setting, it publishes from the vault root (`.`). An explicit `--sub-path .` overrides YAML and publishes from the vault root. Sub-paths must be existing directories inside the vault. Scoped note sharing still makes all otherwise-public vault attachments available under `/__assets__/...`.
 
 ### `vaultpub build`
 
@@ -320,6 +320,12 @@ Folders can contain JSON-only control files that change published navigation wit
 
 The Navigation selector persists a visitor's choice of predefined order, name A–Z/Z–A, creation date, or modification date. Category `nav_hidden` only hides a folder from generated navigation; it is not an access-control feature.
 
+### Editing navigation order
+
+Live VaultPub sites provide **Settings → Custom order**. Select a published folder, then reorder its visible subfolders and files independently using drag handles or the arrow controls. Saving writes only that folder's `__order__.json`; it never renames, moves, edits, or deletes vault content. Entries pinned by `__star__.json` remain fixed at the top.
+
+Use **Use default order** to remove the selected folder's `__order__.json`. Existing order entries for currently unpublished content are retained when saving. Static exports do not include the editor. The standalone server has no built-in authentication, so restrict network access when its ordering controls are available.
+
 ### Environment Variables
 
 Perlite-compatible environment variables are supported for Docker deployments:
@@ -404,9 +410,9 @@ Local file targets resolve relative to the current note by default. Root-relativ
 Standard Markdown links and images are also canonicalized to published URLs:
 
 ```markdown
-![](./image.png)            → /assets/current/dir/image.png
-[Document](./doc.pdf)       → /assets/current/dir/doc.pdf
-[Archive](./archive.pin.gz) → /assets/current/dir/archive.pin.gz (download link)
+![](./image.png)            → /__assets__/current/dir/image.png
+[Document](./doc.pdf)       → /__assets__/current/dir/doc.pdf
+[Archive](./archive.pin.gz) → /__assets__/current/dir/archive.pin.gz (download link)
 [Tool](./tool.py)           → /current/dir/tool.py
 [Note](./Other.md)          → /current/dir/Other.md
 ```
@@ -567,9 +573,11 @@ Aspect choices are **Fit available space**, `21:9`, `16:10`, `16:9`, `3:2`, `4:3
 
 Split choices are `auto`, `chapters`, `sections`, `detail`, `fit`, `explicit`, and `single` (legacy `h1`, `h2`, and `h3` URLs remain accepted). `auto` keeps the normal behavior: standalone `---` first, then H2 headings, then one scrollable slide. Chapters uses H1, Sections H2, and Detail H2/H3. **Fit viewport** keeps explicit source boundaries and paginates rendered text to the selected slide canvas; its boundaries are rebuilt whenever the aspect ratio, viewport, theme, text size, wrapping, or media layout changes. `single` creates a flush single-note reading surface: Reveal has no surrounding margin, the page scrollbar reaches the viewport edge, and its thumb stays subtle until hovered. It always hides Reveal's corner slide number while retaining the presenter dock. Other Slide View layouts use the same thin main scrollbar at the browser edge, while their optional page number is plain text in the visible slide's lower-right corner. Oversized media, diagrams, tables, callouts, and code remain intact and scroll internally. A shareable `?split=sections` URL temporarily overrides all defaults. A saved browser split preference applies after that, followed by `slide.split` frontmatter and `auto`.
 
-The presenter dock owns previous/next navigation, a searchable slide-title chooser, a full-screen multi-column slide grid, fullscreen, laser pointer, magnifier, pen, timer, blackout, shortcut help, and return controls. The grid scrolls vertically and never advances the deck while scrolling; select a thumbnail to jump. Laser, magnifier, and pen are mutually exclusive. Pen marks are temporary to the current browser tab, retained while navigating between slides, and provide colour, width, undo, redo, and clear controls. On touch devices, tap once after the dock fades to reveal it; drawing disables one-finger navigation until the tool is closed. Use `?` for the shortcut list; `G`, `F`, `L`, `Z`, `D`, and `B` open the chooser, fullscreen, laser, magnifier, drawing, and blackout controls.
+The presenter dock owns previous/next navigation, a searchable slide-title chooser, a full-screen multi-column slide grid, fullscreen, laser pointer, magnifier, pen, timer, blackout, shortcut help, and return controls. The grid scrolls vertically and never advances the deck while scrolling; select a thumbnail to jump. Laser, magnifier, and pen are mutually exclusive. The magnifier remembers its strength and provides either a rectangular local lens or full-slide zoom; its controls adjust zoom from 1.25× to 4× and lens size. The lens follows the pointer until clicked to pin it, while full-slide zoom uses click-to-zoom and pointer panning. Pen marks are temporary to the current browser tab, retained while navigating between slides, and provide colour, width, undo, redo, and clear controls.
 
-The standalone server uses `/_slides/<note-path>`, `/_slides-folder/<directory-path>/`, and `/_slides-vault`; for example, `/_slides/AI-course/introduction.md`. Django uses the same routes below its mount, such as `/notes/_slides/AI-course/introduction.md`. Folder and whole-vault decks recursively include only published visible Markdown notes. Each source file starts with a title/path divider slide, then its rendered content. Multi-file decks send only title/path navigation metadata initially, then keep the current file and its immediate neighbours in a three-file window; media activates only for the current file. The launch dialog supports the same Order, Name, Created, and Modified choices as normal navigation; its choice is encoded as `?sort=...` for that deck only. Bookmarked folder routes remain available.
+The timer defaults to a 20-minute countdown, with presets, custom hours/minutes, optional count-up, and editable amber/red warning thresholds. Starting it shows a small fixed timer in the top-right containing only the time, such as `19:43`; it changes colour at the selected visual warning points. Countdown continues into `+00:00` overtime. The timer panel in the presenter dock owns start, pause, reset, and show/hide controls. Timer configuration is remembered by the browser, while active timing and display visibility recover only within the current tab and deck. On touch devices, tap once after the dock fades to reveal it; drawing disables one-finger navigation until the tool is closed. Use `?` for the shortcut list; `G`, `F`, `L`, `Z`, `T`, `D`, and `B` open the chooser, fullscreen, laser, magnifier, timer, drawing, and blackout controls. While magnifying, `+` and `−` adjust zoom.
+
+The standalone server uses `/__slides__/<note-path>`, `/__slides-folder__/<directory-path>/`, and `/__slides-vault__`; for example, `/__slides__/AI-course/introduction.md`. Django uses the same routes below its mount, such as `/notes/__slides__/AI-course/introduction.md`. Folder and whole-vault decks recursively include only published visible Markdown notes. Each source file starts with a title/path divider slide, then its rendered content. Multi-file decks send only title/path navigation metadata initially, then keep the current file and its immediate neighbours in a three-file window; media activates only for the current file. The launch dialog supports the same Order, Name, Created, and Modified choices as normal navigation; its choice is encoded as `?sort=...` for that deck only. Bookmarked folder routes remain available.
 
 Reveal.js provides arrow/space navigation, slide numbers, hash navigation, and fullscreen display. Browser print/PDF remains available for a single-note deck; multi-file decks deliberately block printing so a partially loaded window cannot be mistaken for a complete export. Speaker notes, presenter windows, remote control, auto-advance, and static-export presentation pages are not included; static export continues to publish article pages only.
 
@@ -618,14 +626,16 @@ Set `VAULTPUB["default"]["url_prefix"]` to the same mount path used in `include(
 | ----- | ------- |
 | `/notes/` | Home page |
 | `/notes/README` | Note page |
-| `/notes/api/page/README` | Note JSON API |
-| `/notes/api/search?q=term` | Search API |
-| `/notes/api/graph` | Graph data API |
-| `/notes/api/graph/local/README` | Local graph API |
-| `/notes/assets/image.png` | Attachment serving |
-| `/notes/_slides/README.md` | Presentation for one note |
-| `/notes/_slides-folder/Folder/` | Presentation for a directory's visible descendant notes |
-| `/notes/_slides-vault` | Presentation for all visible published Markdown notes |
+| `/notes/__api__/page/README` | Note JSON API |
+| `/notes/__api__/search?q=term` | Search API |
+| `/notes/__api__/graph` | Graph data API |
+| `/notes/__api__/graph/local/README` | Local graph API |
+| `/notes/__assets__/image.png` | Attachment serving |
+| `/notes/__slides__/README.md` | Presentation for one note |
+| `/notes/__slides-folder__/Folder/` | Presentation for a directory's visible descendant notes |
+| `/notes/__slides-vault__` | Presentation for all visible published Markdown notes |
+
+VaultPub reserves the root namespaces `__api__`, `__assets__`, `__settings__`, `__slides__`, `__slides-folder__`, and `__slides-vault__`. Content under those exact vault-root names is excluded from publication. The former `_slides`, `_settings`, `api`, and `assets` names are ordinary vault content paths; the old special URLs do not redirect.
 
 ### Template Customization
 
@@ -768,7 +778,7 @@ The `vaultpub build` command produces a fully self-contained static site. No ser
 | `index.html` | Home page |
 | `<note-path>/index.html` | Pretty URL for each note |
 | `tags/<tag>/index.html` | Tag listing pages |
-| `assets/...` | Copied attachments (images, PDFs, etc.) |
+| `__assets__/...` | Copied attachments (images, PDFs, etc.) |
 | `static/vaultpub/boot.js` | Paint-critical theme and navigation preference bootstrap |
 | `static/vaultpub/common.css` | Shared reset, theme, and Markdown CSS |
 | `static/vaultpub/app.css` | Normal-view layout CSS |
@@ -910,15 +920,15 @@ Three modes: light, dark, and system (follows OS preference). Preference is stor
 - Keyboard shortcut: **Ctrl+K** / **Cmd+K**
 - Client-side full-text search against note titles, content, tags, headings, and aliases
 - Results show title, excerpt, and tags
-- Data loaded from `/search-index.json` (static) or `/api/search` (serve)
+- Data loaded from `/search-index.json` (static) or `/__api__/search` (serve)
 
 ### Hover preview
 
-Hovering over an internal link shows a popup with the target note's rendered content. Fetched via `/api/page/<path>`. Toggle with `show_hover_preview` config.
+Hovering over an internal link shows a popup with the target note's rendered content. Fetched via `/__api__/page/<path>`. Toggle with `show_hover_preview` config.
 
 ### Graph
 
-Force-directed canvas visualization of note links and tags. Data from `/graph.json` or `/api/graph`. Nodes are color-coded:
+Force-directed canvas visualization of note links and tags. Data from `/graph.json` or `/__api__/graph`. Nodes are color-coded:
 
 - Blue: notes
 - Orange: tags
@@ -967,7 +977,7 @@ Responsive design with:
 
 ### Search not working
 
-- In serve mode, search uses the `/api/search` endpoint
+- In serve mode, search uses the `/__api__/search` endpoint
 - In static mode, `search-index.json` must be present
 - Clear browser cache if you've updated the vault
 

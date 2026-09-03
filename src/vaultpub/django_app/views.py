@@ -1,14 +1,17 @@
 """Django views for vaultpub."""
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import replace
 from html import escape
 from pathlib import PurePosixPath
 
 from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
+from django.middleware.csrf import get_token
 from django.shortcuts import render
 from django.utils.cache import patch_vary_headers
+from django.views.decorators.http import require_http_methods
 
 from vaultpub.core.attachments import (
     attachment_content_disposition,
@@ -18,6 +21,20 @@ from vaultpub.core.attachments import (
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord, TextPageRecord, VaultIndex
+from vaultpub.core.navigation_order import (
+    NavigationOrderConflict,
+    NavigationOrderError,
+    order_editor_payload,
+    reset_navigation_order,
+    save_navigation_order,
+)
+from vaultpub.core.paths import (
+    API_URL_PREFIX,
+    SETTINGS_URL_PREFIX,
+    SLIDES_FOLDER_URL_PREFIX,
+    SLIDES_URL_PREFIX,
+    SLIDES_VAULT_URL,
+)
 from vaultpub.core.render import Renderer
 from vaultpub.core.render.seo import build_meta_tags, build_page_description, build_page_title
 from vaultpub.core.render.slides import (
@@ -38,6 +55,7 @@ from vaultpub.core.render.templates import (
     multi_note_slide_placeholders_html,
     multi_note_slide_sections_html,
     nav_tree_html,
+    order_editor_page_html,
     sidebar_graph_state,
     slide_sections_html,
     topbar_context_html_for_directory,
@@ -211,6 +229,16 @@ def slides_vault(request: HttpRequest) -> HttpResponse:
     return _slides_vault_from_state(request, state)
 
 
+@require_http_methods(["GET"])
+def order_editor(request: HttpRequest) -> HttpResponse:
+    return _order_editor_from_state(request, _get_state())
+
+
+@require_http_methods(["GET", "POST"])
+def api_order_editor(request: HttpRequest) -> JsonResponse:
+    return _api_order_editor_from_state(request, _get_state())
+
+
 def _page_from_state(request: HttpRequest, note_path: str, state: dict) -> HttpResponse:
     rel_path = "/" + note_path
     canonical_to_note, _all_urls_to_note = _build_url_maps(state["index"])
@@ -233,6 +261,81 @@ def _page_from_state(request: HttpRequest, note_path: str, state: dict) -> HttpR
         return _render_text_page(request, tp, state)
 
     raise Http404("Note not found")
+
+
+def _order_editor_from_state(
+    request: HttpRequest,
+    state: dict,
+    cache_key: str | None = None,
+) -> HttpResponse:
+    config: PublisherConfig = state["config"]
+    try:
+        payload = order_editor_payload(config, state["index"], request.GET.get("directory"))
+    except NavigationOrderError:
+        raise Http404("Directory not found") from None
+    context = {
+        "page_body_html": order_editor_page_html(
+            _prefix_public_url(config, f"{API_URL_PREFIX}/settings/order"),
+            _prefix_public_url(config, f"{API_URL_PREFIX}/settings/order"),
+            payload["directory"],
+            get_token(request),
+        ),
+        "title": f"Custom order - {config.site_name}",
+        "site_name": config.site_name,
+        "description": "Custom navigation order",
+        "nav_html": _build_nav_html(state["index"], config),
+        "realtime": config.realtime,
+        "site_logo": config.site_logo,
+        "show_theme_toggle": config.show_theme_toggle,
+        "show_search": config.show_search,
+        "url_prefix": _url_prefix(config),
+        "seo_head": f"<title>Custom order - {escape(config.site_name)}</title>",
+        "order_editor_url": _prefix_public_url(config, f"{SETTINGS_URL_PREFIX}/order"),
+    }
+    return render(request, "vaultpub/page.html", context)
+
+
+def _api_order_editor_from_state(
+    request: HttpRequest,
+    state: dict,
+    cache_key: str | None = None,
+) -> JsonResponse:
+    config: PublisherConfig = state["config"]
+    if request.method == "GET":
+        try:
+            return JsonResponse(order_editor_payload(config, state["index"], request.GET.get("directory")))
+        except NavigationOrderError as exc:
+            return JsonResponse({"error": str(exc)}, status=404)
+
+    try:
+        body = json.loads(request.body)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return JsonResponse({"error": "Expected a JSON request body"}, status=400)
+    if not isinstance(body, dict):
+        return JsonResponse({"error": "Expected a JSON object"}, status=400)
+
+    directory = body.get("directory")
+    try:
+        if body.get("action") == "reset":
+            reset_navigation_order(config, state["index"], directory, body.get("revision"))
+        elif body.get("action") == "save":
+            save_navigation_order(
+                config,
+                state["index"],
+                directory,
+                body.get("folders"),
+                body.get("files"),
+                body.get("revision"),
+            )
+        else:
+            return JsonResponse({"error": "Unknown ordering action"}, status=400)
+    except NavigationOrderConflict as exc:
+        return JsonResponse({"error": str(exc)}, status=409)
+    except NavigationOrderError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
+    refreshed = build_state_for_config(config, cache_key=cache_key, force_refresh=True)
+    return JsonResponse(order_editor_payload(config, refreshed["index"], directory))
 
 
 def attachment(request: HttpRequest, asset_path: str) -> HttpResponse:
@@ -479,6 +582,28 @@ def render_slides_vault_with_config(
     return _slides_vault_from_state(request, state)
 
 
+def render_order_editor_with_config(
+    request: HttpRequest,
+    config: PublisherConfig,
+    cache_key: str | None = None,
+    force_refresh: bool = False,
+) -> HttpResponse:
+    """Render the navigation ordering workspace for a caller-provided vault."""
+    state = build_state_for_config(config, cache_key=cache_key, force_refresh=force_refresh)
+    return _order_editor_from_state(request, state, cache_key=cache_key)
+
+
+def render_api_order_editor_with_config(
+    request: HttpRequest,
+    config: PublisherConfig,
+    cache_key: str | None = None,
+    force_refresh: bool = False,
+) -> JsonResponse:
+    """Read or update ordering metadata for a caller-provided vault."""
+    state = build_state_for_config(config, cache_key=cache_key, force_refresh=force_refresh)
+    return _api_order_editor_from_state(request, state, cache_key=cache_key)
+
+
 def render_attachment_with_config(
     request: HttpRequest,
     config: PublisherConfig,
@@ -608,6 +733,7 @@ def _render_note(request: HttpRequest, note: NoteRecord, state: dict | None = No
         ),
     }
     context.update(_slide_launch_context(config, index))
+    context.update(_order_editor_context(config))
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, note)
     context["show_graph"] = show_graph
     context["graph_note_id"] = graph_note_id
@@ -642,6 +768,7 @@ def _render_text_page(request: HttpRequest, tp: TextPageRecord, state: dict | No
         ),
     }
     context.update(_slide_launch_context(config, index))
+    context.update(_order_editor_context(config))
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, None)
     context["show_graph"] = show_graph
     context["graph_note_id"] = graph_note_id
@@ -687,6 +814,7 @@ def _render_directory_page(request: HttpRequest, directory: NavNode, state: dict
         ),
     }
     context.update(_slide_launch_context(config, index))
+    context.update(_order_editor_context(config))
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, None)
     context["show_graph"] = show_graph
     context["graph_note_id"] = graph_note_id
@@ -793,15 +921,15 @@ def _render_slides(
 
 
 def _slide_url(note: NoteRecord) -> str:
-    return f"/_slides{note.url_path}"
+    return f"{SLIDES_URL_PREFIX}{note.url_path}"
 
 
 def _folder_slide_url(directory: NavNode) -> str:
-    return f"/_slides-folder/{directory.path}/"
+    return f"{SLIDES_FOLDER_URL_PREFIX}/{directory.path}/"
 
 
 def _vault_slide_url() -> str:
-    return "/_slides-vault"
+    return SLIDES_VAULT_URL
 
 
 def _slide_launch_context(config: PublisherConfig, index: VaultIndex) -> dict[str, object]:
@@ -818,6 +946,10 @@ def _slide_launch_context(config: PublisherConfig, index: VaultIndex) -> dict[st
         for directory in collect_slide_scope_directories(nav_tree, index)
     )
     return {"vault_slides_url": scopes[0]["url"], "slide_scopes": scopes}
+
+
+def _order_editor_context(config: PublisherConfig) -> dict[str, str]:
+    return {"order_editor_url": _prefix_public_url(config, f"{SETTINGS_URL_PREFIX}/order")}
 
 
 def _multi_note_slides_html(
@@ -847,7 +979,7 @@ def _multi_note_slide_manifest(
             "id": descriptor.id,
             "title": descriptor.title,
             "sourcePath": descriptor.source_path,
-            "payloadUrl": _prefix_public_url(config, f"/api/slides{note.url_path}"),
+            "payloadUrl": _prefix_public_url(config, f"{API_URL_PREFIX}/slides{note.url_path}"),
             "fragments": [{"index": fragment.index, "title": fragment.title} for fragment in descriptor.fragments],
         }
         for note in notes

@@ -12,13 +12,13 @@ from pathlib import Path, PurePosixPath
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import NavNode, NoteRecord, TextPageRecord, VaultIndex
-from vaultpub.core.paths import static_html_url
+from vaultpub.core.paths import API_URL_PREFIX, ASSET_URL_PREFIX, static_html_url
 from vaultpub.core.render.renderer import Renderer
 from vaultpub.core.render.seo import build_page_description, build_page_title
 from vaultpub.core.render.templates import (
     base_page_template,
-    directory_preview_map,
     directory_page_html,
+    directory_preview_map,
     directory_sibling_files_html,
     graph_container_html,
     nav_tree_html,
@@ -95,7 +95,7 @@ class StaticSiteBuilder:
         result.tag_pages_written = self._write_tag_pages(out_dir, vault_index, renderer)
 
         # Attachments
-        assets_dir = out_dir / "assets"
+        assets_dir = out_dir / ASSET_URL_PREFIX.lstrip("/")
         assets_dir.mkdir(parents=True, exist_ok=True)
         for rel_path, _att in vault_index.attachments_by_path.items():
             src = self.config.vault_path / rel_path
@@ -393,9 +393,9 @@ class StaticSiteBuilder:
         return _ABSOLUTE_ATTR_RE.sub(_replace, html)
 
     def _static_link(self, url: str) -> str:
-        if url.startswith(("/assets/", "/static/")):
+        if url.startswith((f"{ASSET_URL_PREFIX}/", "/static/")):
             return url
-        if url in ("/graph.json", "/search-index.json") or url.startswith("/api/"):
+        if url in ("/graph.json", "/search-index.json") or url.startswith(f"{API_URL_PREFIX}/"):
             return url
         if "#" in url:
             base, anchor = url.split("#", 1)

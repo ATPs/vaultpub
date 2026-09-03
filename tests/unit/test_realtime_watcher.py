@@ -23,7 +23,7 @@ def test_classify_changes_uses_canonical_attachment_url(tmp_path) -> None:
 
     assert len(event.changed) == 1
     assert event.changed[0].kind == "attachment"
-    assert event.changed[0].url == "/assets/image.png"
+    assert event.changed[0].url == "/__assets__/image.png"
 
 
 def test_classify_changes_marks_navigation_controls_as_nav_changes(tmp_path) -> None:
@@ -36,6 +36,17 @@ def test_classify_changes_marks_navigation_controls_as_nav_changes(tmp_path) -> 
 
     assert event.nav_changed
     assert [(change.kind, change.url) for change in event.changed] == [("navigation", "/Folder/")]
+
+
+def test_classify_changes_ignores_reserved_dunder_roots(tmp_path) -> None:
+    hidden_path = tmp_path / "__slides__" / "Deck.md"
+    hidden_path.parent.mkdir()
+    hidden_path.write_text("# Deck", encoding="utf-8")
+
+    event = _classify_changes({("modified", str(hidden_path))}, tmp_path, PublisherConfig(vault_path=tmp_path))
+
+    assert not event.changed
+    assert not event.deleted
 
 
 @pytest.mark.asyncio

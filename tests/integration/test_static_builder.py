@@ -39,13 +39,14 @@ def test_build_static_site(vault_basic) -> None:
         assert 'data-nav-folder-layout="top"' in home_html
         assert 'title="Move folders to top bar"' in home_html
         assert 'data-vault-slides-url' not in home_html
+        assert 'data-order-editor-url' not in home_html
         assert 'vaultpub-slide-scopes' not in home_html
         assert 'data-slide-note-url' not in home_html
         assert 'title="Expand all"' in home_html
         assert 'title="Collapse all"' in home_html
         assert 'href="/A.md.html"' in home_html
         assert "Present" not in home_html
-        assert "_slides/" not in home_html
+        assert "__slides__/" not in home_html
         assert 'class="sidebar-title">Directory<' in folder_html
         assert 'class="directory-context-nav"' in folder_html
         assert 'href="/A.md.html"' in folder_html
@@ -59,6 +60,23 @@ def test_build_static_site(vault_basic) -> None:
         assert 'directory-list-meta">Folder/B.md<' not in folder_html
         assert 'href="/Folder/index.html" class="topbar-breadcrumb-link topbar-breadcrumb-segment"' in folder_note_html
         assert 'href="/Folder/B.md.html" class="topbar-breadcrumb-link topbar-breadcrumb-current"' in folder_note_html
+
+
+def test_static_build_excludes_reserved_dunder_url_roots(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# Home", encoding="utf-8")
+    (tmp_path / "image.png").write_bytes(b"png")
+    (tmp_path / "__slides__").mkdir()
+    (tmp_path / "__slides__" / "Hidden.md").write_text("# Hidden", encoding="utf-8")
+    (tmp_path / "__api__").mkdir()
+    (tmp_path / "__api__" / "Hidden.md").write_text("# Hidden", encoding="utf-8")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        StaticSiteBuilder(PublisherConfig(vault_path=tmp_path)).build(out)
+
+        assert (out / "__assets__" / "image.png").exists()
+        assert not (out / "__slides__" / "Hidden.md.html").exists()
+        assert not (out / "__api__" / "Hidden.md.html").exists()
 
 
 def test_static_tag_page_loads_boot_before_styles(tmp_path: Path) -> None:
@@ -139,14 +157,14 @@ def test_build_static_site_keeps_canonical_local_resource_urls(vault_local_resou
 
         note_html = (out / "subdir" / "README.md.html").read_text(encoding="utf-8")
         assert result.attachments_copied >= 3
-        assert 'src="/assets/subdir/image.png"' in note_html
-        assert 'href="/assets/subdir/doc.pdf"' in note_html
-        assert '<a href="/assets/subdir/archive.pin.gz" download="archive.pin.gz">Archive Download</a>' in note_html
+        assert 'src="/__assets__/subdir/image.png"' in note_html
+        assert 'href="/__assets__/subdir/doc.pdf"' in note_html
+        assert '<a href="/__assets__/subdir/archive.pin.gz" download="archive.pin.gz">Archive Download</a>' in note_html
         assert 'href="/subdir/tool.py.html"' in note_html
         assert 'href="/subdir/Other.md.html"' in note_html
-        assert (out / "assets" / "subdir" / "image.png").exists()
-        assert (out / "assets" / "subdir" / "doc.pdf").exists()
-        assert (out / "assets" / "subdir" / "archive.pin.gz").exists()
+        assert (out / "__assets__" / "subdir" / "image.png").exists()
+        assert (out / "__assets__" / "subdir" / "doc.pdf").exists()
+        assert (out / "__assets__" / "subdir" / "archive.pin.gz").exists()
 
 
 def test_build_static_site_copies_dynamic_obsidian_referenced_text_file(tmp_path: Path) -> None:
@@ -165,8 +183,8 @@ def test_build_static_site_copies_dynamic_obsidian_referenced_text_file(tmp_path
 
     note_html = (out / "general" / "README.md.html").read_text(encoding="utf-8")
     assert result.attachments_copied >= 1
-    assert 'data-embed-source="/assets/attachments/config.toml"' in note_html
+    assert 'data-embed-source="/__assets__/attachments/config.toml"' in note_html
     assert 'class="text-page-embed-tools"' in note_html
     assert 'class="topbar-code-btn"' in note_html
     assert 'data-code-action="toggle-wrap"' in note_html
-    assert (out / "assets" / "attachments" / "config.toml").exists()
+    assert (out / "__assets__" / "attachments" / "config.toml").exists()

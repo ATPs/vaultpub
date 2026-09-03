@@ -96,8 +96,8 @@ def test_django_page_uses_packaged_template(django_setup) -> None:
     assert response.status_code == 200
     assert b'class="top-bar"' in response.content
     assert b'class="topbar-context topbar-context-note"' in response.content
-    assert b'data-slide-note-url="/notes/_slides/README.md"' in response.content
-    assert b'data-vault-slides-url="/notes/_slides-vault"' in response.content
+    assert b'data-slide-note-url="/notes/__slides__/README.md"' in response.content
+    assert b'data-vault-slides-url="/notes/__slides-vault__"' in response.content
     assert b'id="vaultpub-slide-scopes"' in response.content
     assert b'"label": "Whole vault"' in response.content
     assert b'topbar-present-action' not in response.content
@@ -126,6 +126,39 @@ def test_django_page_uses_local_graph_placeholder(django_setup) -> None:
     assert b'id="graph-container"' in response.content
     assert b'data-graph-note-id="note:' in response.content
     assert response.content.count(b"<h3>Contents</h3>") == 1
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_order_editor_uses_mount_prefix_and_saves(tmp_path: Path, django_setup) -> None:
+    (tmp_path / "Folder").mkdir()
+    (tmp_path / "Folder" / "README.md").write_text("# Folder", encoding="utf-8")
+    (tmp_path / "A.md").write_text("# A", encoding="utf-8")
+    (tmp_path / "B.md").write_text("# B", encoding="utf-8")
+
+    views._state_cache.clear()
+    with override_settings(
+        VAULTPUB={"default": {"vault_path": str(tmp_path), "url_prefix": "/notes/", "realtime": False}}
+    ):
+        client = Client()
+        page = client.get("/notes/__settings__/order")
+        payload = client.get("/notes/__api__/settings/order?directory=.").json()
+        saved = client.post(
+            "/notes/__api__/settings/order",
+            data={
+                "action": "save",
+                "directory": ".",
+                "revision": payload["revision"],
+                "folders": ["Folder/"],
+                "files": ["B.md", "A.md"],
+            },
+            content_type="application/json",
+        )
+
+    assert page.status_code == 200
+    assert b'data-order-data-url="/notes/__api__/settings/order"' in page.content
+    assert b'data-order-editor-url="/notes/__settings__/order"' in page.content
+    assert saved.status_code == 200
+    assert (tmp_path / "__order__.json").read_text(encoding="utf-8") == '[\n  "Folder/",\n  "B.md",\n  "A.md"\n]\n'
 
 
 @override_settings(
@@ -168,21 +201,44 @@ def test_django_api_urls_include_mount_prefix(django_setup) -> None:
     views._state_cache.clear()
     client = Client()
 
-    page = client.get("/notes/api/page/README.md")
+    page = client.get("/notes/__api__/page/README.md")
     assert page.status_code == 200
     page_data = page.json()
     assert page_data["url"] == "/notes/README.md"
     assert 'href="/notes/A.md"' in page_data["html"]
 
-    search = client.get("/notes/api/search?q=README")
+    search = client.get("/notes/__api__/search?q=README")
     assert search.status_code == 200
     assert search.json()["results"][0]["url"].startswith("/notes/")
 
-    graph = client.get("/notes/api/graph")
+    graph = client.get("/notes/__api__/graph")
     assert graph.status_code == 200
     note_urls = [node["url"] for node in graph.json()["nodes"] if node["group"] == "note"]
     assert note_urls
     assert all(url.startswith("/notes/") for url in note_urls)
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_former_special_roots_now_serve_vault_content(django_setup, tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# Home", encoding="utf-8")
+    (tmp_path / "_slides").mkdir()
+    (tmp_path / "_slides" / "Deck.md").write_text("# Deck", encoding="utf-8")
+    (tmp_path / "api").mkdir()
+    (tmp_path / "api" / "Data.md").write_text("# Data", encoding="utf-8")
+
+    views._state_cache.clear()
+    with override_settings(
+        VAULTPUB={"default": {"vault_path": str(tmp_path), "url_prefix": "/notes/", "realtime": False}}
+    ):
+        client = Client()
+        slide_named_note = client.get("/notes/_slides/Deck.md")
+        api_named_note = client.get("/notes/api/Data.md")
+        former_endpoint = client.get("/notes/_slides-vault")
+
+    assert slide_named_note.status_code == 200
+    assert b'class="vaultpub-slides"' not in slide_named_note.content
+    assert api_named_note.status_code == 200
+    assert former_endpoint.status_code == 404
 
 
 @override_settings(ROOT_URLCONF=__name__)
@@ -256,17 +312,17 @@ def test_django_slide_page_uses_dedicated_layout_and_mount_prefix(django_setup, 
     ):
         client = Client()
         article = client.get("/notes/README.md")
-        response = client.get("/notes/_slides/README.md")
-        single = client.get("/notes/_slides/README.md?split=single")
+        response = client.get("/notes/__slides__/README.md")
+        single = client.get("/notes/__slides__/README.md?split=single")
 
     assert article.status_code == 200
-    assert b'data-slide-note-url="/notes/_slides/README.md"' in article.content
+    assert b'data-slide-note-url="/notes/__slides__/README.md"' in article.content
     assert response.status_code == 200
     assert b'<div class="reveal"><div class="slides">' in response.content
     assert response.content.count(b'<section class="vaultpub-slide"') == 2
     assert b'class="top-bar"' not in response.content
     assert b'data-return-url="/notes/README.md"' in response.content
-    assert b'src="/notes/assets/images/figure.png"' in response.content
+    assert b'src="/notes/__assets__/images/figure.png"' in response.content
     assert b'<html lang="en" class="theme-dracula">' in response.content
     assert b'<body class="vaultpub-slides"' in response.content
     assert b'reveal-themes/' not in response.content
@@ -294,9 +350,9 @@ def test_django_folder_slides_are_recursive_and_reject_missing_or_private_notes(
     ):
         client = Client()
         directory = client.get("/notes/Course/")
-        response = client.get("/notes/_slides-folder/Course/")
-        missing = client.get("/notes/_slides/missing.md")
-        private = client.get("/notes/_slides/private/Secret.md")
+        response = client.get("/notes/__slides-folder__/Course/")
+        missing = client.get("/notes/__slides__/missing.md")
+        private = client.get("/notes/__slides__/private/Secret.md")
 
     assert directory.status_code == 200
     assert b'data-slide-folder-url=' not in directory.content
@@ -325,7 +381,7 @@ def test_django_whole_vault_slides_follow_navigation_order_and_mount_prefix(djan
     with override_settings(
         VAULTPUB={"default": {"vault_path": str(tmp_path), "url_prefix": "/notes/", "realtime": False}}
     ):
-        response = Client().get("/notes/_slides-vault")
+        response = Client().get("/notes/__slides-vault__")
 
     assert response.status_code == 200
     assert response.content.count(b'class="vaultpub-note-slot"') == 3
@@ -347,19 +403,19 @@ def test_django_multi_note_slide_payload_uses_mount_prefix_and_defers_media(djan
         VAULTPUB={"default": {"vault_path": str(tmp_path), "url_prefix": "/notes/", "realtime": False}}
     ):
         client = Client()
-        deck = client.get("/notes/_slides-vault")
-        payload = client.get("/notes/api/slides/B.md")
+        deck = client.get("/notes/__slides-vault__")
+        payload = client.get("/notes/__api__/slides/B.md")
 
     assert deck.status_code == 200
     assert b"A-only-body" not in deck.content
     assert b"B-only-body" not in deck.content
-    assert b'"payloadUrl": "/notes/api/slides/B.md"' in deck.content
+    assert b'"payloadUrl": "/notes/__api__/slides/B.md"' in deck.content
     assert payload.status_code == 200
     assert payload.headers["Cache-Control"] == "no-store"
     assert payload.headers["Vary"] == "Cookie"
     data = payload.json()
     assert b"B-only-body" in payload.content
-    assert 'data-vaultpub-src="/notes/assets/image.png"' in data["slides"][0]["html"]
+    assert 'data-vaultpub-src="/notes/__assets__/image.png"' in data["slides"][0]["html"]
 
 
 @override_settings(ROOT_URLCONF=__name__)
@@ -370,7 +426,7 @@ def test_django_whole_vault_slides_reject_empty_vault(django_setup, tmp_path: Pa
     with override_settings(
         VAULTPUB={"default": {"vault_path": str(tmp_path), "url_prefix": "/notes/", "realtime": False}}
     ):
-        response = Client().get("/notes/_slides-vault")
+        response = Client().get("/notes/__slides-vault__")
 
     assert response.status_code == 404
 
@@ -393,14 +449,14 @@ def test_django_mount_prefixes_local_resource_urls(django_setup, vault_local_res
     ):
         client = Client()
         page = client.get("/notes/subdir/README.md")
-        asset = client.get("/notes/assets/subdir/image.png")
-        archive = client.get("/notes/assets/subdir/archive.pin.gz")
+        asset = client.get("/notes/__assets__/subdir/image.png")
+        archive = client.get("/notes/__assets__/subdir/archive.pin.gz")
         text_page = client.get("/notes/subdir/tool.py")
 
     assert page.status_code == 200
-    assert b'src="/notes/assets/subdir/image.png"' in page.content
-    assert b'href="/notes/assets/subdir/doc.pdf"' in page.content
-    assert b'href="/notes/assets/subdir/archive.pin.gz" download="archive.pin.gz"' in page.content
+    assert b'src="/notes/__assets__/subdir/image.png"' in page.content
+    assert b'href="/notes/__assets__/subdir/doc.pdf"' in page.content
+    assert b'href="/notes/__assets__/subdir/archive.pin.gz" download="archive.pin.gz"' in page.content
     assert b'href="/notes/subdir/tool.py"' in page.content
     assert b'href="/notes/subdir/Other.md"' in page.content
     assert asset.status_code == 200
@@ -428,13 +484,13 @@ def test_django_mount_prefixes_dynamic_text_file_embed(django_setup, tmp_path: P
         }
     ):
         client = Client()
-        asset_before = client.get("/notes/assets/attachments/config.toml")
+        asset_before = client.get("/notes/__assets__/attachments/config.toml")
         page = client.get("/notes/general/README.md")
-        asset_after = client.get("/notes/assets/attachments/config.toml")
+        asset_after = client.get("/notes/__assets__/attachments/config.toml")
 
     assert asset_before.status_code == 404
     assert page.status_code == 200
-    assert b'href="/notes/assets/attachments/config.toml"' in page.content
+    assert b'href="/notes/__assets__/attachments/config.toml"' in page.content
     assert b'class="text-page-embed-tools"' in page.content
     assert b'class="topbar-code-btn"' in page.content
     assert b'data-code-action="toggle-wrap"' in page.content
@@ -470,7 +526,7 @@ def test_dynamic_config_render_helpers_use_supplied_prefix(django_setup) -> None
 @override_settings(ROOT_URLCONF=__name__)
 def test_dynamic_config_attachment_streams_file_response(django_setup, vault_local_resources) -> None:
     views._state_cache.clear()
-    request = RequestFactory().get("/custom/assets/subdir/archive.pin.gz")
+    request = RequestFactory().get("/custom/__assets__/subdir/archive.pin.gz")
     config = PublisherConfig(
         vault_path=vault_local_resources,
         url_prefix="/custom/",

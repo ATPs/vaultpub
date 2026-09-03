@@ -31,7 +31,13 @@ from vaultpub.core.parser.obsidian_links import (
     parse_wikilink_target,
     strip_obsidian_comments,
 )
-from vaultpub.core.paths import file_display_name, safe_join
+from vaultpub.core.paths import (
+    API_URL_PREFIX,
+    ASSET_URL_PREFIX,
+    attachment_rel_path_to_url_path,
+    file_display_name,
+    safe_join,
+)
 from vaultpub.core.render.sanitize import add_external_link_attrs, sanitize_html
 from vaultpub.core.render.slides import RenderedSlide, SlideSplitPolicy, segment_slides, slide_options
 from vaultpub.core.security import infer_language, is_path_excluded, is_text_file
@@ -44,7 +50,7 @@ _ANCHOR_TAG_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _IMG_TAG_RE = re.compile(r"<img\b(?P<attrs>[^>]*)/?>", re.IGNORECASE)
-_PASSTHROUGH_URL_PREFIXES = ("/assets/", "/static/", "/api/")
+_PASSTHROUGH_URL_PREFIXES = (f"{ASSET_URL_PREFIX}/", "/static/", f"{API_URL_PREFIX}/")
 _PASSTHROUGH_URLS = {"/graph.json", "/search-index.json"}
 _AUDIO_EXTS = {"mp3", "wav", "ogg", "flac", "m4a"}
 _VIDEO_EXTS = {"mp4", "webm", "mov", "avi"}
@@ -466,7 +472,7 @@ class Renderer:
             return None
 
         rel_path = PurePosixPath(normalized_path)
-        url_path = "/assets/" + rel_path.as_posix()
+        url_path = attachment_rel_path_to_url_path(rel_path.as_posix())
 
         if is_text_file(fpath):
             text_page = self.dynamic_text_pages_by_path.get(normalized_path)

@@ -11,17 +11,27 @@ from starlette.staticfiles import StaticFiles
 
 from vaultpub.core.config import PublisherConfig
 from vaultpub.core.index.indexer import VaultIndexer
+from vaultpub.core.paths import (
+    API_URL_PREFIX,
+    ASSET_URL_PREFIX,
+    SETTINGS_URL_PREFIX,
+    SLIDES_FOLDER_URL_PREFIX,
+    SLIDES_URL_PREFIX,
+    SLIDES_VAULT_URL,
+)
 from vaultpub.core.realtime.events import EventBus
 from vaultpub.core.realtime.watcher import RealtimeState, watch_vault
 from vaultpub.core.render.renderer import Renderer
 from vaultpub.web.routes import (
     AppState,
     api_graph,
+    api_order_editor,
     api_page,
     api_search,
     api_slides,
     attachment,
     index_page,
+    order_editor,
     page,
     search_index,
     slides,
@@ -77,19 +87,21 @@ def create_app(config: PublisherConfig) -> Starlette:
 
     routes = [
         Route("/", endpoint=index_page, methods=["GET"]),
-        Route("/assets/{path:path}", endpoint=attachment, methods=["GET"]),
-        Route("/api/page/{path:path}", endpoint=api_page, methods=["GET"]),
-        Route("/api/slides/{path:path}", endpoint=api_slides, methods=["GET"]),
-        Route("/api/search", endpoint=api_search, methods=["GET"]),
+        Route(f"{ASSET_URL_PREFIX}/{{path:path}}", endpoint=attachment, methods=["GET"]),
+        Route(f"{API_URL_PREFIX}/page/{{path:path}}", endpoint=api_page, methods=["GET"]),
+        Route(f"{API_URL_PREFIX}/slides/{{path:path}}", endpoint=api_slides, methods=["GET"]),
+        Route(f"{API_URL_PREFIX}/search", endpoint=api_search, methods=["GET"]),
         Route("/search-index.json", endpoint=search_index, methods=["GET"]),
-        Route("/api/graph", endpoint=api_graph, methods=["GET"]),
+        Route(f"{API_URL_PREFIX}/graph", endpoint=api_graph, methods=["GET"]),
         Route("/graph.json", endpoint=api_graph, methods=["GET"]),
-        Route("/api/graph/local/{path:path}", endpoint=api_graph, methods=["GET"]),
-        Route("/api/events", endpoint=sse_endpoint, methods=["GET"]),
-        Route("/api/events/version", endpoint=events_version, methods=["GET"]),
-        Route("/_slides-vault", endpoint=slides_vault, methods=["GET"], name="slides_vault"),
-        Route("/_slides-folder/{path:path}", endpoint=slides_folder, methods=["GET"], name="slides_folder"),
-        Route("/_slides/{path:path}", endpoint=slides, methods=["GET"], name="slides"),
+        Route(f"{API_URL_PREFIX}/graph/local/{{path:path}}", endpoint=api_graph, methods=["GET"]),
+        Route(f"{API_URL_PREFIX}/settings/order", endpoint=api_order_editor, methods=["GET", "POST"]),
+        Route(f"{API_URL_PREFIX}/events", endpoint=sse_endpoint, methods=["GET"]),
+        Route(f"{API_URL_PREFIX}/events/version", endpoint=events_version, methods=["GET"]),
+        Route(SLIDES_VAULT_URL, endpoint=slides_vault, methods=["GET"], name="slides_vault"),
+        Route(f"{SLIDES_FOLDER_URL_PREFIX}/{{path:path}}", endpoint=slides_folder, methods=["GET"], name="slides_folder"),
+        Route(f"{SLIDES_URL_PREFIX}/{{path:path}}", endpoint=slides, methods=["GET"], name="slides"),
+        Route(f"{SETTINGS_URL_PREFIX}/order", endpoint=order_editor, methods=["GET"], name="order_editor"),
     ]
 
     if os.path.isdir(frontend_static):

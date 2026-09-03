@@ -34,24 +34,24 @@ def test_classify_note() -> None:
 
 
 def test_render_image_embed() -> None:
-    html = render_image_embed("/assets/img.png", size="300")
-    assert 'src="/assets/img.png"' in html
+    html = render_image_embed("/__assets__/img.png", size="300")
+    assert 'src="/__assets__/img.png"' in html
     assert 'width="300"' in html
 
-    html2 = render_image_embed("/assets/img.png", size="300x200")
+    html2 = render_image_embed("/__assets__/img.png", size="300x200")
     assert 'height="200"' in html2
 
 
 def test_render_audio_embed() -> None:
-    html = render_audio_embed("/assets/sound.mp3")
+    html = render_audio_embed("/__assets__/sound.mp3")
     assert "<audio controls" in html
 
 
 def test_render_video_embed() -> None:
-    html = render_video_embed("/assets/video.mp4")
+    html = render_video_embed("/__assets__/video.mp4")
     assert "<video controls" in html
 
 
 def test_render_pdf_embed() -> None:
-    html = render_pdf_embed("/assets/doc.pdf")
+    html = render_pdf_embed("/__assets__/doc.pdf")
     assert "<iframe" in html
