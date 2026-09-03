@@ -3,8 +3,8 @@
  * Selects .mermaid elements and renders them client-side.
  */
 
-export function initMermaid(): void {
-  const mermaidElements = document.querySelectorAll<HTMLElement>(".mermaid");
+export function initMermaid(root: ParentNode = document): void {
+  const mermaidElements = root.querySelectorAll<HTMLElement>(".mermaid");
   if (mermaidElements.length === 0) return;
 
   // Dynamic import to avoid loading mermaid when not needed
@@ -16,7 +16,7 @@ export function initMermaid(): void {
     });
 
     mermaidElements.forEach(async (el, idx) => {
-      const id = `mermaid-${idx}`;
+      const id = `mermaid-${Date.now()}-${idx}`;
       try {
         const { svg } = await mermaid.default.render(id, el.textContent || "");
         el.innerHTML = svg;

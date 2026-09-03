@@ -3,8 +3,8 @@
  * Callouts with data-callout-fold="closed" start collapsed.
  */
 
-export function initCalloutFold(): void {
-  document.querySelectorAll<HTMLElement>(".callout").forEach((callout) => {
+export function initCalloutFold(root: ParentNode = document): void {
+  root.querySelectorAll<HTMLElement>(".callout").forEach((callout) => {
     const foldState = callout.getAttribute("data-callout-fold");
     if (foldState === "closed") {
       const content = callout.querySelector<HTMLElement>(".callout-content");

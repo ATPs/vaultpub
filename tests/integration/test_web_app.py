@@ -246,6 +246,9 @@ def test_standalone_slide_settings_honor_frontmatter_cookie_and_query_override(t
     assert cookie.text.count('<section class="vaultpub-slide"') == 2
     assert query.text.count('<section class="vaultpub-slide"') == 1
     assert '"codeWrap": false' in default.text
+    assert 'data-slide-layout="single"' in default.text
+    assert 'data-slide-layout="single"' not in cookie.text
+    assert 'data-slide-layout="single"' in query.text
     assert default.headers["vary"] == "Cookie"
     assert 'slides-boot.js' in default.text
     assert default.text.index("vaultpub/common.css") < default.text.index("vaultpub/slides.css")
@@ -264,7 +267,7 @@ def test_standalone_folder_slides_follow_navigation_order(tmp_path: Path) -> Non
     assert directory.status_code == 200
     assert 'data-slide-folder-url=' not in directory.text
     assert response.status_code == 200
-    assert response.text.count("<section class=\"vaultpub-slide") == 5
+    assert response.text.count("class=\"vaultpub-note-slot\"") == 2
     assert response.text.count('data-slide-kind="note-divider"') == 2
     assert response.text.find("Course/Nested/B.md") < response.text.find("Course/A.md")
     assert 'data-return-url="/Course/"' in response.text
@@ -298,7 +301,7 @@ def test_standalone_whole_vault_slides_follow_navigation_order_and_exclusions(tm
     response = client.get("/_slides-vault")
 
     assert response.status_code == 200
-    assert response.text.count("<section class=\"vaultpub-slide") == 7
+    assert response.text.count("class=\"vaultpub-note-slot\"") == 3
     assert response.text.count('data-slide-kind="note-divider"') == 3
     assert response.text.find("Course/Nested/B.md") < response.text.find("Course/A.md") < response.text.find("README.md")
     assert "Secret.md" not in response.text
@@ -330,6 +333,31 @@ def test_standalone_multi_note_slides_validate_sort_and_scope_payload(tmp_path: 
     assert descending.text.find("Course/B.md") < descending.text.find("Z.md") < descending.text.find("A.md")
     assert fallback.text.find("Course/B.md") < fallback.text.find("A.md") < fallback.text.find("Z.md")
     assert descending.text.count('data-slide-kind="note-divider"') == 3
+    assert 'data-vaultpub-multi-note="true"' in descending.text
+    assert 'vaultpub-slide-manifest' in descending.text
+    assert 'slides-print-notice' in client.get("/_slides-vault?print-pdf").text
+
+
+def test_standalone_multi_note_slide_payload_is_rendered_per_note_and_defers_media(tmp_path: Path) -> None:
+    (tmp_path / "A.md").write_text("# A\n\nA-only-body\n", encoding="utf-8")
+    (tmp_path / "B.md").write_text("# B\n\n![[image.png]]\n\nB-only-body\n", encoding="utf-8")
+    (tmp_path / "image.png").write_bytes(b"png")
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
+
+    deck = client.get("/_slides-vault")
+    payload = client.get("/api/slides/B.md")
+
+    assert deck.status_code == 200
+    assert "A-only-body" not in deck.text
+    assert "B-only-body" not in deck.text
+    assert payload.status_code == 200
+    assert payload.headers["cache-control"] == "no-store"
+    assert payload.headers["vary"] == "Cookie"
+    data = payload.json()
+    assert data["sourcePath"] == "B.md"
+    assert "B-only-body" in data["slides"][0]["html"]
+    assert 'data-vaultpub-src="/assets/image.png"' in data["slides"][0]["html"]
+    assert client.get("/api/slides/missing.md").status_code == 404
 
 
 def test_api_page(client) -> None:

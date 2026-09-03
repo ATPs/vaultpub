@@ -1,10 +1,11 @@
 """HTML templates for page layout."""
 from __future__ import annotations
 
+import json
+import re
+from collections.abc import Callable, Iterable
 from html import escape
 from pathlib import PurePosixPath
-import json
-from typing import Callable, Iterable
 
 from vaultpub.core.models import GraphData, Heading, NavNode, NoteRecord, TextPageRecord
 from vaultpub.core.paths import directory_display_name, directory_path_to_url_path
@@ -231,6 +232,36 @@ def multi_note_slide_sections_html(note_slides: Iterable[tuple[NoteRecord, Itera
     return "".join(sections)
 
 
+def multi_note_slide_placeholders_html(notes: Iterable[NoteRecord]) -> str:
+    """Render lightweight stable Reveal slots for a lazily loaded note deck."""
+    sections: list[str] = []
+    for note_index, note in enumerate(notes):
+        note_id = escape(note.id, quote=True)
+        source_path = escape(note.rel_path.as_posix(), quote=True)
+        sections.append(
+            f'<section class="vaultpub-note-slot" data-vaultpub-note-index="{note_index}" '
+            f'data-source-note="{note_id}" data-source-path="{source_path}">'
+            f'<section class="vaultpub-slide vaultpub-slide-divider" data-source-note="{note_id}" '
+            f'data-source-path="{source_path}" data-slide-kind="note-divider">'
+            '<div class="markdown-body vaultpub-slide-content">'
+            '<p class="vaultpub-slide-divider-kicker">Now showing</p>'
+            f'<h1>{escape(note.title)}</h1>'
+            f'<p class="vaultpub-slide-divider-path">{source_path}</p>'
+            '</div></section></section>'
+        )
+    return "".join(sections)
+
+
+_SLIDE_MEDIA_SRC_RE = re.compile(r"(<(?:img|audio|video|iframe)\b[^>]*?)\ssrc=", re.IGNORECASE)
+_SLIDE_AV_TAG_RE = re.compile(r"<(audio|video)\b(?![^>]*\bpreload=)", re.IGNORECASE)
+
+
+def defer_slide_media_html(html: str) -> str:
+    """Keep media inert until its slide becomes the active presentation page."""
+    deferred = _SLIDE_MEDIA_SRC_RE.sub(r"\1 data-vaultpub-src=", html)
+    return _SLIDE_AV_TAG_RE.sub(r'<\1 preload="none"', deferred)
+
+
 def slides_page_template(
     title: str,
     slides_html: str,
@@ -238,10 +269,19 @@ def slides_page_template(
     return_url: str,
     return_label: str,
     split_override: str | None = None,
+    slide_manifest: list[dict[str, object]] | None = None,
 ) -> str:
     """Return the standalone ASGI presentation document."""
     config_json = json.dumps(options.reveal_config()).replace("<", "\\u003c").replace(">", "\\u003e")
     settings_json = json.dumps(options.client_config(split_override)).replace("<", "\\u003c").replace(">", "\\u003e")
+    manifest_json = json.dumps(slide_manifest or []).replace("<", "\\u003c").replace(">", "\\u003e")
+    multi_note_attr = ' data-vaultpub-multi-note="true"' if slide_manifest is not None else ""
+    single_layout_attr = ' data-slide-layout="single"' if (split_override or options.split) == "single" else ""
+    print_notice = (
+        '<p class="slides-print-notice">Multi-note Slide View cannot be printed as one document.</p>'
+        if slide_manifest is not None
+        else ""
+    )
     return f"""\
 <!DOCTYPE html>
 <html lang="en" class="theme-{escape(options.theme, quote=True)}">
@@ -253,10 +293,14 @@ def slides_page_template(
   <link rel="stylesheet" href="/static/vaultpub/common.css">
   <link rel="stylesheet" href="/static/vaultpub/slides.css">
 </head>
-<body class="vaultpub-slides" data-return-url="{escape(return_url, quote=True)}" data-return-label="{escape(return_label, quote=True)}">
+<body class="vaultpub-slides"
+      data-return-url="{escape(return_url, quote=True)}"
+      data-return-label="{escape(return_label, quote=True)}"{multi_note_attr}{single_layout_attr}>
   <div class="reveal"><div class="slides">{slides_html}</div></div>
+  {print_notice}
   <script id="vaultpub-slides-config" type="application/json">{config_json}</script>
   <script id="vaultpub-slide-settings" type="application/json">{settings_json}</script>
+  <script id="vaultpub-slide-manifest" type="application/json">{manifest_json}</script>
   <script type="module" src="/static/vaultpub/slides.js"></script>
 </body>
 </html>"""

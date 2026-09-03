@@ -7,6 +7,7 @@ from vaultpub.core.render.slides import (
     SlideOptions,
     collect_directory_notes,
     collect_slide_scope_directories,
+    describe_slide_note,
     segment_slides,
     slide_options,
     slide_split_override,
@@ -79,6 +80,17 @@ def test_fit_preserves_explicit_boundaries_without_heading_splitting() -> None:
 
     assert segmented.mode == "explicit"
     assert len(segmented.fragments) == 2
+
+
+def test_slide_note_descriptor_keeps_fragment_labels_without_rendering_html(tmp_path) -> None:
+    (tmp_path / "Deck.md").write_text("# Opening\n\n## First\n\nText\n\n## Second\n", encoding="utf-8")
+    index = VaultIndexer(PublisherConfig(vault_path=tmp_path)).build()
+    note = next(iter(index.notes_by_id.values()))
+
+    descriptor = describe_slide_note(note)
+
+    assert descriptor.title == "Deck"
+    assert [fragment.title for fragment in descriptor.fragments] == ["Opening", "First", "Second"]
 
 
 def test_reveal_only_theme_falls_back_to_light() -> None:

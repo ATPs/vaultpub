@@ -9,10 +9,12 @@
   <link rel="stylesheet" href="{% static 'vaultpub/common.css' %}">
   <link rel="stylesheet" href="{% static 'vaultpub/slides.css' %}">
 </head>
-<body class="vaultpub-slides" data-return-url="{{ return_url }}" data-return-label="{{ return_label }}">
+<body class="vaultpub-slides" data-return-url="{{ return_url }}" data-return-label="{{ return_label }}"{% if slide_manifest is not None %} data-vaultpub-multi-note="true"{% endif %}{% if slide_settings.split == "single" %} data-slide-layout="single"{% endif %}>
   <div class="reveal"><div class="slides">{{ slides_html|safe }}</div></div>
+  {% if slide_manifest is not None %}<p class="slides-print-notice">Multi-note Slide View cannot be printed as one document.</p>{% endif %}
   {{ reveal_config|json_script:"vaultpub-slides-config" }}
   {{ slide_settings|json_script:"vaultpub-slide-settings" }}
+  {{ slide_manifest|json_script:"vaultpub-slide-manifest" }}
   <script type="module" src="{% static 'vaultpub/slides.js' %}"></script>
 </body>
 </html>

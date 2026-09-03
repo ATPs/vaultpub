@@ -11,6 +11,7 @@ urlpatterns = [
     path("", views.index, name="home"),
     path("assets/<path:asset_path>", views.attachment, name="attachment"),
     path("api/page/<path:note_path>", views.api_page, name="api_page"),
+    path("api/slides/<path:note_path>", views.api_slides, name="api_slides"),
     path("api/search", views.api_search, name="api_search"),
     path("api/graph", views.api_graph, name="api_graph"),
     path("api/graph/local/<path:note_path>", views.api_local_graph, name="api_local_graph"),

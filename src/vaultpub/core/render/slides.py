@@ -103,6 +103,24 @@ class RenderedSlide:
     mode: SlideSplitMode
 
 
+@dataclass(frozen=True)
+class SlideFragmentDescriptor:
+    """Lightweight navigation metadata for one unrendered slide fragment."""
+
+    index: int
+    title: str
+
+
+@dataclass(frozen=True)
+class SlideNoteDescriptor:
+    """One source note in a lazily hydrated multi-note deck."""
+
+    id: str
+    title: str
+    source_path: str
+    fragments: tuple[SlideFragmentDescriptor, ...]
+
+
 def segment_slides(raw_markdown: str, split: SlideSplitPolicy = "auto") -> SegmentedSlides:
     """Split one source note into presentation fragments without changing its content."""
     _frontmatter, body, _body_start = parse_frontmatter(raw_markdown)
@@ -147,6 +165,32 @@ def segment_slides(raw_markdown: str, split: SlideSplitPolicy = "auto") -> Segme
         return SegmentedSlides("headings", tuple(_split_at_lines(lines, heading_lines, keep_first=True)))
 
     return SegmentedSlides("single", (body,))
+
+
+def describe_slide_note(note: NoteRecord, split_override: SlideSplitPolicy | None = None) -> SlideNoteDescriptor:
+    """Return slide labels without converting the note's Markdown into HTML."""
+    segmented = segment_slides(note.raw_markdown, split_override or slide_options(note.frontmatter).split)
+    fragments = tuple(
+        SlideFragmentDescriptor(index=index, title=_fragment_title(fragment, note.title, index))
+        for index, fragment in enumerate(segmented.fragments)
+    )
+    return SlideNoteDescriptor(
+        id=note.id,
+        title=note.title,
+        source_path=note.rel_path.as_posix(),
+        fragments=fragments,
+    )
+
+
+def _fragment_title(fragment: str, fallback: str, index: int) -> str:
+    tokens = create_markdown_parser().parse(fragment)
+    for position, token in enumerate(tokens):
+        if token.type != "heading_open" or position + 1 >= len(tokens):
+            continue
+        inline = tokens[position + 1]
+        if inline.type == "inline" and inline.content.strip():
+            return inline.content.strip()
+    return fallback if index == 0 else f"{fallback} ({index + 1})"
 
 
 def slide_options(frontmatter: object) -> SlideOptions:

@@ -257,6 +257,7 @@ def test_django_slide_page_uses_dedicated_layout_and_mount_prefix(django_setup, 
         client = Client()
         article = client.get("/notes/README.md")
         response = client.get("/notes/_slides/README.md")
+        single = client.get("/notes/_slides/README.md?split=single")
 
     assert article.status_code == 200
     assert b'data-slide-note-url="/notes/_slides/README.md"' in article.content
@@ -271,6 +272,8 @@ def test_django_slide_page_uses_dedicated_layout_and_mount_prefix(django_setup, 
     assert b'reveal-themes/' not in response.content
     assert b'"transition": "fade"' in response.content
     assert b'vaultpub-slide-settings' in response.content
+    assert b'data-slide-layout="single"' not in response.content
+    assert b'data-slide-layout="single"' in single.content
     assert b'slides-boot.js' in response.content
     assert response.content.index(b"vaultpub/common.css") < response.content.index(b"vaultpub/slides.css")
     assert response.headers["Vary"] == "Cookie"
@@ -298,7 +301,7 @@ def test_django_folder_slides_are_recursive_and_reject_missing_or_private_notes(
     assert directory.status_code == 200
     assert b'data-slide-folder-url=' not in directory.content
     assert response.status_code == 200
-    assert response.content.count(b'<section class="vaultpub-slide') == 5
+    assert response.content.count(b'class="vaultpub-note-slot"') == 2
     assert response.content.count(b'data-slide-kind="note-divider"') == 2
     assert response.content.find(b"Course/Nested/B.md") < response.content.find(b"Course/A.md")
     assert b'data-return-url="/notes/Course/"' in response.content
@@ -325,12 +328,38 @@ def test_django_whole_vault_slides_follow_navigation_order_and_mount_prefix(djan
         response = Client().get("/notes/_slides-vault")
 
     assert response.status_code == 200
-    assert response.content.count(b'<section class="vaultpub-slide') == 7
+    assert response.content.count(b'class="vaultpub-note-slot"') == 3
     assert response.content.count(b'data-slide-kind="note-divider"') == 3
     assert response.content.find(b"Course/Nested/B.md") < response.content.find(b"Course/A.md") < response.content.find(b"README.md")
     assert b"Secret.md" not in response.content
     assert b'data-return-url="/notes/"' in response.content
     assert b'"transition": "slide"' in response.content
+
+
+@override_settings(ROOT_URLCONF=__name__)
+def test_django_multi_note_slide_payload_uses_mount_prefix_and_defers_media(django_setup, tmp_path: Path) -> None:
+    (tmp_path / "A.md").write_text("# A\n\nA-only-body\n", encoding="utf-8")
+    (tmp_path / "B.md").write_text("# B\n\n![[image.png]]\n\nB-only-body\n", encoding="utf-8")
+    (tmp_path / "image.png").write_bytes(b"png")
+
+    views._state_cache.clear()
+    with override_settings(
+        VAULTPUB={"default": {"vault_path": str(tmp_path), "url_prefix": "/notes/", "realtime": False}}
+    ):
+        client = Client()
+        deck = client.get("/notes/_slides-vault")
+        payload = client.get("/notes/api/slides/B.md")
+
+    assert deck.status_code == 200
+    assert b"A-only-body" not in deck.content
+    assert b"B-only-body" not in deck.content
+    assert b'"payloadUrl": "/notes/api/slides/B.md"' in deck.content
+    assert payload.status_code == 200
+    assert payload.headers["Cache-Control"] == "no-store"
+    assert payload.headers["Vary"] == "Cookie"
+    data = payload.json()
+    assert b"B-only-body" in payload.content
+    assert 'data-vaultpub-src="/notes/assets/image.png"' in data["slides"][0]["html"]
 
 
 @override_settings(ROOT_URLCONF=__name__)

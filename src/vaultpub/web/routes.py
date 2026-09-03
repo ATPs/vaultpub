@@ -19,22 +19,25 @@ from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.paths import safe_join
 from vaultpub.core.render.renderer import Renderer
+from vaultpub.core.render.seo import build_meta_tags
 from vaultpub.core.render.slides import (
     SlideOptions,
     collect_directory_notes,
     collect_slide_scope_directories,
+    describe_slide_note,
     slide_options,
     slide_split_override,
     validated_slide_deck_order,
 )
-from vaultpub.core.render.seo import build_meta_tags
 from vaultpub.core.render.templates import (
     base_page_template,
+    defer_slide_media_html,
     directory_page_html,
     directory_preview_map,
     directory_sibling_files_html,
     find_nav_directory,
     graph_container_html,
+    multi_note_slide_placeholders_html,
     multi_note_slide_sections_html,
     nav_tree_html,
     sidebar_graph_state,
@@ -131,7 +134,9 @@ async def slides(request: Request) -> HTMLResponse:
         return HTMLResponse("Not found", status_code=404)
 
     options = slide_options(note.frontmatter)
-    split_override = slide_split_override(request.query_params.get("split"), request.cookies.get("vaultpub_slide_split"))
+    split_override = slide_split_override(
+        request.query_params.get("split"), request.cookies.get("vaultpub_slide_split")
+    )
     page_html = slides_page_template(
         title=f"{note.title} - Presentation",
         slides_html=slide_sections_html(state.renderer.render_slides(note, split_override=split_override)),
@@ -155,14 +160,17 @@ async def slides_folder(request: Request) -> HTMLResponse:
     if not notes:
         return HTMLResponse("Not found", status_code=404)
 
-    split_override = slide_split_override(request.query_params.get("split"), request.cookies.get("vaultpub_slide_split"))
+    split_override = slide_split_override(
+        request.query_params.get("split"), request.cookies.get("vaultpub_slide_split")
+    )
     page_html = slides_page_template(
         title=f"{directory.label} - Presentation",
-        slides_html=_multi_note_slides_html(notes, state.renderer, split_override),
+        slides_html=multi_note_slide_placeholders_html(notes),
         options=SlideOptions(),
         return_url=directory.url,
         return_label="Folder",
         split_override=split_override,
+        slide_manifest=_multi_note_slide_manifest(notes, split_override),
     )
     return HTMLResponse(page_html, headers={"Vary": "Cookie"})
 
@@ -177,15 +185,52 @@ async def slides_vault(request: Request) -> HTMLResponse:
     if not notes:
         return HTMLResponse("Not found", status_code=404)
 
-    split_override = slide_split_override(request.query_params.get("split"), request.cookies.get("vaultpub_slide_split"))
+    split_override = slide_split_override(
+        request.query_params.get("split"), request.cookies.get("vaultpub_slide_split")
+    )
     return HTMLResponse(slides_page_template(
         title=f"{state.config.site_name} - Presentation",
-        slides_html=_multi_note_slides_html(notes, state.renderer, split_override),
+        slides_html=multi_note_slide_placeholders_html(notes),
         options=SlideOptions(),
         return_url="/",
         return_label="Vault",
         split_override=split_override,
+        slide_manifest=_multi_note_slide_manifest(notes, split_override),
     ), headers={"Vary": "Cookie"})
+
+
+async def api_slides(request: Request) -> JSONResponse:
+    """Return one lazily rendered slide note for a multi-note deck."""
+    state = _get_state(request)
+    path = request.path_params.get("path", "")
+    note = _build_url_maps(state.index)[0].get("/" + path)
+    if note is None or not is_path_public(note.rel_path.as_posix(), state.config):
+        return JSONResponse({"error": "Not found"}, status_code=404)
+
+    split_override = slide_split_override(
+        request.query_params.get("split"), request.cookies.get("vaultpub_slide_split")
+    )
+    descriptor = describe_slide_note(note, split_override)
+    rendered = state.renderer.render_slides(
+        note,
+        heading_namespace=f"slide-{note.id[:12]}",
+        split_override=split_override,
+    )
+    return JSONResponse(
+        {
+            "noteId": note.id,
+            "sourcePath": note.rel_path.as_posix(),
+            "slides": [
+                {
+                    "index": slide.index,
+                    "title": descriptor.fragments[slide.index].title,
+                    "html": defer_slide_media_html(slide.html),
+                }
+                for slide in rendered
+            ],
+        },
+        headers={"Cache-Control": "no-store", "Vary": "Cookie"},
+    )
 
 
 async def attachment(request: Request) -> Response:
@@ -334,6 +379,20 @@ def _multi_note_slides_html(notes: list[NoteRecord], renderer: Renderer, split_o
         )
         for note in notes
     )
+
+
+def _multi_note_slide_manifest(notes: list[NoteRecord], split_override: str | None) -> list[dict[str, object]]:
+    return [
+        {
+            "id": descriptor.id,
+            "title": descriptor.title,
+            "sourcePath": descriptor.source_path,
+            "payloadUrl": f"/api/slides{note.url_path}",
+            "fragments": [{"index": fragment.index, "title": fragment.title} for fragment in descriptor.fragments],
+        }
+        for note in notes
+        for descriptor in [describe_slide_note(note, split_override)]
+    ]
 
 
 def _render_note_page(request: Request, note: NoteRecord) -> HTMLResponse:

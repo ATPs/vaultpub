@@ -3,8 +3,8 @@
  * Finds .math elements and renders them client-side.
  */
 
-export function initMath(): void {
-  const mathElements = document.querySelectorAll<HTMLElement>(".math");
+export function initMath(root: ParentNode = document): void {
+  const mathElements = root.querySelectorAll<HTMLElement>(".math");
   if (mathElements.length === 0) return;
 
   import("katex").then((katex) => {
