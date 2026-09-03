@@ -239,26 +239,31 @@ def api_order_editor(request: HttpRequest) -> JsonResponse:
     return _api_order_editor_from_state(request, _get_state())
 
 
-def _page_from_state(request: HttpRequest, note_path: str, state: dict) -> HttpResponse:
+def _page_from_state(
+    request: HttpRequest,
+    note_path: str,
+    state: dict,
+    show_order_editor: bool = True,
+) -> HttpResponse:
     rel_path = "/" + note_path
     canonical_to_note, _all_urls_to_note = _build_url_maps(state["index"])
     if note_path.endswith("/"):
         directory = _resolve_directory(state["index"].nav_tree, note_path)
         if directory is not None and directory.path not in ("", "."):
-            return _render_directory_page(request, directory, state)
+            return _render_directory_page(request, directory, state, show_order_editor=show_order_editor)
         raise Http404("Not found")
     note = canonical_to_note.get(rel_path)
     if note:
         if not is_path_public(note.rel_path.as_posix(), state["config"]):
             raise Http404("Not found")
-        return _render_note(request, note, state)
+        return _render_note(request, note, state, show_order_editor=show_order_editor)
 
     # Check text pages
     tp = state["index"].text_pages_by_path.get(note_path)
     if tp is not None:
         if is_path_excluded(tp.rel_path.as_posix(), state["config"]):
             raise Http404("Not found")
-        return _render_text_page(request, tp, state)
+        return _render_text_page(request, tp, state, show_order_editor=show_order_editor)
 
     raise Http404("Note not found")
 
@@ -508,12 +513,14 @@ def render_index_with_config(
     config: PublisherConfig,
     cache_key: str | None = None,
     force_refresh: bool = False,
+    *,
+    show_order_editor: bool = True,
 ) -> HttpResponse:
     """
     Render a vault home page from a caller-provided config.
 
     Explanation:
-        Input: Django request, dynamic `PublisherConfig`, optional cache key, and refresh flag.
+        Input: Django request, dynamic `PublisherConfig`, cache controls, and optional order-editor visibility.
         Output: rendered vault home response.
         Where: Used by host Django projects that manage multiple vaults.
         What: Builds the vault index dynamically and resolves the configured or
@@ -523,7 +530,7 @@ def render_index_with_config(
     home_note = state["indexer"].scanner.resolve_home(list(state["index"].notes_by_id.values()))
     if home_note is None:
         raise Http404("No notes found")
-    return _render_note(request, home_note, state)
+    return _render_note(request, home_note, state, show_order_editor=show_order_editor)
 
 
 def render_page_with_config(
@@ -532,19 +539,21 @@ def render_page_with_config(
     note_path: str,
     cache_key: str | None = None,
     force_refresh: bool = False,
+    *,
+    show_order_editor: bool = True,
 ) -> HttpResponse:
     """
     Render a note, text page, or directory from a caller-provided config.
 
     Explanation:
-        Input: request, dynamic config, URL path inside the vault, and cache controls.
+        Input: request, dynamic config, URL path inside the vault, cache controls, and order-editor visibility.
         Output: rendered HTML response or 404.
         Where: Used by multi-vault Django integrations.
         What: Reuses the normal Django rendering pipeline without depending on
         `settings.VAULTPUB`.
     """
     state = build_state_for_config(config, cache_key=cache_key, force_refresh=force_refresh)
-    return _page_from_state(request, note_path, state)
+    return _page_from_state(request, note_path, state, show_order_editor=show_order_editor)
 
 
 def render_slides_with_config(
@@ -645,6 +654,18 @@ def render_api_page_with_config(
     return _api_page_from_state(request, note_path, state)
 
 
+def render_api_slides_with_config(
+    request: HttpRequest,
+    config: PublisherConfig,
+    note_path: str,
+    cache_key: str | None = None,
+    force_refresh: bool = False,
+) -> JsonResponse:
+    """Render one dynamic slide payload from a caller-provided configuration."""
+    state = build_state_for_config(config, cache_key=cache_key, force_refresh=force_refresh)
+    return _api_slides_from_state(request, note_path, state)
+
+
 def render_api_search_with_config(
     request: HttpRequest,
     config: PublisherConfig,
@@ -703,7 +724,12 @@ def render_api_local_graph_with_config(
     return _api_local_graph_from_state(request, note_path, state)
 
 
-def _render_note(request: HttpRequest, note: NoteRecord, state: dict | None = None) -> HttpResponse:
+def _render_note(
+    request: HttpRequest,
+    note: NoteRecord,
+    state: dict | None = None,
+    show_order_editor: bool = True,
+) -> HttpResponse:
     state = state or _get_state()
     config = state["config"]
     index: VaultIndex = state["index"]
@@ -733,14 +759,19 @@ def _render_note(request: HttpRequest, note: NoteRecord, state: dict | None = No
         ),
     }
     context.update(_slide_launch_context(config, index))
-    context.update(_order_editor_context(config))
+    context.update(_order_editor_context(config, show_order_editor))
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, note)
     context["show_graph"] = show_graph
     context["graph_note_id"] = graph_note_id
     return render(request, "vaultpub/page.html", context)
 
 
-def _render_text_page(request: HttpRequest, tp: TextPageRecord, state: dict | None = None) -> HttpResponse:
+def _render_text_page(
+    request: HttpRequest,
+    tp: TextPageRecord,
+    state: dict | None = None,
+    show_order_editor: bool = True,
+) -> HttpResponse:
     state = state or _get_state()
     config = state["config"]
     index = state["index"]
@@ -768,14 +799,19 @@ def _render_text_page(request: HttpRequest, tp: TextPageRecord, state: dict | No
         ),
     }
     context.update(_slide_launch_context(config, index))
-    context.update(_order_editor_context(config))
+    context.update(_order_editor_context(config, show_order_editor))
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, None)
     context["show_graph"] = show_graph
     context["graph_note_id"] = graph_note_id
     return render(request, "vaultpub/page.html", context)
 
 
-def _render_directory_page(request: HttpRequest, directory: NavNode, state: dict | None = None) -> HttpResponse:
+def _render_directory_page(
+    request: HttpRequest,
+    directory: NavNode,
+    state: dict | None = None,
+    show_order_editor: bool = True,
+) -> HttpResponse:
     state = state or _get_state()
     config = state["config"]
     index: VaultIndex = state["index"]
@@ -814,7 +850,7 @@ def _render_directory_page(request: HttpRequest, directory: NavNode, state: dict
         ),
     }
     context.update(_slide_launch_context(config, index))
-    context.update(_order_editor_context(config))
+    context.update(_order_editor_context(config, show_order_editor))
     show_graph, graph_note_id = sidebar_graph_state(config, index.graph, None)
     context["show_graph"] = show_graph
     context["graph_note_id"] = graph_note_id
@@ -948,7 +984,9 @@ def _slide_launch_context(config: PublisherConfig, index: VaultIndex) -> dict[st
     return {"vault_slides_url": scopes[0]["url"], "slide_scopes": scopes}
 
 
-def _order_editor_context(config: PublisherConfig) -> dict[str, str]:
+def _order_editor_context(config: PublisherConfig, show_order_editor: bool = True) -> dict[str, str]:
+    if not show_order_editor:
+        return {}
     return {"order_editor_url": _prefix_public_url(config, f"{SETTINGS_URL_PREFIX}/order")}
 
 

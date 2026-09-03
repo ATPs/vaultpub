@@ -418,6 +418,27 @@ def test_django_multi_note_slide_payload_uses_mount_prefix_and_defers_media(djan
     assert 'data-vaultpub-src="/notes/__assets__/image.png"' in data["slides"][0]["html"]
 
 
+def test_dynamic_render_helpers_support_portal_order_editor_visibility(django_setup, tmp_path: Path) -> None:
+    (tmp_path / "Folder").mkdir()
+    (tmp_path / "Folder" / "Inside.md").write_text("# Inside\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text("# Home\n", encoding="utf-8")
+    (tmp_path / "Slide.md").write_text("# Slide\n", encoding="utf-8")
+
+    config = PublisherConfig(vault_path=tmp_path, url_prefix="/portal/", realtime=False)
+    request = RequestFactory().get("/portal/")
+    views._state_cache.clear()
+
+    home = views.render_index_with_config(request, config, show_order_editor=False)
+    directory = views.render_page_with_config(request, config, "Folder/", show_order_editor=False)
+    payload = views.render_api_slides_with_config(request, config, "Slide.md")
+
+    assert b"data-order-editor-url" not in home.content
+    assert b"data-order-editor-url" not in directory.content
+    assert payload.status_code == 200
+    assert payload.headers["Cache-Control"] == "no-store"
+    assert b'"sourcePath": "Slide.md"' in payload.content
+
+
 @override_settings(ROOT_URLCONF=__name__)
 def test_django_whole_vault_slides_reject_empty_vault(django_setup, tmp_path: Path) -> None:
     (tmp_path / "Empty").mkdir()
