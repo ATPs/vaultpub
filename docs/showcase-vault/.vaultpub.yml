@@ -1,0 +1,42 @@
+# A small, self-contained vault used in the VaultPub README.
+vault_path: .
+
+site:
+  name: Atlas Research
+  title: Atlas Research | VaultPub showcase
+  description: A privacy-safe example vault for exploring VaultPub.
+
+routing:
+  home_file: README
+  url_style: path
+
+publish:
+  mode: publish_false_hides
+  exclude_folders:
+    - .obsidian
+    - .git
+    - private
+    - trash
+
+rendering:
+  strict_line_breaks: false
+  readable_line_length: true
+  html_safe_mode: true
+  enable_mermaid: true
+  enable_math: true
+  enable_callouts: true
+
+features:
+  navigation: true
+  search: true
+  graph: true
+  local_graph: true
+  toc: true
+  backlinks: true
+  hover_preview: true
+  theme_toggle: true
+
+realtime:
+  enabled: true
+  transport: auto
+  debounce_ms: 150

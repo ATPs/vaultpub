@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430" role="img" aria-labelledby="title desc">
+  <title id="title">VaultPub publishing workflow</title>
+  <desc id="desc">A four-step flow from local Markdown notes to a published website, search, and slides.</desc>
+  <rect width="1200" height="430" fill="#f7f8f5"/>
+  <path d="M0 0h1200v16H0z" fill="#1f766d"/>
+  <text x="72" y="74" fill="#173b3a" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="700">One source, many useful views</text>
+  <text x="72" y="108" fill="#54706b" font-family="Inter, Arial, sans-serif" font-size="16">VaultPub keeps the files local while turning their relationships into a site.</text>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <rect x="72" y="160" width="210" height="170" rx="12" fill="#ffffff" stroke="#c7d6d0" stroke-width="2"/>
+    <rect x="92" y="184" width="46" height="56" rx="5" fill="#fff1d6" stroke="#d89b36" stroke-width="2"/>
+    <path d="M103 184v14h14" fill="none" stroke="#d89b36" stroke-width="2"/>
+    <path d="M103 216h23M103 225h23" stroke="#d89b36" stroke-width="3" stroke-linecap="round"/>
+    <text x="92" y="276" fill="#173b3a" font-size="18" font-weight="700">Write locally</text>
+    <text x="92" y="301" fill="#54706b" font-size="14">Markdown + links</text>
+
+    <path d="M302 245h74" stroke="#1f766d" stroke-width="4"/>
+    <path d="m365 235 18 10-18 10" fill="none" stroke="#1f766d" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <rect x="392" y="160" width="210" height="170" rx="12" fill="#ffffff" stroke="#c7d6d0" stroke-width="2"/>
+    <circle cx="440" cy="211" r="24" fill="#dcefe9" stroke="#1f766d" stroke-width="2"/>
+    <circle cx="500" cy="201" r="19" fill="#ffe1d4" stroke="#d46e52" stroke-width="2"/>
+    <circle cx="517" cy="253" r="22" fill="#fff1d6" stroke="#d89b36" stroke-width="2"/>
+    <path d="M459 210 482 204M453 226l45 21" stroke="#54706b" stroke-width="3"/>
+    <text x="412" y="276" fill="#173b3a" font-size="18" font-weight="700">Index the graph</text>
+    <text x="412" y="301" fill="#54706b" font-size="14">Search + backlinks</text>
+
+    <path d="M622 245h74" stroke="#1f766d" stroke-width="4"/>
+    <path d="m685 235 18 10-18 10" fill="none" stroke="#1f766d" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <rect x="712" y="160" width="210" height="170" rx="12" fill="#ffffff" stroke="#c7d6d0" stroke-width="2"/>
+    <rect x="741" y="190" width="151" height="72" rx="6" fill="#e8f1ef" stroke="#1f766d" stroke-width="2"/>
+    <path d="M758 212h72M758 228h112M758 244h90" stroke="#6b9189" stroke-width="4" stroke-linecap="round"/>
+    <text x="732" y="276" fill="#173b3a" font-size="18" font-weight="700">Browse the site</text>
+    <text x="732" y="301" fill="#54706b" font-size="14">Articles + media</text>
+
+    <path d="M942 245h74" stroke="#1f766d" stroke-width="4"/>
+    <path d="m1005 235 18 10-18 10" fill="none" stroke="#1f766d" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <rect x="1032" y="160" width="96" height="170" rx="12" fill="#173b3a"/>
+    <rect x="1050" y="185" width="60" height="76" rx="5" fill="#ffffff"/>
+    <path d="M1061 210h37M1061 224h29M1061 238h34" stroke="#1f766d" stroke-width="4" stroke-linecap="round"/>
+    <text x="1048" y="288" fill="#ffffff" font-size="16" font-weight="700">Present</text>
+    <text x="1048" y="311" fill="#b7d8cf" font-size="13">Slide View</text>
+  </g>
+
+  <text x="72" y="382" fill="#54706b" font-family="Inter, Arial, sans-serif" font-size="14">Edit a note, refresh the page, and keep moving.</text>
+</svg>

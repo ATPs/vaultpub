@@ -4,22 +4,52 @@ Publish a local Obsidian vault as a browsable, searchable web site.
 
 vaultpub is **not** an Obsidian Publish client. It does not require an Obsidian account, subscription, or official servers. It works entirely locally with your vault files.
 
+![vaultpub desktop overview](docs/assets/readme/vaultpub-overview.png)
+
+vaultpub turns the files you already keep in Obsidian into a fast, navigable knowledge site. Run it locally while you write, export a self-contained static site when you publish, or mount it as a reusable Django app.
+
+## Highlights
+
+- Render Obsidian-flavored Markdown, including wikilinks, embeds, callouts, Mermaid diagrams, KaTeX math, tags, and frontmatter.
+- Find notes quickly with full-text search, hierarchical navigation, table of contents, hover previews, and keyboard-friendly controls.
+- Understand connections through backlinks, unlinked mentions, and interactive vault and local graphs.
+- Present notes as a slide deck with Slide View while keeping the same links, embeds, media, and Markdown rendering rules.
+- Use light, dark, and system themes on desktop or mobile layouts with responsive sidebars and touch-friendly navigation.
+- Choose the deployment that fits: the development server with realtime updates, static HTML export, or Django integration.
+
+## See It in Action
+
+The screenshots and recordings below use a small local vault so the UI, navigation, search, and presentation workflows are easy to inspect.
+
+![vaultpub search and hover preview](docs/assets/readme/vaultpub-search.gif)
+
+Search across the vault, open a result, and preview a linked note without losing your place.
+
+![vaultpub Slide View presentation controls](docs/assets/readme/vaultpub-slides.gif)
+
+Open a note in Slide View, move between sections, and use the presentation controls when you are ready to present.
+
+![vaultpub mobile responsive layout](docs/assets/readme/vaultpub-mobile.png)
+
+The responsive layout keeps navigation, reading, search, and backlinks usable on a phone-sized screen.
+
 ## Table of Contents
 
 1. [Quick Start](#quick-start)
-2. [CLI Commands](#cli-commands)
-3. [Configuration](#configuration)
-4. [Obsidian Syntax Support](#obsidian-syntax-support)
-5. [Presentation Mode](#presentation-mode)
-6. [Django Integration](#django-integration)
-7. [Python API](#python-api)
-8. [Static Export](#static-export)
-9. [Realtime Updates](#realtime-updates)
-10. [Security](#security)
-11. [Frontend Features](#frontend-features)
-12. [Troubleshooting](#troubleshooting)
-13. [Development](#development)
-14. [License](#license)
+2. [See It in Action](#see-it-in-action)
+3. [CLI Commands](#cli-commands)
+4. [Configuration](#configuration)
+5. [Obsidian Syntax Support](#obsidian-syntax-support)
+6. [Presentation Mode](#presentation-mode)
+7. [Django Integration](#django-integration)
+8. [Python API](#python-api)
+9. [Static Export](#static-export)
+10. [Realtime Updates](#realtime-updates)
+11. [Security](#security)
+12. [Frontend Features](#frontend-features)
+13. [Troubleshooting](#troubleshooting)
+14. [Development](#development)
+15. [License](#license)
 
 ---
 
