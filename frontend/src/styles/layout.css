@@ -81,6 +81,32 @@ body {
   border-radius: 4px;
 }
 
+.topbar-leading-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0.3em 0.7em;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--text-muted);
+  font-size: 0.85em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.topbar-leading-link:hover,
+.topbar-leading-link:focus-visible {
+  border-color: var(--link-color);
+  color: var(--link-color);
+  text-decoration: none;
+}
+
+.topbar-leading-link:focus-visible {
+  outline: 2px solid var(--link-color);
+  outline-offset: 2px;
+}
+
 .topbar-actions {
   margin-left: auto;
   display: flex;

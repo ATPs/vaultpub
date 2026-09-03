@@ -712,6 +712,7 @@ Then edit the copied files in `your_project/templates/vaultpub/` to match your d
 | `site_logo` | `str` or `None` | From config `site.logo` |
 | `description` | `str` | SEO description |
 | `realtime` | `bool` | Whether real-time updates are enabled |
+| `vaultpub_topbar_link` | mapping or `None` | Optional host-provided leading top-bar link with `url`, `label`, and optional `title` keys |
 | `show_graph` | `bool` | Whether to show the graph container |
 | `show_search` | `bool` | Whether to show the search trigger |
 | `show_theme_toggle` | `bool` | Whether to show the theme toggle button |

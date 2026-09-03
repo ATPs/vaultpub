@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from django.conf import settings
+from django.template.loader import render_to_string
 from django.test import Client, RequestFactory, override_settings
 from django.urls import include, path
 
@@ -194,6 +195,24 @@ def test_django_template_override_changes_layout(django_setup) -> None:
     assert b"OVERRIDDEN vaultpub" in response.content
     assert b'class="markdown-body"' in response.content
     assert b'class="top-bar"' not in response.content
+
+
+def test_django_base_template_accepts_leading_topbar_link(django_setup) -> None:
+    html = render_to_string(
+        "vaultpub/base.html",
+        {
+            "site_name": "Example Vault",
+            "vaultpub_topbar_link": {
+                "url": "/vaults/",
+                "label": "Vault List",
+                "title": "Return to the vault list",
+            },
+        },
+    )
+
+    link = '<a class="topbar-leading-link" href="/vaults/" title="Return to the vault list">Vault List</a>'
+    assert link in html
+    assert html.index(link) < html.index('<span class="site-name">Example Vault</span>')
 
 
 @override_settings(ROOT_URLCONF=__name__)
