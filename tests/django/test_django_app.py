@@ -336,6 +336,31 @@ def test_django_slide_page_uses_dedicated_layout_and_mount_prefix(django_setup, 
 
 
 @override_settings(ROOT_URLCONF=__name__)
+def test_django_embedded_slide_page_exposes_deck_metadata_and_opt_in_only(django_setup, tmp_path: Path) -> None:
+    (tmp_path / "Deck.md").write_text("# Opening\n\n## Second\n\nBody\n", encoding="utf-8")
+
+    views._state_cache.clear()
+    with override_settings(
+        VAULTPUB={"default": {"vault_path": str(tmp_path), "url_prefix": "/notes/", "realtime": False}}
+    ):
+        client = Client()
+        regular = client.get("/notes/__slides__/Deck.md")
+        embedded = client.get("/notes/__slides__/Deck.md?embed=1")
+        disabled = client.get("/notes/__slides__/Deck.md?embed=0")
+        payload = client.get("/notes/__api__/slides/Deck.md")
+
+    assert regular.status_code == embedded.status_code == disabled.status_code == 200
+    assert b'data-vaultpub-embed="true"' not in regular.content
+    assert b'data-vaultpub-embed="true"' in embedded.content
+    assert b'data-vaultpub-embed-protocol="1"' in embedded.content
+    assert b'data-vaultpub-source-path="Deck.md"' in embedded.content
+    assert b'data-vaultpub-deck-title="Deck"' in embedded.content
+    assert b'data-vaultpub-deck-fingerprint=' in embedded.content
+    assert b'data-vaultpub-embed="true"' not in disabled.content
+    assert payload.json()["fingerprint"].encode() in embedded.content
+
+
+@override_settings(ROOT_URLCONF=__name__)
 def test_django_folder_slides_are_recursive_and_reject_missing_or_private_notes(django_setup, tmp_path: Path) -> None:
     (tmp_path / "Course" / "Nested").mkdir(parents=True)
     (tmp_path / "private").mkdir()
@@ -415,6 +440,7 @@ def test_django_multi_note_slide_payload_uses_mount_prefix_and_defers_media(djan
     assert payload.headers["Vary"] == "Cookie"
     data = payload.json()
     assert b"B-only-body" in payload.content
+    assert len(data["fingerprint"]) == 64
     assert 'data-vaultpub-src="/notes/__assets__/image.png"' in data["slides"][0]["html"]
 
 

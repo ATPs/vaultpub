@@ -9,6 +9,8 @@ from vaultpub.core.render.slides import (
     collect_slide_scope_directories,
     describe_slide_note,
     segment_slides,
+    slide_deck_fingerprint,
+    slide_embed_requested,
     slide_options,
     slide_split_override,
     validated_slide_deck_order,
@@ -91,6 +93,31 @@ def test_slide_note_descriptor_keeps_fragment_labels_without_rendering_html(tmp_
 
     assert descriptor.title == "Deck"
     assert [fragment.title for fragment in descriptor.fragments] == ["Opening", "First", "Second"]
+    assert len(descriptor.fingerprint) == 64
+
+
+def test_slide_deck_fingerprint_covers_identity_split_and_segmented_source(tmp_path) -> None:
+    note_path = tmp_path / "Deck.md"
+    note_path.write_text("# Opening\n\n## First\n\nText\n", encoding="utf-8")
+    index = VaultIndexer(PublisherConfig(vault_path=tmp_path)).build()
+    note = next(iter(index.notes_by_id.values()))
+
+    original = slide_deck_fingerprint(note)
+    assert original == slide_deck_fingerprint(note)
+    assert original != slide_deck_fingerprint(note, "single")
+
+    note.raw_markdown = "# Opening\n\n## First\n\nChanged\n"
+    assert original != slide_deck_fingerprint(note)
+
+
+def test_slide_embed_requested_requires_an_explicit_opt_in() -> None:
+    assert slide_embed_requested("1")
+    assert slide_embed_requested("true")
+    assert slide_embed_requested(" TRUE ")
+    assert not slide_embed_requested(None)
+    assert not slide_embed_requested(1)
+    assert not slide_embed_requested("0")
+    assert not slide_embed_requested("")
 
 
 def test_reveal_only_theme_falls_back_to_light() -> None:

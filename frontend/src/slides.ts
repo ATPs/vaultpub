@@ -22,8 +22,15 @@ interface TimerSession { mode: TimerMode; durationMs: number; elapsedMs: number;
 interface Point { x: number; y: number; }
 interface Stroke { color: string; width: number; points: Point[]; }
 interface SlideFragment { index: number; title: string; }
-interface SlideManifestNote { id: string; title: string; sourcePath: string; payloadUrl: string; fragments: SlideFragment[]; }
-interface SlidePayload { noteId: string; sourcePath: string; slides: Array<SlideFragment & { html: string }>; }
+interface SlideManifestNote { id: string; title: string; sourcePath: string; fingerprint?: string; payloadUrl: string; fragments: SlideFragment[]; }
+interface SlidePayload { noteId: string; sourcePath: string; fingerprint?: string; slides: Array<SlideFragment & { html: string }>; }
+
+const SLIDE_EMBED_PROTOCOL = "vaultpub.slide";
+const SLIDE_EMBED_VERSION = 1;
+
+function embedRequestId(value: unknown): string | undefined {
+  return typeof value === "string" && value.length <= 160 ? value : undefined;
+}
 
 const SETTINGS_KEY = "vaultpub.slideSettings.v2";
 const LEGACY_SETTINGS_KEY = "vaultpub.slideSettings.v1";
@@ -170,6 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const manifest = readManifest();
   const multiNote = document.body.dataset.vaultpubMultiNote === "true" && manifest.length > 0;
   const singlePage = document.body.dataset.slideLayout === "single" && !multiNote;
+  const embedMode = document.body.dataset.vaultpubEmbed === "true" && window.parent !== window;
   if (multiNote && new URLSearchParams(location.search).has("print-pdf")) {
     document.body.classList.add("slides-print-disabled");
     return;
@@ -180,6 +188,79 @@ document.addEventListener("DOMContentLoaded", () => {
     ...(multiNote ? { navigationMode: "linear" } : {}),
     ...(singlePage ? { margin: 0, width: innerWidth, height: innerHeight, slideNumber: false } : {}),
   }) as any;
+  let embedReady = false;
+  let handshakeReceived = false;
+  let handshakeRequestId: string | undefined;
+  let pendingCommandRequestId: string | undefined;
+  const currentEmbedSlide = (): { noteId: string; sourcePath: string; index: number; title: string; deckFingerprint: string } => {
+    const current = deck.getCurrentSlide() as HTMLElement | null;
+    return {
+      noteId: current?.dataset.sourceNote || document.body.dataset.vaultpubNoteId || "",
+      sourcePath: current?.dataset.sourcePath || document.body.dataset.vaultpubSourcePath || "",
+      index: Number(deck.getIndices().h || 0),
+      title: text(current?.querySelector("h1,h2,h3")?.textContent),
+      deckFingerprint: document.body.dataset.vaultpubDeckFingerprint || "",
+    };
+  };
+  const postEmbed = (message: Record<string, unknown>): void => {
+    if (!embedMode) return;
+    try { window.parent.postMessage({ protocol: SLIDE_EMBED_PROTOCOL, version: SLIDE_EMBED_VERSION, ...message }, location.origin); } catch { /* parent may have gone away */ }
+  };
+  const sendEmbedReady = (requestId?: string): void => {
+    const slide = currentEmbedSlide();
+    postEmbed({
+      type: "ready",
+      ...(requestId ? { requestId } : {}),
+      deck: {
+        noteId: slide.noteId,
+        sourcePath: slide.sourcePath,
+        title: document.body.dataset.vaultpubDeckTitle || document.title,
+        slideCount: deck.getSlides().length,
+        fingerprint: slide.deckFingerprint,
+      },
+      slide,
+    });
+  };
+  const sendEmbedError = (code: string, message: string, requestId?: string): void => {
+    postEmbed({ type: "error", code, message, ...(requestId ? { requestId } : {}) });
+  };
+  const sendEmbedSlideChanged = (requestId?: string): void => {
+    postEmbed({ type: "slide-changed", ...currentEmbedSlide(), ...(requestId ? { requestId } : {}) });
+  };
+  const onEmbedMessage = (event: MessageEvent<unknown>): void => {
+    if (!embedMode || event.origin !== location.origin || event.source !== window.parent) return;
+    if (!event.data || typeof event.data !== "object" || Array.isArray(event.data)) return;
+    const message = event.data as Record<string, unknown>;
+    if (message.protocol !== SLIDE_EMBED_PROTOCOL || message.version !== SLIDE_EMBED_VERSION) return;
+    const requestId = embedRequestId(message.requestId);
+    if (message.type === "handshake") {
+      handshakeReceived = true;
+      handshakeRequestId = requestId;
+      if (embedReady) sendEmbedReady(requestId);
+      return;
+    }
+    const command = message.type === "command" ? message.command : message.type;
+    if (command !== "previous" && command !== "next" && command !== "go_to") return;
+    if (!embedReady) { sendEmbedError("not_ready", "Slide View is still loading", requestId); return; }
+    const before = Number(deck.getIndices().h || 0);
+    if (command === "go_to") {
+      const index = message.index;
+      if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= deck.getSlides().length) {
+        sendEmbedError("invalid_index", "Slide index is outside this deck", requestId);
+        return;
+      }
+      pendingCommandRequestId = requestId;
+      deck.slide(index);
+    } else {
+      pendingCommandRequestId = requestId;
+      if (command === "previous") deck.prev(); else deck.next();
+    }
+    if (Number(deck.getIndices().h || 0) === before) {
+      pendingCommandRequestId = undefined;
+      sendEmbedSlideChanged(requestId);
+    }
+  };
+  if (embedMode) window.addEventListener("message", onEmbedMessage);
   void deck.initialize().then(() => {
     const noteSlots = Array.from(revealElement.querySelectorAll<HTMLElement>(".vaultpub-note-slot"));
     const payloads = new Map<number, SlidePayload>();
@@ -215,7 +296,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const request = fetch(url, { credentials: "same-origin" }).then(async (response) => {
         if (!response.ok) throw new Error("Slide note could not be loaded");
         const payload = await response.json() as SlidePayload;
-        if (payload.noteId !== note.id || payload.sourcePath !== note.sourcePath || !Array.isArray(payload.slides)) throw new Error("Slide note response did not match the deck");
+        if (payload.noteId !== note.id || payload.sourcePath !== note.sourcePath || (note.fingerprint && payload.fingerprint !== note.fingerprint) || !Array.isArray(payload.slides)) throw new Error("Slide note response did not match the deck");
         payloads.set(index, payload);
         return payload;
       }).finally(() => loading.delete(index));
@@ -528,6 +609,7 @@ document.addEventListener("DOMContentLoaded", () => {
     revealElement.addEventListener("pointermove", (event) => { wake(); if (tool === "laser") { laser.style.left = `${event.clientX}px`; laser.style.top = `${event.clientY}px`; laser.classList.add("is-visible"); } if (tool === "magnify" && magnifierMode === "full" && magnified) { document.documentElement.style.setProperty("--slides-zoom-x", `${event.clientX}px`); document.documentElement.style.setProperty("--slides-zoom-y", `${event.clientY}px`); } if (tool === "magnify" && magnifierMode === "lens" && (!lensPinned || event.pointerType === "touch")) { lensPoint = { x: event.clientX, y: event.clientY }; positionLens(true); } });
     revealElement.addEventListener("pointerdown", (event) => { if (!ui.contains(event.target as Node) && activePanel) panelClose(); if (tool !== "magnify") return; if (magnifierMode === "full") { if (magnified) { clearMagnification(); return; } magnified = true; document.documentElement.style.setProperty("--slides-zoom-x", `${event.clientX}px`); document.documentElement.style.setProperty("--slides-zoom-y", `${event.clientY}px`); document.documentElement.style.setProperty("--slides-magnification", String(magnifierZoom)); document.body.classList.add("slides-magnified"); event.preventDefault(); return; } lensPoint = { x: event.clientX, y: event.clientY }; lensPinned = !lensPinned; positionLens(true); event.preventDefault(); });
     const scheduleApply = (): void => { clearTimeout(resizeTimer); resizeTimer = window.setTimeout(apply, 180); };
-    deck.on("slidechanged", () => { clearMagnification(); updateNavigation(); scheduleSlideChrome(); if (multiNote) void hydrateWindow(noteIndex()).then(() => { buildNavigation(); updateNavigation(); scheduleApply(); }).catch(() => say("This file could not be loaded. Select it again to retry.")); else { refreshLensMirror(); positionLens(); } }); window.addEventListener("resize", scheduleApply); revealElement.querySelectorAll("img,video,iframe").forEach((media) => media.addEventListener("load", scheduleApply)); window.setTimeout(scheduleApply, 500); document.addEventListener("pointermove", wake, { passive: true }); document.addEventListener("keydown", (event) => { const updateMagnifierZoom = (change: number): void => { if (tool !== "magnify") return; magnifierZoom = Math.max(1.25, Math.min(4, magnifierZoom + change)); ui.querySelector<HTMLInputElement>("[data-magnifier-setting=zoom]")!.value = String(magnifierZoom); ui.querySelector<HTMLOutputElement>("[data-output=magnifierZoom]")!.textContent = `${magnifierZoom.toFixed(2)}×`; const preference = saved(); preference.magnifierZoom = magnifierZoom; saveStored(preference); if (magnifierMode === "full" && magnified) document.documentElement.style.setProperty("--slides-magnification", String(magnifierZoom)); else positionLens(); }; if (event.key === "Escape") { if (activePanel) panelClose(); else if (tool) setTool(null); return; } if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return; if (event.key === "?") panelOpen("help", dock.querySelector("[data-action=help]")!); else if (event.key.toLowerCase() === "g") panelOpen("picker", dock.querySelector("[data-action=picker]")!); else if (event.key.toLowerCase() === "t") panelOpen("timer", dock.querySelector("[data-action=timer]")!); else if (event.key === "+" || event.key === "=") updateMagnifierZoom(.25); else if (event.key === "-") updateMagnifierZoom(-.25); else if (event.key.toLowerCase() === "f") { if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen?.().catch(() => say("Fullscreen is unavailable")); } else if (event.key.toLowerCase() === "l") setTool("laser"); else if (event.key.toLowerCase() === "z") setTool("magnify"); else if (event.key.toLowerCase() === "d") setTool("pen"); else if (event.key.toLowerCase() === "b") deck.togglePause(); });
-  });
+    deck.on("slidechanged", () => { clearMagnification(); updateNavigation(); scheduleSlideChrome(); const commandRequestId = pendingCommandRequestId; pendingCommandRequestId = undefined; if (embedReady) sendEmbedSlideChanged(commandRequestId); if (multiNote) void hydrateWindow(noteIndex()).then(() => { buildNavigation(); updateNavigation(); scheduleApply(); }).catch(() => say("This file could not be loaded. Select it again to retry.")); else { refreshLensMirror(); positionLens(); } }); window.addEventListener("resize", scheduleApply); revealElement.querySelectorAll("img,video,iframe").forEach((media) => media.addEventListener("load", scheduleApply)); window.setTimeout(scheduleApply, 500); document.addEventListener("pointermove", wake, { passive: true }); document.addEventListener("keydown", (event) => { const updateMagnifierZoom = (change: number): void => { if (tool !== "magnify") return; magnifierZoom = Math.max(1.25, Math.min(4, magnifierZoom + change)); ui.querySelector<HTMLInputElement>("[data-magnifier-setting=zoom]")!.value = String(magnifierZoom); ui.querySelector<HTMLOutputElement>("[data-output=magnifierZoom]")!.textContent = `${magnifierZoom.toFixed(2)}×`; const preference = saved(); preference.magnifierZoom = magnifierZoom; saveStored(preference); if (magnifierMode === "full" && magnified) document.documentElement.style.setProperty("--slides-magnification", String(magnifierZoom)); else positionLens(); }; if (event.key === "Escape") { if (activePanel) panelClose(); else if (tool) setTool(null); return; } if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return; if (event.key === "?") panelOpen("help", dock.querySelector("[data-action=help]")!); else if (event.key.toLowerCase() === "g") panelOpen("picker", dock.querySelector("[data-action=picker]")!); else if (event.key.toLowerCase() === "t") panelOpen("timer", dock.querySelector("[data-action=timer]")!); else if (event.key === "+" || event.key === "=") updateMagnifierZoom(.25); else if (event.key === "-") updateMagnifierZoom(-.25); else if (event.key.toLowerCase() === "f") { if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen?.().catch(() => say("Fullscreen is unavailable")); } else if (event.key.toLowerCase() === "l") setTool("laser"); else if (event.key.toLowerCase() === "z") setTool("magnify"); else if (event.key.toLowerCase() === "d") setTool("pen"); else if (event.key.toLowerCase() === "b") deck.togglePause(); });
+    if (embedMode) { embedReady = true; if (handshakeReceived) sendEmbedReady(handshakeRequestId); }
+  }).catch(() => { if (embedMode) sendEmbedError("initialization_failed", "Slide View could not be initialized"); });
 });

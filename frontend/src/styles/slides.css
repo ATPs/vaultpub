@@ -1,4 +1,7 @@
 .vaultpub-slides { background: var(--bg-color); color: var(--text-color); }
+.vaultpub-slides[data-vaultpub-embed="true"] .slides-ui { display: none !important; }
+.vaultpub-slides[data-vaultpub-embed="true"] { margin: 0; overflow: hidden; }
+.vaultpub-slides[data-vaultpub-embed="true"] .reveal { width: 100vw !important; height: 100vh !important; }
 .vaultpub-slides .reveal { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
 .vaultpub-slides .reveal .slides section.vaultpub-slide { box-sizing: border-box; height: 100%; overflow-y: auto; background: var(--bg-color); color: var(--text-color); text-align: left; }
 .vaultpub-slides:not([data-slide-layout="single"]) .reveal .slides section.vaultpub-slide { scrollbar-width: none; }

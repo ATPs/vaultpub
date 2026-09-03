@@ -1,6 +1,8 @@
-"""Slide segmentation and safe Reveal configuration helpers."""
+"""Slide segmentation, fingerprints, and safe Reveal configuration helpers."""
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from functools import cmp_to_key
 from typing import Literal
@@ -119,6 +121,7 @@ class SlideNoteDescriptor:
     title: str
     source_path: str
     fragments: tuple[SlideFragmentDescriptor, ...]
+    fingerprint: str = ""
 
 
 def segment_slides(raw_markdown: str, split: SlideSplitPolicy = "auto") -> SegmentedSlides:
@@ -179,7 +182,34 @@ def describe_slide_note(note: NoteRecord, split_override: SlideSplitPolicy | Non
         title=note.title,
         source_path=note.rel_path.as_posix(),
         fragments=fragments,
+        fingerprint=slide_deck_fingerprint(note, split_override),
     )
+
+
+def slide_embed_requested(value: object) -> bool:
+    """Return whether an explicit, opt-in Slide View embed mode was requested."""
+    return isinstance(value, str) and value.strip().lower() in {"1", "true"}
+
+
+def slide_deck_fingerprint(note: NoteRecord, split_override: SlideSplitPolicy | None = None) -> str:
+    """Return a stable fingerprint for the segmented source deck.
+
+    The fingerprint deliberately covers source identity, the effective split
+    policy, and the exact segmented Markdown. Rendered HTML and presentation
+    preferences are not part of the cue-point identity.
+    """
+    effective_split = split_override or slide_options(note.frontmatter).split
+    segmented = segment_slides(note.raw_markdown, effective_split)
+    payload = {
+        "version": 1,
+        "noteId": note.id,
+        "sourcePath": note.rel_path.as_posix(),
+        "split": effective_split,
+        "mode": segmented.mode,
+        "fragments": segmented.fragments,
+    }
+    canonical = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _fragment_title(fragment: str, fallback: str, index: int) -> str:

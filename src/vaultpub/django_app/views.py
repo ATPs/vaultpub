@@ -42,6 +42,8 @@ from vaultpub.core.render.slides import (
     collect_directory_notes,
     collect_slide_scope_directories,
     describe_slide_note,
+    slide_deck_fingerprint,
+    slide_embed_requested,
     slide_options,
     slide_split_override,
     validated_slide_deck_order,
@@ -390,6 +392,7 @@ def _api_slides_from_state(request: HttpRequest, note_path: str, state: dict) ->
         {
             "noteId": note.id,
             "sourcePath": note.rel_path.as_posix(),
+            "fingerprint": descriptor.fingerprint,
             "slides": [
                 {
                     "index": slide.index,
@@ -865,6 +868,7 @@ def _slides_from_state(request: HttpRequest, note_path: str, state: dict) -> Htt
     config = state["config"]
     options = slide_options(note.frontmatter)
     split_override = slide_split_override(request.GET.get("split"), request.COOKIES.get("vaultpub_slide_split"))
+    embed_mode = slide_embed_requested(request.GET.get("embed"))
     rendered_slides = [
         replace(slide, html=_prefix_html_urls(slide.html, config))
         for slide in state["renderer"].render_slides(note, split_override=split_override)
@@ -877,6 +881,11 @@ def _slides_from_state(request: HttpRequest, note_path: str, state: dict) -> Htt
         return_url=_prefix_public_url(config, _note_public_url(note)),
         return_label="Article",
         split_override=split_override,
+        embed_mode=embed_mode,
+        deck_note_id=note.id,
+        deck_source_path=note.rel_path.as_posix(),
+        deck_title=note.title,
+        deck_fingerprint=slide_deck_fingerprint(note, split_override),
     )
 
 
@@ -937,6 +946,11 @@ def _render_slides(
     return_label: str,
     split_override: str | None = None,
     slide_manifest: list[dict[str, object]] | None = None,
+    embed_mode: bool = False,
+    deck_note_id: str | None = None,
+    deck_source_path: str | None = None,
+    deck_title: str | None = None,
+    deck_fingerprint: str | None = None,
 ) -> HttpResponse:
     response = render(
         request,
@@ -950,6 +964,11 @@ def _render_slides(
             "return_url": return_url,
             "return_label": return_label,
             "slide_manifest": slide_manifest,
+            "embed_mode": embed_mode,
+            "deck_note_id": deck_note_id,
+            "deck_source_path": deck_source_path,
+            "deck_title": deck_title,
+            "deck_fingerprint": deck_fingerprint,
         },
     )
     patch_vary_headers(response, ("Cookie",))
@@ -1017,6 +1036,7 @@ def _multi_note_slide_manifest(
             "id": descriptor.id,
             "title": descriptor.title,
             "sourcePath": descriptor.source_path,
+            "fingerprint": descriptor.fingerprint,
             "payloadUrl": _prefix_public_url(config, f"{API_URL_PREFIX}/slides{note.url_path}"),
             "fragments": [{"index": fragment.index, "title": fragment.title} for fragment in descriptor.fragments],
         }

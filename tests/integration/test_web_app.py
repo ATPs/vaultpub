@@ -259,6 +259,13 @@ def test_frontend_static_assets(client) -> None:
     assert "scrollIntoView" not in js_response.text
     assert "scrollTop" in js_response.text
 
+    slides_response = client.get("/static/vaultpub/slides.js")
+    assert slides_response.status_code == 200
+    assert "vaultpub.slide" in slides_response.text
+    slides_css_response = client.get("/static/vaultpub/slides.css")
+    assert slides_css_response.status_code == 200
+    assert "data-vaultpub-embed" in slides_css_response.text
+
 
 def test_note_not_found(client) -> None:
     response = client.get("/nonexistent")
@@ -292,6 +299,26 @@ def test_standalone_slide_page_uses_reveal_without_article_chrome(tmp_path: Path
     assert '<html lang="en" class="theme-light">' in response.text
     assert '<body class="vaultpub-slides"' in response.text
     assert 'href="/Target.md"' in response.text
+
+
+def test_standalone_embedded_slide_page_exposes_deck_metadata_and_opt_in_only(tmp_path: Path) -> None:
+    (tmp_path / "Deck.md").write_text("# Opening\n\n## Second\n\nBody\n", encoding="utf-8")
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False)))
+
+    regular = client.get("/__slides__/Deck.md")
+    embedded = client.get("/__slides__/Deck.md?embed=1")
+    disabled = client.get("/__slides__/Deck.md?embed=0")
+    payload = client.get("/__api__/slides/Deck.md")
+
+    assert 'data-vaultpub-embed="true"' not in regular.text
+    assert 'data-vaultpub-embed="true"' in embedded.text
+    assert 'data-vaultpub-embed-protocol="1"' in embedded.text
+    assert 'data-vaultpub-note-id=' in embedded.text
+    assert 'data-vaultpub-source-path="Deck.md"' in embedded.text
+    assert 'data-vaultpub-deck-title="Deck"' in embedded.text
+    assert 'data-vaultpub-deck-fingerprint=' in embedded.text
+    assert 'data-vaultpub-embed="true"' not in disabled.text
+    assert payload.json()["fingerprint"] in embedded.text
 
 
 def test_standalone_slide_settings_honor_frontmatter_cookie_and_query_override(tmp_path: Path) -> None:
@@ -398,6 +425,7 @@ def test_standalone_multi_note_slides_validate_sort_and_scope_payload(tmp_path: 
     assert descending.text.count('data-slide-kind="note-divider"') == 3
     assert 'data-vaultpub-multi-note="true"' in descending.text
     assert 'vaultpub-slide-manifest' in descending.text
+    assert '"fingerprint": "' in descending.text
     assert 'slides-print-notice' in client.get("/__slides-vault__?print-pdf").text
 
 
@@ -418,6 +446,7 @@ def test_standalone_multi_note_slide_payload_is_rendered_per_note_and_defers_med
     assert payload.headers["vary"] == "Cookie"
     data = payload.json()
     assert data["sourcePath"] == "B.md"
+    assert len(data["fingerprint"]) == 64
     assert "B-only-body" in data["slides"][0]["html"]
     assert 'data-vaultpub-src="/__assets__/image.png"' in data["slides"][0]["html"]
     assert client.get("/__api__/slides/missing.md").status_code == 404

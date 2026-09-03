@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="{% static 'vaultpub/common.css' %}">
   <link rel="stylesheet" href="{% static 'vaultpub/slides.css' %}">
 </head>
-<body class="vaultpub-slides" data-return-url="{{ return_url }}" data-return-label="{{ return_label }}"{% if slide_manifest is not None %} data-vaultpub-multi-note="true"{% endif %}{% if slide_settings.split == "single" %} data-slide-layout="single"{% endif %}>
+<body class="vaultpub-slides" data-return-url="{{ return_url }}" data-return-label="{{ return_label }}"{% if slide_manifest is not None %} data-vaultpub-multi-note="true"{% endif %}{% if slide_settings.split == "single" %} data-slide-layout="single"{% endif %}{% if embed_mode and deck_note_id and deck_source_path and deck_fingerprint %} data-vaultpub-embed="true" data-vaultpub-embed-protocol="1" data-vaultpub-note-id="{{ deck_note_id }}" data-vaultpub-source-path="{{ deck_source_path }}" data-vaultpub-deck-title="{{ deck_title }}" data-vaultpub-deck-fingerprint="{{ deck_fingerprint }}"{% endif %}>
   <div class="reveal"><div class="slides">{{ slides_html|safe }}</div></div>
   {% if slide_manifest is not None %}<p class="slides-print-notice">Multi-note Slide View cannot be printed as one document.</p>{% endif %}
   {{ reveal_config|json_script:"vaultpub-slides-config" }}

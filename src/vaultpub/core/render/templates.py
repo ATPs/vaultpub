@@ -270,6 +270,11 @@ def slides_page_template(
     return_label: str,
     split_override: str | None = None,
     slide_manifest: list[dict[str, object]] | None = None,
+    embed_mode: bool = False,
+    deck_note_id: str | None = None,
+    deck_source_path: str | None = None,
+    deck_title: str | None = None,
+    deck_fingerprint: str | None = None,
 ) -> str:
     """Return the standalone ASGI presentation document."""
     config_json = json.dumps(options.reveal_config()).replace("<", "\\u003c").replace(">", "\\u003e")
@@ -277,6 +282,15 @@ def slides_page_template(
     manifest_json = json.dumps(slide_manifest or []).replace("<", "\\u003c").replace(">", "\\u003e")
     multi_note_attr = ' data-vaultpub-multi-note="true"' if slide_manifest is not None else ""
     single_layout_attr = ' data-slide-layout="single"' if (split_override or options.split) == "single" else ""
+    embed_attrs = ""
+    if embed_mode and deck_note_id and deck_source_path and deck_fingerprint:
+        embed_attrs = (
+            ' data-vaultpub-embed="true" data-vaultpub-embed-protocol="1"'
+            f' data-vaultpub-note-id="{escape(deck_note_id, quote=True)}"'
+            f' data-vaultpub-source-path="{escape(deck_source_path, quote=True)}"'
+            f' data-vaultpub-deck-title="{escape(deck_title or title, quote=True)}"'
+            f' data-vaultpub-deck-fingerprint="{escape(deck_fingerprint, quote=True)}"'
+        )
     print_notice = (
         '<p class="slides-print-notice">Multi-note Slide View cannot be printed as one document.</p>'
         if slide_manifest is not None
@@ -295,7 +309,7 @@ def slides_page_template(
 </head>
 <body class="vaultpub-slides"
       data-return-url="{escape(return_url, quote=True)}"
-      data-return-label="{escape(return_label, quote=True)}"{multi_note_attr}{single_layout_attr}>
+      data-return-label="{escape(return_label, quote=True)}"{multi_note_attr}{single_layout_attr}{embed_attrs}>
   <div class="reveal"><div class="slides">{slides_html}</div></div>
   {print_notice}
   <script id="vaultpub-slides-config" type="application/json">{config_json}</script>

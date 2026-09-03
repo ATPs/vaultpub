@@ -40,6 +40,8 @@ from vaultpub.core.render.slides import (
     collect_directory_notes,
     collect_slide_scope_directories,
     describe_slide_note,
+    slide_deck_fingerprint,
+    slide_embed_requested,
     slide_options,
     slide_split_override,
     validated_slide_deck_order,
@@ -217,6 +219,7 @@ async def slides(request: Request) -> HTMLResponse:
     split_override = slide_split_override(
         request.query_params.get("split"), request.cookies.get("vaultpub_slide_split")
     )
+    embed_mode = slide_embed_requested(request.query_params.get("embed"))
     page_html = slides_page_template(
         title=f"{note.title} - Presentation",
         slides_html=slide_sections_html(state.renderer.render_slides(note, split_override=split_override)),
@@ -224,6 +227,11 @@ async def slides(request: Request) -> HTMLResponse:
         return_url=note.url_path,
         return_label="Article",
         split_override=split_override,
+        embed_mode=embed_mode,
+        deck_note_id=note.id,
+        deck_source_path=note.rel_path.as_posix(),
+        deck_title=note.title,
+        deck_fingerprint=slide_deck_fingerprint(note, split_override),
     )
     return HTMLResponse(page_html, headers={"Vary": "Cookie"})
 
@@ -300,6 +308,7 @@ async def api_slides(request: Request) -> JSONResponse:
         {
             "noteId": note.id,
             "sourcePath": note.rel_path.as_posix(),
+            "fingerprint": descriptor.fingerprint,
             "slides": [
                 {
                     "index": slide.index,
@@ -485,6 +494,7 @@ def _multi_note_slide_manifest(notes: list[NoteRecord], split_override: str | No
             "id": descriptor.id,
             "title": descriptor.title,
             "sourcePath": descriptor.source_path,
+            "fingerprint": descriptor.fingerprint,
             "payloadUrl": f"{API_URL_PREFIX}/slides{note.url_path}",
             "fragments": [{"index": fragment.index, "title": fragment.title} for fragment in descriptor.fragments],
         }
