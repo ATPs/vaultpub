@@ -16,9 +16,19 @@ def callback() -> None:
     """vaultpub — Obsidian vault publisher."""
 
 
+def _vault_input_path(vault: str) -> Path:
+    """Validate CLI file input while preserving existing directory handling."""
+    path = Path(vault).expanduser()
+    if path.is_file() and path.suffix.lower() != ".md":
+        raise typer.BadParameter("--vault file must be Markdown")
+    if not path.exists() and path.suffix.lower() == ".md":
+        raise typer.BadParameter("--vault Markdown file does not exist")
+    return path
+
+
 @app.command()
 def serve(
-    vault: str = typer.Option(..., "--vault", help="Path to Obsidian vault"),
+    vault: str = typer.Option(..., "--vault", help="Path to an Obsidian vault or one Markdown file"),
     sub_path: list[str] | None = typer.Option(
         None,
         "--sub-path",
@@ -57,7 +67,11 @@ def serve(
     from vaultpub.core.config import _config_fields, load_config
     from vaultpub.web import create_app
 
-    cfg = load_config(vault_path=Path(vault), yaml_path=config)
+    cfg = load_config(vault_path=_vault_input_path(vault), yaml_path=config)
+    if cfg.entry_file is not None and sub_path:
+        raise typer.BadParameter("--sub-path cannot be used when --vault names a Markdown file")
+    if cfg.entry_file is not None and home:
+        raise typer.BadParameter("--home cannot be used when --vault names a Markdown file")
     overrides: dict[str, object] = {}
     if sub_path:
         overrides["include_folders"] = _validate_sub_paths(sub_path, cfg.vault_path)
@@ -119,7 +133,7 @@ def _validate_sub_paths(sub_paths: list[str], vault_path: Path) -> tuple[str, ..
 
 @app.command()
 def build(
-    vault: str = typer.Option(..., "--vault", help="Path to Obsidian vault"),
+    vault: str = typer.Option(..., "--vault", help="Path to an Obsidian vault or one Markdown file"),
     out: str = typer.Option("./public", "--out", help="Output directory"),
     clean: bool = typer.Option(False, "--clean", help="Clean output dir before build"),
     base_url: str | None = typer.Option(None, "--base-url", help="Base URL for generated links"),
@@ -145,7 +159,7 @@ def build(
     from vaultpub.core.config import _config_fields, load_config
     from vaultpub.export import StaticSiteBuilder
 
-    cfg = load_config(vault_path=Path(vault), yaml_path=config)
+    cfg = load_config(vault_path=_vault_input_path(vault), yaml_path=config)
     overrides: dict[str, object] = {}
     if base_url:
         overrides["site_url"] = base_url
@@ -163,7 +177,7 @@ def build(
 
 @app.command()
 def index(
-    vault: str = typer.Option(..., "--vault", help="Path to Obsidian vault"),
+    vault: str = typer.Option(..., "--vault", help="Path to an Obsidian vault or one Markdown file"),
     json_path: str = typer.Option("./index.json", "--json", help="Output JSON path"),
     config: str | None = typer.Option(None, "--config", help="Path to config YAML"),
     force_include_regex: list[str] | None = typer.Option(
@@ -188,7 +202,7 @@ def index(
     from vaultpub.core.config import load_config
     from vaultpub.core.index.indexer import VaultIndexer
 
-    cfg = load_config(vault_path=Path(vault), yaml_path=config)
+    cfg = load_config(vault_path=_vault_input_path(vault), yaml_path=config)
     overrides: dict[str, object] = {}
     if force_include_regex:
         overrides["force_include_regexes"] = tuple(force_include_regex)
@@ -212,16 +226,14 @@ def index(
 
 @app.command()
 def doctor(
-    vault: str = typer.Option(..., "--vault", help="Path to Obsidian vault"),
+    vault: str = typer.Option(..., "--vault", help="Path to an Obsidian vault or one Markdown file"),
     config: str | None = typer.Option(None, "--config", help="Path to config YAML"),
 ) -> None:
     """Diagnose vault issues: broken links, duplicates, etc."""
-    from pathlib import Path
-
     from vaultpub.core.config import load_config
     from vaultpub.core.index.indexer import VaultIndexer
 
-    cfg = load_config(vault_path=Path(vault), yaml_path=config)
+    cfg = load_config(vault_path=_vault_input_path(vault), yaml_path=config)
     indexer = VaultIndexer(cfg)
     vault_index = indexer.build()
 
@@ -263,7 +275,10 @@ def init(
     """Create a default .vaultpub.yml in the vault directory."""
     from pathlib import Path
 
-    config_path = Path(vault) / ".vaultpub.yml"
+    vault_path = Path(vault).expanduser()
+    if vault_path.is_file() or vault_path.suffix.lower() == ".md":
+        raise typer.BadParameter("--vault must name a directory for init")
+    config_path = vault_path / ".vaultpub.yml"
     if config_path.exists():
         print(f"{config_path} already exists, skipping.")
         return

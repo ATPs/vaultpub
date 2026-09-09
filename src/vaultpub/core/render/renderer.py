@@ -464,6 +464,8 @@ class Renderer:
         )
 
     def _resolve_dynamic_file(self, normalized_path: str, suffix: str) -> _ResolvedTarget | None:
+        if self.config.entry_file is not None and not self._is_entry_file_resource(normalized_path):
+            return None
         if is_path_excluded(normalized_path, self.config):
             return None
 
@@ -474,7 +476,11 @@ class Renderer:
         rel_path = PurePosixPath(normalized_path)
         url_path = attachment_rel_path_to_url_path(rel_path.as_posix())
 
-        if is_text_file(fpath):
+        is_entry_media = (
+            self.config.entry_file is not None
+            and rel_path.suffix.lower().lstrip(".") in self.config.allowed_attachment_types
+        )
+        if is_text_file(fpath) and not is_entry_media:
             text_page = self.dynamic_text_pages_by_path.get(normalized_path)
             if text_page is None:
                 text_page = self._build_dynamic_text_page(fpath, rel_path, url_path)
@@ -493,6 +499,15 @@ class Renderer:
             kind="dynamic_attachment",
             url=attachment.url_path + suffix,
             dynamic_attachment=attachment,
+        )
+
+    def _is_entry_file_resource(self, normalized_path: str) -> bool:
+        """Allow single-file mode to expose only direct, non-Markdown siblings."""
+        entry_path = PurePosixPath(self.config.entry_file or "")
+        resource_path = PurePosixPath(normalized_path)
+        return (
+            resource_path.suffix.lower() != ".md"
+            and resource_path.parent == entry_path.parent
         )
 
     def _build_dynamic_text_page(self, fpath: Path, rel_path: PurePosixPath, url_path: str) -> TextPageRecord:

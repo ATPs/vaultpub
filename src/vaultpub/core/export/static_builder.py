@@ -142,9 +142,10 @@ class StaticSiteBuilder:
         # Static assets
         self._copy_frontend_assets(out_dir)
 
-        # publish.css from vault root (if present)
+        # A single-note publication must not copy unrelated sibling resources.
+        # Directory publications retain the existing vault-root publish.css behavior.
         publish_css = self.config.vault_path / "publish.css"
-        if publish_css.exists():
+        if self.config.entry_file is None and publish_css.exists():
             static_dir = out_dir / "static" / "vaultpub"
             static_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(publish_css, static_dir / "publish.css")

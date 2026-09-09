@@ -119,6 +119,20 @@ def test_scan_include_folders_can_include_all_vault_attachments(tmp_path) -> Non
     assert [child.label for child in nav.children] == ["Shared"]
 
 
+def test_scan_entry_file_indexes_only_that_markdown_file(tmp_path) -> None:
+    selected = tmp_path / "Selected.md"
+    selected.write_text("# Selected", encoding="utf-8")
+    (tmp_path / "Sibling.md").write_text("# Sibling", encoding="utf-8")
+    (tmp_path / "image.png").write_bytes(b"png")
+
+    notes, attachments, text_pages, nav = VaultScanner(PublisherConfig(vault_path=selected)).scan()
+
+    assert {note.rel_path.as_posix() for note in notes} == {"Selected.md"}
+    assert not attachments
+    assert not text_pages
+    assert [child.raw_label for child in nav.children] == ["Selected.md"]
+
+
 def test_navigation_json_controls_order_star_and_describe_direct_children(tmp_path) -> None:
     (tmp_path / "Folder").mkdir()
     (tmp_path / "A.md").write_text("# A", encoding="utf-8")

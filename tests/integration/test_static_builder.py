@@ -79,6 +79,26 @@ def test_static_build_excludes_reserved_dunder_url_roots(tmp_path: Path) -> None
         assert not (out / "__api__" / "Hidden.md.html").exists()
 
 
+def test_static_build_from_one_markdown_file_copies_only_referenced_siblings(tmp_path: Path) -> None:
+    note = tmp_path / "Only.md"
+    note.write_text("# Only\n\n![[image.png]]\n", encoding="utf-8")
+    (tmp_path / "image.png").write_bytes(b"png")
+    (tmp_path / "unused.png").write_bytes(b"png")
+    (tmp_path / "publish.css").write_text("body { color: red; }", encoding="utf-8")
+    (tmp_path / "Sibling.md").write_text("# Sibling", encoding="utf-8")
+
+    out = tmp_path / "public"
+    result = StaticSiteBuilder(PublisherConfig(vault_path=note)).build(out)
+
+    assert result.pages_written == 1
+    assert (out / "index.html").exists()
+    assert (out / "Only.md.html").exists()
+    assert not (out / "Sibling.md.html").exists()
+    assert (out / "__assets__" / "image.png").exists()
+    assert not (out / "__assets__" / "unused.png").exists()
+    assert not (out / "static" / "vaultpub" / "publish.css").exists()
+
+
 def test_static_tag_page_loads_boot_before_styles(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     vault.mkdir()

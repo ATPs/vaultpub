@@ -68,6 +68,27 @@ def test_scoped_notes_can_render_and_serve_vault_wide_attachments(tmp_path: Path
     assert client.get("/__api__/search?q=Private").json() == {"results": []}
 
 
+def test_single_markdown_input_serves_only_referenced_sibling_resources(tmp_path: Path) -> None:
+    note = tmp_path / "Only.md"
+    note.write_text("# Only\n\n![[image.png]]\n\n[[Sibling.md]]\n", encoding="utf-8")
+    (tmp_path / "image.png").write_bytes(b"png")
+    (tmp_path / "unused.png").write_bytes(b"png")
+    (tmp_path / "Sibling.md").write_text("# Sibling", encoding="utf-8")
+
+    client = TestClient(create_app(PublisherConfig(vault_path=note, realtime=False)))
+
+    home = client.get("/")
+    assert home.status_code == 200
+    assert 'src="/__assets__/image.png"' in home.text
+    assert "Sibling.md" in home.text
+    assert client.get("/__assets__/image.png").status_code == 200
+    assert client.get("/__assets__/unused.png").status_code == 404
+    assert client.get("/Sibling.md").status_code == 404
+    assert client.get("/__api__/search?q=Sibling").json()["results"] == [
+        {"title": "Only.md", "url": "/Only.md", "excerpt": "# Only  ![[image.png]]  [[Sibling.md]]", "tags": []}
+    ]
+
+
 def test_note_page(client) -> None:
     response = client.get("/README.md")
     assert response.status_code == 200

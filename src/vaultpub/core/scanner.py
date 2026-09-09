@@ -112,7 +112,10 @@ class VaultScanner:
                 in_included_folder = self._is_included_by_folder(rel, include_folders)
 
                 if ext == ".md":
-                    if not in_included_folder:
+                    if self.config.entry_file is not None:
+                        if rel != self.config.entry_file:
+                            continue
+                    elif not in_included_folder:
                         continue
                     if fpath.stat().st_size > self.config.max_markdown_size_bytes:
                         continue
@@ -120,11 +123,15 @@ class VaultScanner:
                     if self._should_publish(note):
                         notes.append(note)
                 elif self._is_force_included_text(fpath, rel):
+                    if self.config.entry_file is not None:
+                        continue
                     if not in_included_folder:
                         continue
                     tp = self._read_text_page(fpath, rel, ext, stat)
                     text_pages.append(tp)
                 elif ext.lstrip(".") in self.config.allowed_attachment_types:
+                    if self.config.entry_file is not None:
+                        continue
                     if not in_included_folder and not self.config.include_all_attachments:
                         continue
                     if self.config.max_attachment_size_bytes and stat.st_size > self.config.max_attachment_size_bytes:

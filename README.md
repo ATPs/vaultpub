@@ -67,6 +67,17 @@ pip install vaultpub
 vaultpub serve --vault ~/my-vault --port 8008
 ```
 
+To publish one Markdown file, pass that file directly. VaultPub renders only
+that note and only exposes non-Markdown resources it references from the same
+directory:
+
+```bash
+vaultpub serve --vault ~/notes/meeting.md --port 8008
+```
+
+For a note with other notes or media in subdirectories, pass the containing
+folder instead so those files are part of the publication.
+
 To share one or more directories, keep `--vault` pointed at the complete vault so notes in a subdirectory can still reference images and attachments in parent directories:
 
 ```bash
@@ -110,7 +121,7 @@ vaultpub serve \
 
 | Option | Default | Description |
 | -------- | --------- | ------------- |
-| `--vault` | (required) | Path to Obsidian vault |
+| `--vault` | (required) | Path to an Obsidian vault or one Markdown file |
 | `--sub-path` | YAML / `.` | Vault-relative folder to publish (repeatable). When supplied, overrides `publish.include_folders`; all allowed vault attachments remain available |
 | `--host` | `0.0.0.0` | Bind address (all network interfaces) |
 | `--port` | `8008` | Bind port |
@@ -121,6 +132,8 @@ vaultpub serve \
 | `--force-exclude-regex` | none | Regex to force-exclude paths from publishing (repeatable). See `--help` for examples |
 
 When `--sub-path` is omitted, `serve` preserves `publish.include_folders` from YAML. Without that setting, it publishes from the vault root (`.`). An explicit `--sub-path .` overrides YAML and publishes from the vault root. Sub-paths must be existing directories inside the vault. Scoped note sharing still makes all otherwise-public vault attachments available under `/__assets__/...`.
+
+When `--vault` names a Markdown file, that note is the complete publication: sibling Markdown files are not pages, search results, graph nodes, or slide sources. Only resources explicitly referenced by that note and stored in its direct containing directory are available under `/__assets__/...`; unreferenced files and nested-directory resources remain unavailable. `--sub-path` and `--home` cannot be combined with a file input.
 
 ### `vaultpub build`
 
@@ -136,7 +149,7 @@ vaultpub build \
 
 | Option | Default | Description |
 | -------- | --------- | ------------- |
-| `--vault` | (required) | Path to Obsidian vault |
+| `--vault` | (required) | Path to an Obsidian vault or one Markdown file |
 | `--out` | `./public` | Output directory |
 | `--clean` | `false` | Remove output dir before building |
 | `--base-url` | (none) | Base URL for sitemap/RSS/canonical links |
@@ -175,7 +188,7 @@ vaultpub index --vault ~/Vault --json ./index.json
 
 | Option | Default | Description |
 | ------ | ------------- | ----------- |
-| `--vault` | (required) | Path to Obsidian vault |
+| `--vault` | (required) | Path to an Obsidian vault or one Markdown file |
 | `--json` | `./index.json` | Output JSON file path |
 | `--config` | (auto) | Path to `.vaultpub.yml` |
 | `--force-include-regex` | none | Regex to force-include non-Markdown text files (repeatable) |

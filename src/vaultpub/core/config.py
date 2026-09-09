@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Literal
 
 from vaultpub.core.attachments import DEFAULT_ATTACHMENT_TYPES
@@ -18,6 +18,7 @@ RealtimeTransport = Literal["auto", "sse", "websocket", "poll"]
 @dataclass(frozen=True)
 class PublisherConfig:
     vault_path: Path
+    entry_file: str | None = None
 
     site_name: str = "vaultpub"
     site_title: str | None = None
@@ -83,8 +84,33 @@ class PublisherConfig:
     analytics_html: str | None = None
 
     def __post_init__(self) -> None:
-        if not isinstance(self.vault_path, Path):
-            object.__setattr__(self, "vault_path", Path(self.vault_path).expanduser().resolve())  # type: ignore[unreachable]
+        vault_path = Path(self.vault_path).expanduser().resolve()
+        entry_file = self.entry_file
+
+        if vault_path.is_file():
+            if vault_path.suffix.lower() != ".md":
+                raise ConfigError(f"vault_path file must be Markdown: {vault_path}")
+            if entry_file is not None:
+                raise ConfigError("entry_file cannot be set when vault_path is a Markdown file")
+            entry_file = vault_path.name
+            vault_path = vault_path.parent
+        elif vault_path.suffix.lower() == ".md":
+            raise ConfigError(f"vault_path Markdown file does not exist: {vault_path}")
+
+        if entry_file is not None:
+            normalized_entry = PurePosixPath(entry_file.replace("\\", "/"))
+            if (
+                normalized_entry.is_absolute()
+                or ".." in normalized_entry.parts
+                or normalized_entry.suffix.lower() != ".md"
+            ):
+                raise ConfigError("entry_file must be a vault-relative Markdown file")
+            entry_file = normalized_entry.as_posix()
+            if not (vault_path / entry_file).is_file():
+                raise ConfigError(f"entry_file does not exist: {entry_file}")
+
+        object.__setattr__(self, "vault_path", vault_path)
+        object.__setattr__(self, "entry_file", entry_file)
         if self.max_attachment_size_bytes is not None and self.max_attachment_size_bytes <= 0:
             object.__setattr__(self, "max_attachment_size_bytes", None)  # type: ignore[unreachable]
 
@@ -106,6 +132,8 @@ def load_config_from_yaml(yaml_path: Path) -> dict:
 
     if "vault_path" in data:
         kwargs["vault_path"] = Path(data["vault_path"])
+    if "entry_file" in data:
+        kwargs["entry_file"] = data["entry_file"]
 
     # site section
     site = data.get("site", {})

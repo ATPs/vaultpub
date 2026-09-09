@@ -236,6 +236,30 @@ def test_render_bare_attachment_names_use_vault_wide_obsidian_lookup(tmp_path: P
     assert "is-unresolved" not in html
 
 
+def test_single_markdown_mode_only_resolves_direct_sibling_resources(tmp_path: Path) -> None:
+    note_path = tmp_path / "Only.md"
+    note_path.write_text(
+        "![[image.png]]\n\n![nested](nested/image.png)\n\n[[Sibling.md]]\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "image.png").write_bytes(b"png")
+    (tmp_path / "Sibling.md").write_text("# Sibling", encoding="utf-8")
+    (tmp_path / "nested").mkdir()
+    (tmp_path / "nested" / "image.png").write_bytes(b"png")
+
+    config = PublisherConfig(vault_path=note_path)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = vault_index.notes_by_id[vault_index.notes_by_path["Only.md"]]
+
+    html = renderer.render_note(note)
+
+    assert 'src="/__assets__/image.png"' in html
+    assert "nested/image.png" in html
+    assert "Sibling.md" in html
+    assert set(renderer.dynamic_attachments_by_path) == {"image.png"}
+
+
 def test_render_raw_html_local_urls_are_rewritten(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text(
         '# Home\n\n<img src="./image.png">\n<a href="./tool.py">Tool</a>\n',
