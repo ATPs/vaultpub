@@ -9,7 +9,7 @@ from datetime import UTC
 from html import escape
 from pathlib import Path, PurePosixPath
 
-from vaultpub.core.config import PublisherConfig
+from vaultpub.core.config import PublisherConfig, normal_view_font_size
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import NavNode, NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.paths import API_URL_PREFIX, ASSET_URL_PREFIX, static_html_url
@@ -232,6 +232,7 @@ class StaticSiteBuilder:
         """Generate tag pages at tags/<tag-path>/index.html."""
         count = 0
         tags_dir = out_dir / "tags"
+        font_size = normal_view_font_size(self.config.font_size)
         for tag_name, note_ids in vault_index.tags.items():
             tag_dir = tags_dir / tag_name
             tag_dir.mkdir(parents=True, exist_ok=True)
@@ -253,11 +254,12 @@ class StaticSiteBuilder:
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>#{tag_name} - {self.config.site_name}</title>
-            <script src="/static/vaultpub/boot.js"></script>
+  <style>:root {{ --font-size: {font_size}px; }}</style>
+  <script src="/static/vaultpub/boot.js"></script>
             <link rel="stylesheet" href="/static/vaultpub/common.css">
             <link rel="stylesheet" href="/static/vaultpub/app.css">
 </head>
-<body>
+<body data-font-size-default="{font_size}">
   <main class="content">
     <h1>#{tag_name}</h1>
     <p>{len(note_ids)} note(s)</p>

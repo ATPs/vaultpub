@@ -35,6 +35,8 @@ def get_publisher_configs() -> dict[str, PublisherConfig]:
             "site_url": site_data.get("site_url"),
             "show_navigation": site_data.get("show_navigation", True),
             "show_theme_toggle": site_data.get("show_theme_toggle", True),
+            "show_vault_slides": site_data.get("show_vault_slides", True),
+            "font_size": site_data.get("font_size", PublisherConfig.font_size),
             "show_hover_preview": site_data.get("show_hover_preview", True),
             "hidden_file_access": site_data.get("hidden_file_access", False),
             "exclude_folders": tuple(site_data.get("exclude_folders", PublisherConfig.exclude_folders)),

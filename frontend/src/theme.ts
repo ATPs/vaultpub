@@ -3,6 +3,9 @@ import { READING_THEMES as THEMES } from "./theme-data";
 
 const THEME_CLASS_PREFIX = "theme-";
 const SETTINGS_KEY = "vaultpub.settings";
+const DEFAULT_FONT_SIZE = 16;
+const MIN_FONT_SIZE = 12;
+const MAX_FONT_SIZE = 28;
 
 /* ---- settings helpers ---- */
 function getSettings(): Record<string, unknown> {
@@ -16,6 +19,29 @@ function getSettings(): Record<string, unknown> {
 function setSettings(partial: Record<string, unknown>): void {
   const current = getSettings();
   localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...current, ...partial }));
+}
+
+function deleteSetting(key: string): void {
+  const current = getSettings();
+  delete current[key];
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(current));
+}
+
+function validFontSize(value: unknown): number | null {
+  const size = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(size) && size >= MIN_FONT_SIZE && size <= MAX_FONT_SIZE ? size : null;
+}
+
+function defaultFontSize(): number {
+  return validFontSize(document.body.dataset.fontSizeDefault) ?? DEFAULT_FONT_SIZE;
+}
+
+function storedFontSize(fallback: number): number {
+  return validFontSize(getSettings().fontSize) ?? fallback;
+}
+
+function applyFontSize(fontSize: number): void {
+  document.documentElement.style.setProperty("--font-size", `${fontSize}px`);
 }
 
 /* ---- resolve stored theme ---- */
@@ -65,6 +91,8 @@ function buildSettingsMenu(): void {
 
   const currentThemeId = getStoredThemeId();
   const currentTheme = THEMES.find((t) => t.id === currentThemeId) || THEMES[0];
+  const publisherFontSize = defaultFontSize();
+  const currentFontSize = storedFontSize(publisherFontSize);
 
   const btn = document.createElement("button");
   btn.className = "settings-menu-btn";
@@ -103,6 +131,11 @@ function buildSettingsMenu(): void {
   appearanceSection.className = "settings-section settings-appearance";
   appearanceSection.innerHTML = `
     <div class="settings-dropdown-header">Appearance</div>
+    <div class="settings-font-size">
+      <label for="settings-font-size">Text size <output data-font-size-output>${currentFontSize}px</output></label>
+      <input id="settings-font-size" data-setting="font-size" type="range" min="${MIN_FONT_SIZE}" max="${MAX_FONT_SIZE}" step="1" value="${currentFontSize}">
+      <button class="settings-font-size-reset" type="button" data-action="reset-font-size">Reset</button>
+    </div>
     <div class="theme-dropdown-header">Light</div>
     ${lightThemes
       .map(
@@ -159,6 +192,17 @@ function buildSettingsMenu(): void {
   });
 
   dropdown.addEventListener("click", (e) => {
+    const action = (e.target as HTMLElement).closest<HTMLElement>("[data-action]")?.dataset.action;
+    if (action === "reset-font-size") {
+      deleteSetting("fontSize");
+      document.documentElement.style.removeProperty("--font-size");
+      const input = dropdown.querySelector<HTMLInputElement>("[data-setting=font-size]");
+      const output = dropdown.querySelector<HTMLOutputElement>("[data-font-size-output]");
+      if (input) input.value = String(publisherFontSize);
+      if (output) output.value = `${publisherFontSize}px`;
+      return;
+    }
+
     const option = (e.target as HTMLElement).closest<HTMLButtonElement>(".theme-option");
     if (!option) return;
     const themeId = option.dataset.themeId;
@@ -180,6 +224,17 @@ function buildSettingsMenu(): void {
 
     wrapper.classList.remove("open");
     btn.setAttribute("aria-expanded", "false");
+  });
+
+  dropdown.addEventListener("input", (e) => {
+    const input = (e.target as HTMLElement).closest<HTMLInputElement>("[data-setting=font-size]");
+    if (!input) return;
+    const fontSize = validFontSize(input.value);
+    if (fontSize === null) return;
+    applyFontSize(fontSize);
+    setSettings({ fontSize });
+    const output = dropdown.querySelector<HTMLOutputElement>("[data-font-size-output]");
+    if (output) output.value = `${fontSize}px`;
   });
 
   // Close on outside click

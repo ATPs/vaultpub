@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from vaultpub.core.config import ConfigError, PublisherConfig, load_config_from_yaml
+from vaultpub.core.config import ConfigError, PublisherConfig, load_config_from_yaml, normal_view_font_size
 
 
 def test_default_config() -> None:
@@ -15,6 +15,7 @@ def test_default_config() -> None:
     assert config.url_prefix == "/"
     assert config.publish_property_mode == "publish_false_hides"
     assert config.strict_line_breaks is False
+    assert config.show_vault_slides is True
     assert "gz" in config.allowed_attachment_types
 
 
@@ -28,6 +29,14 @@ def test_config_custom_values() -> None:
     assert config.site_name == "My Site"
     assert config.default_theme == "dark"
     assert config.font_size == 18
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(12, 12), (28, 28), ("20", 20), (11, 16), (29, 16), (16.5, 16), ("large", 16), (True, 16)],
+)
+def test_normal_view_font_size_limits_css_values(value: object, expected: int) -> None:
+    assert normal_view_font_size(value) == expected
 
 
 def test_config_exclude_folders() -> None:
@@ -50,6 +59,24 @@ def test_load_config_from_yaml_reads_allowed_attachment_types(tmp_path: Path) ->
     kwargs = load_config_from_yaml(config_yaml)
 
     assert kwargs["allowed_attachment_types"] == ("png", "gz")
+
+
+def test_load_config_from_yaml_reads_normal_view_font_size(tmp_path: Path) -> None:
+    config_yaml = tmp_path / ".vaultpub.yml"
+    config_yaml.write_text("rendering:\n  font_size: 20\n", encoding="utf-8")
+
+    kwargs = load_config_from_yaml(config_yaml)
+
+    assert kwargs["font_size"] == 20
+
+
+def test_load_config_from_yaml_reads_vault_slide_visibility(tmp_path: Path) -> None:
+    config_yaml = tmp_path / ".vaultpub.yml"
+    config_yaml.write_text("features:\n  vault_slides: false\n", encoding="utf-8")
+
+    kwargs = load_config_from_yaml(config_yaml)
+
+    assert kwargs["show_vault_slides"] is False
 
 
 def test_markdown_vault_path_selects_the_file_and_uses_its_parent(tmp_path: Path) -> None:

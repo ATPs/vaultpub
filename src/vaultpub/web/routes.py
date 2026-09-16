@@ -444,6 +444,8 @@ async def api_graph(request: Request) -> JSONResponse:
 
 
 def _slide_launch_data(state: AppState) -> tuple[str | None, list[dict[str, str]]]:
+    if not state.config.show_vault_slides:
+        return None, []
     nav_tree = state.index.nav_tree
     if nav_tree is None or not collect_directory_notes(nav_tree, state.index):
         return None, []

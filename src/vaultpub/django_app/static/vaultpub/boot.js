@@ -47,6 +47,11 @@
   }
 
   var settings = readStoredObject("vaultpub.settings");
+  var storedFontSize = settings.fontSize;
+  var fontSize = typeof storedFontSize === "number" ? storedFontSize : Number(storedFontSize);
+  if (Number.isInteger(fontSize) && fontSize >= 12 && fontSize <= 28) {
+    root.style.setProperty("--font-size", fontSize + "px");
+  }
   var storedTheme = typeof settings.theme === "string" ? settings.theme : "";
   var themeId = themeIds.indexOf(storedTheme) >= 0 ? storedTheme : systemTheme();
   Array.prototype.slice.call(root.classList).forEach(function removePreviousTheme(className) {

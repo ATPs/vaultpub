@@ -524,6 +524,47 @@ body {
   font-size: 0.85em;
 }
 
+.settings-font-size {
+  display: grid;
+  gap: 0.35em;
+  padding: 0.55em 0.7em 0.3em;
+}
+
+.settings-font-size label {
+  display: flex;
+  align-items: center;
+  font-size: 0.9em;
+}
+
+.settings-font-size output {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-font-size input[type="range"] {
+  width: 100%;
+  accent-color: var(--link-color);
+}
+
+.settings-font-size-reset {
+  justify-self: start;
+  border: 0;
+  background: none;
+  color: var(--link-color);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8em;
+  padding: 0.2em 0;
+}
+
+.settings-font-size-reset:hover,
+.settings-font-size-reset:focus-visible {
+  color: var(--link-hover-color);
+  text-decoration: underline;
+  outline: none;
+}
+
 /* ============================================================
    Vault Slide View launch dialog
    ============================================================ */

@@ -118,6 +118,18 @@ def test_django_page_uses_packaged_template(django_setup) -> None:
     assert b"{% toc %}" not in response.content
 
 
+def test_django_dynamic_page_exposes_a_safe_publisher_font_size(django_setup, tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# Home\n", encoding="utf-8")
+    config = PublisherConfig(vault_path=tmp_path, font_size=18, realtime=False)
+    request = RequestFactory().get("/")
+    views._state_cache.clear()
+
+    response = views.render_index_with_config(request, config, show_order_editor=False)
+
+    assert b"<style>:root { --font-size: 18px; }</style>" in response.content
+    assert b'data-font-size-default="18"' in response.content
+
+
 @override_settings(ROOT_URLCONF=__name__)
 def test_django_page_uses_local_graph_placeholder(django_setup) -> None:
     views._state_cache.clear()
@@ -482,6 +494,25 @@ def test_dynamic_render_helpers_support_portal_order_editor_visibility(django_se
     assert payload.status_code == 200
     assert payload.headers["Cache-Control"] == "no-store"
     assert b'"sourcePath": "Slide.md"' in payload.content
+
+
+def test_dynamic_render_helpers_can_hide_whole_vault_slide_launch(django_setup, tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# Home\n", encoding="utf-8")
+    config = PublisherConfig(
+        vault_path=tmp_path,
+        url_prefix="/portal/",
+        realtime=False,
+        show_vault_slides=False,
+    )
+    request = RequestFactory().get("/portal/")
+    views._state_cache.clear()
+
+    response = views.render_index_with_config(request, config, show_order_editor=False)
+
+    assert response.status_code == 200
+    assert b'data-slide-note-url="/portal/__slides__/README.md"' in response.content
+    assert b"data-vault-slides-url" not in response.content
+    assert b'id="vaultpub-slide-scopes"' not in response.content
 
 
 @override_settings(ROOT_URLCONF=__name__)

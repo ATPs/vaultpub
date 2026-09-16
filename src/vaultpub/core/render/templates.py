@@ -7,6 +7,7 @@ from collections.abc import Callable, Iterable
 from html import escape
 from pathlib import PurePosixPath
 
+from vaultpub.core.config import normal_view_font_size
 from vaultpub.core.models import GraphData, Heading, NavNode, NoteRecord, TextPageRecord
 from vaultpub.core.paths import directory_display_name, directory_path_to_url_path
 from vaultpub.core.render.slides import RenderedSlide, SlideOptions
@@ -336,6 +337,7 @@ def base_page_template(
     """Wrap content in a basic HTML page template."""
     site_name = getattr(config, "site_name", "vaultpub") if config else "vaultpub"
     site_logo = getattr(config, "site_logo", None) if config else None
+    font_size = normal_view_font_size(getattr(config, "font_size", None))
     realtime = "true" if (config and getattr(config, "realtime", True)) else "false"
     logo_html = f'<img src="{site_logo}" alt="{site_name}" class="site-logo">' if site_logo else ""
     search_trigger = '<button class="search-trigger" data-action="search" aria-label="Search">Search (Ctrl+K)</button>'
@@ -357,11 +359,12 @@ def base_page_template(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   {head_html}
+  <style>:root {{ --font-size: {font_size}px; }}</style>
   <script src="/static/vaultpub/boot.js"></script>
   <link rel="stylesheet" href="/static/vaultpub/common.css">
   <link rel="stylesheet" href="/static/vaultpub/app.css">
 </head>
-<body data-realtime="{realtime}"{vault_slides_attr}{order_editor_attr}>
+<body data-realtime="{realtime}" data-font-size-default="{font_size}"{vault_slides_attr}{order_editor_attr}>
   <header class="top-bar">
     <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle navigation">&#9776;</button>
     {logo_html}

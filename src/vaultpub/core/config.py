@@ -14,6 +14,25 @@ UrlStyle = Literal["path", "publish", "slug"]
 PublishMode = Literal["all", "publish_true", "publish_false_hides"]
 RealtimeTransport = Literal["auto", "sse", "websocket", "poll"]
 
+DEFAULT_NORMAL_FONT_SIZE = 16
+MIN_NORMAL_FONT_SIZE = 12
+MAX_NORMAL_FONT_SIZE = 28
+
+
+def normal_view_font_size(value: object) -> int:
+    """Return a safe normal-view font size for CSS output."""
+    if isinstance(value, bool):
+        return DEFAULT_NORMAL_FONT_SIZE
+    if isinstance(value, float) and not value.is_integer():
+        return DEFAULT_NORMAL_FONT_SIZE
+    try:
+        size = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return DEFAULT_NORMAL_FONT_SIZE
+    if MIN_NORMAL_FONT_SIZE <= size <= MAX_NORMAL_FONT_SIZE:
+        return size
+    return DEFAULT_NORMAL_FONT_SIZE
+
 
 @dataclass(frozen=True)
 class PublisherConfig:
@@ -64,10 +83,11 @@ class PublisherConfig:
     show_unlinked_mentions: bool = False
     show_hover_preview: bool = True
     show_theme_toggle: bool = True
+    show_vault_slides: bool = True
     stacked_pages: bool = False
 
     default_theme: ThemeMode = "system"
-    font_size: int = 16
+    font_size: int = DEFAULT_NORMAL_FONT_SIZE
 
     enable_mermaid: bool = True
     enable_math: bool = True
@@ -178,7 +198,7 @@ def load_config_from_yaml(yaml_path: Path) -> dict:
         for key in (
             "strict_line_breaks", "readable_line_length", "hide_title",
             "html_safe_mode", "allow_raw_html", "enable_mermaid",
-            "enable_math", "enable_callouts",
+            "enable_math", "enable_callouts", "font_size",
         ):
             if key in rendering:
                 kwargs[key] = rendering[key]
@@ -189,7 +209,7 @@ def load_config_from_yaml(yaml_path: Path) -> dict:
         for key in (
             "navigation", "search", "graph", "local_graph", "toc",
             "backlinks", "unlinked_mentions", "hover_preview",
-            "theme_toggle", "stacked_pages",
+            "theme_toggle", "vault_slides", "stacked_pages",
         ):
             if key in features:
                 kwargs[f"show_{key}"] = features[key]

@@ -18,7 +18,7 @@ from vaultpub.core.attachments import (
     attachment_mime_type,
     is_download_only_attachment,
 )
-from vaultpub.core.config import PublisherConfig
+from vaultpub.core.config import PublisherConfig, normal_view_font_size
 from vaultpub.core.index.indexer import VaultIndexer
 from vaultpub.core.models import AttachmentRecord, NavNode, NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.navigation_order import (
@@ -295,6 +295,7 @@ def _order_editor_from_state(
         "site_logo": config.site_logo,
         "show_theme_toggle": config.show_theme_toggle,
         "show_search": config.show_search,
+        "font_size": normal_view_font_size(config.font_size),
         "url_prefix": _url_prefix(config),
         "seo_head": f"<title>Custom order - {escape(config.site_name)}</title>",
         "order_editor_url": _prefix_public_url(config, f"{SETTINGS_URL_PREFIX}/order"),
@@ -753,6 +754,7 @@ def _render_note(
         "site_logo": config.site_logo,
         "show_theme_toggle": config.show_theme_toggle,
         "show_search": config.show_search,
+        "font_size": normal_view_font_size(config.font_size),
         "url_prefix": _url_prefix(config),
         "seo_head": build_meta_tags(note, config),
         "topbar_context_html": topbar_context_html_for_note(
@@ -794,6 +796,7 @@ def _render_text_page(
         "site_logo": config.site_logo,
         "show_theme_toggle": config.show_theme_toggle,
         "show_search": config.show_search,
+        "font_size": normal_view_font_size(config.font_size),
         "url_prefix": _url_prefix(config),
         "seo_head": f"<title>{escape(tp.title)} - {escape(config.site_name)}</title>",
         "topbar_context_html": topbar_context_html_for_text_page(
@@ -844,6 +847,7 @@ def _render_directory_page(
         "site_logo": config.site_logo,
         "show_theme_toggle": config.show_theme_toggle,
         "show_search": config.show_search,
+        "font_size": normal_view_font_size(config.font_size),
         "url_prefix": _url_prefix(config),
         "seo_head": f"<title>{escape(directory.label)}/ - {escape(config.site_name)}</title>",
         "topbar_context_html": topbar_context_html_for_directory(
@@ -988,6 +992,8 @@ def _vault_slide_url() -> str:
 
 
 def _slide_launch_context(config: PublisherConfig, index: VaultIndex) -> dict[str, object]:
+    if not config.show_vault_slides:
+        return {}
     nav_tree = index.nav_tree
     if nav_tree is None or not collect_directory_notes(nav_tree, index):
         return {}

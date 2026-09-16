@@ -28,6 +28,25 @@ def test_root_returns_home(client) -> None:
     assert response.text.index("vaultpub/boot.js") < response.text.index("vaultpub/common.css") < response.text.index("vaultpub/app.css")
 
 
+def test_normal_page_exposes_a_safe_publisher_font_size(vault_basic) -> None:
+    client = TestClient(create_app(PublisherConfig(vault_path=vault_basic, font_size=20, realtime=False)))
+
+    response = client.get("/")
+    slides = client.get("/__slides__/README.md")
+
+    assert '<style>:root { --font-size: 20px; }</style>' in response.text
+    assert 'data-font-size-default="20"' in response.text
+    assert "data-font-size-default" not in slides.text
+
+
+def test_normal_page_falls_back_for_an_unsafe_publisher_font_size(vault_basic) -> None:
+    client = TestClient(create_app(PublisherConfig(vault_path=vault_basic, font_size=29, realtime=False)))
+
+    response = client.get("/")
+
+    assert '<style>:root { --font-size: 16px; }</style>' in response.text
+
+
 def test_root_renders_top_folder_navigation_toggle(client) -> None:
     response = client.get("/")
 
@@ -256,6 +275,8 @@ def test_frontend_static_assets(client) -> None:
     assert boot_response.status_code == 200
     assert "javascript" in boot_response.headers["content-type"]
     assert "vaultpub.settings" in boot_response.text
+    assert "fontSize" in boot_response.text
+    assert "--font-size" in boot_response.text
     assert "vaultpub.sidebarState" in boot_response.text
     assert "vaultpub-top-folders-booting" in boot_response.text
 
@@ -280,6 +301,7 @@ def test_frontend_static_assets(client) -> None:
     assert "javascript" in js_response.headers["content-type"]
     assert "scrollIntoView" not in js_response.text
     assert "scrollTop" in js_response.text
+    assert 'data-setting="font-size"' in js_response.text
 
     slides_response = client.get("/static/vaultpub/slides.js")
     assert slides_response.status_code == 200
@@ -555,6 +577,18 @@ def test_force_included_text_page_renders_topbar_code_tools(tmp_path: Path) -> N
     assert 'data-code-action="copy-path"' in response.text
     assert 'data-code-action="toggle-wrap"' in response.text
     assert "tools/example.py" in response.text
+
+
+def test_web_app_can_hide_whole_vault_slide_launch(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text("# Home\n", encoding="utf-8")
+    client = TestClient(create_app(PublisherConfig(vault_path=tmp_path, realtime=False, show_vault_slides=False)))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'data-slide-note-url="/__slides__/README.md"' in response.text
+    assert "data-vault-slides-url" not in response.text
+    assert 'id="vaultpub-slide-scopes"' not in response.text
 
 
 def test_local_resource_links_render_and_serve(vault_local_resources) -> None:

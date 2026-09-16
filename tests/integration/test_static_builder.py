@@ -9,7 +9,7 @@ from vaultpub.core.export import StaticSiteBuilder
 
 
 def test_build_static_site(vault_basic) -> None:
-    config = PublisherConfig(vault_path=vault_basic)
+    config = PublisherConfig(vault_path=vault_basic, font_size=20)
     builder = StaticSiteBuilder(config)
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -26,6 +26,8 @@ def test_build_static_site(vault_basic) -> None:
         folder_html = (out / "Folder" / "index.html").read_text(encoding="utf-8")
         folder_note_html = (out / "Folder" / "B.md.html").read_text(encoding="utf-8")
         assert 'src="/static/vaultpub/boot.js"' in home_html
+        assert '<style>:root { --font-size: 20px; }</style>' in home_html
+        assert 'data-font-size-default="20"' in home_html
         assert 'href="/static/vaultpub/common.css"' in home_html
         assert home_html.index("vaultpub/boot.js") < home_html.index("vaultpub/common.css") < home_html.index("vaultpub/app.css")
         boot_js = (out / "static" / "vaultpub" / "boot.js").read_text(encoding="utf-8")
@@ -108,10 +110,12 @@ def test_static_tag_page_loads_boot_before_styles(tmp_path: Path) -> None:
     )
     out = tmp_path / "public"
 
-    StaticSiteBuilder(PublisherConfig(vault_path=vault)).build(out)
+    StaticSiteBuilder(PublisherConfig(vault_path=vault, font_size=18)).build(out)
 
     tag_html = (out / "tags" / "demo" / "index.html").read_text(encoding="utf-8")
     assert 'src="/static/vaultpub/boot.js"' in tag_html
+    assert '<style>:root { --font-size: 18px; }</style>' in tag_html
+    assert 'data-font-size-default="18"' in tag_html
     assert 'href="/static/vaultpub/common.css"' in tag_html
     assert tag_html.index("vaultpub/boot.js") < tag_html.index("vaultpub/common.css") < tag_html.index("vaultpub/app.css")
 
