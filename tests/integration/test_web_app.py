@@ -266,6 +266,7 @@ def test_frontend_static_assets(client) -> None:
     assert "list-style:none" in common_response.text
     assert "--bg-color" in common_response.text
     assert ".markdown-body" in common_response.text
+    assert "var(--callout-bg, var(--callout-note-bg))" in common_response.text
 
     css_response = client.get("/static/vaultpub/app.css")
     assert css_response.status_code == 200

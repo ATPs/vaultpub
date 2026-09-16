@@ -60,3 +60,21 @@ def test_render_callout_html() -> None:
     assert 'data-callout-fold="open"' in html
     assert "Pro Tip" in html
     assert "This is a tip." in html
+
+
+def test_render_callout_html_uses_pre_rendered_title_and_content() -> None:
+    callout = {
+        "type": "info",
+        "fold_state": "open",
+        "title": "Scope",
+        "content": "Audience",
+    }
+
+    html = render_callout_html(
+        callout,
+        title_html="<strong>Scope</strong>",
+        content_html="<ul><li>Audience</li></ul>",
+    )
+
+    assert '<span class="callout-title-inner"><strong>Scope</strong></span>' in html
+    assert '<div class="callout-content"><ul><li>Audience</li></ul></div>' in html

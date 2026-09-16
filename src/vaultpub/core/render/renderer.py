@@ -25,7 +25,7 @@ from vaultpub.core.config import PublisherConfig
 from vaultpub.core.frontmatter import parse_frontmatter
 from vaultpub.core.models import AttachmentRecord, NoteRecord, TextPageRecord, VaultIndex
 from vaultpub.core.parser.callouts import parse_callout_block, render_callout_html
-from vaultpub.core.parser.markdown import render_markdown
+from vaultpub.core.parser.markdown import render_inline_markdown, render_markdown
 from vaultpub.core.parser.obsidian_links import (
     find_wikilinks,
     parse_wikilink_target,
@@ -690,7 +690,19 @@ class Renderer:
             if line.startswith(">") and "[!" in line:
                 callout, next_i = parse_callout_block(lines, i)
                 if callout:
-                    placeholders[counter] = render_callout_html(callout)
+                    placeholders[counter] = render_callout_html(
+                        callout,
+                        title_html=render_inline_markdown(
+                            callout["title"],
+                            strict_line_breaks=self.config.strict_line_breaks,
+                            html_safe_mode=self.config.html_safe_mode,
+                        ),
+                        content_html=render_markdown(
+                            callout["content"],
+                            strict_line_breaks=self.config.strict_line_breaks,
+                            html_safe_mode=self.config.html_safe_mode,
+                        ),
+                    )
                     result_lines.append(self._placeholder(counter))
                     counter += 1
                     i = next_i

@@ -27,3 +27,13 @@ def render_markdown(
     """Render markdown content to HTML."""
     md = create_markdown_parser(strict_line_breaks, html_safe_mode)
     return md.render(content)
+
+
+def render_inline_markdown(
+    content: str,
+    strict_line_breaks: bool = False,
+    html_safe_mode: bool = True,
+) -> str:
+    """Render Markdown intended for an inline context, such as a callout title."""
+    md = create_markdown_parser(strict_line_breaks, html_safe_mode)
+    return md.renderInline(content)

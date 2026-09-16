@@ -4,8 +4,8 @@
   margin: 1em 0;
   padding: 0.75em 1em;
   border-radius: 6px;
-  border-left: 4px solid var(--callout-border, #999);
-  background: var(--callout-bg, #f8f8f8);
+  border-left: 4px solid var(--callout-border, var(--callout-note-border));
+  background: var(--callout-bg, var(--callout-note-bg));
 }
 
 .callout[data-callout="note"] {

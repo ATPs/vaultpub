@@ -145,6 +145,51 @@ def test_render_obsidian_syntax_outputs_real_html(vault_obsidian_syntax) -> None
     assert 'class="math block"' in math
 
 
+def test_render_callout_markdown_content_and_title(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text(
+        "> [!info] **适用范围**\n"
+        "> - **适用对象：** 本科生\n"
+        "> - **建议系统：** Windows 10/11 64 位\n"
+        ">\n"
+        "> [如果不会科学上网，点击这里下载easytier和miniforge](https://genes.fun/database/share/test/)\n\n"
+        "> [!tip] 课前建议\n"
+        "> **至少提前 1 天完成安装。**\n",
+        encoding="utf-8",
+    )
+    config = PublisherConfig(vault_path=tmp_path)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = vault_index.notes_by_id[vault_index.notes_by_path["README.md"]]
+
+    html = renderer.render_note(note)
+
+    assert '<span class="callout-title-inner"><strong>适用范围</strong></span>' in html
+    assert "<ul>" in html
+    assert "<li><strong>适用对象：</strong> 本科生</li>" in html
+    assert 'href="https://genes.fun/database/share/test/"' in html
+    assert 'rel="noopener noreferrer" target="_blank"' in html
+    assert "<strong>至少提前 1 天完成安装。</strong>" in html
+
+
+def test_render_callout_content_escapes_raw_html_in_safe_mode(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text(
+        "> [!note] <script>alert('title')</script>\n"
+        "> <script>alert('content')</script>\n",
+        encoding="utf-8",
+    )
+    config = PublisherConfig(vault_path=tmp_path)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = vault_index.notes_by_id[vault_index.notes_by_path["README.md"]]
+
+    html = renderer.render_note(note)
+
+    assert "<script" not in html
+    assert "&lt;script&gt;alert(" in html
+    assert "title" in html
+    assert "content" in html
+
+
 def test_render_strips_frontmatter(vault_links) -> None:
     config = PublisherConfig(vault_path=vault_links)
     vault_index = VaultIndexer(config).build()

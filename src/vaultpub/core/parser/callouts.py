@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from html import escape
 
 _CALLOUT_RE = re.compile(r'^>\s*\[!(\w+)\]\s*([+-])?\s*(.*?)$')
 _CALLOUT_CONTENT_RE = re.compile(r"^>(?:\s(.*)|$)")
@@ -80,12 +81,17 @@ def parse_callout_block(lines: list[str], start_idx: int) -> tuple[dict, int]:
     }, i
 
 
-def render_callout_html(callout: dict) -> str:
-    """Render a parsed callout to HTML."""
+def render_callout_html(
+    callout: dict,
+    *,
+    title_html: str | None = None,
+    content_html: str | None = None,
+) -> str:
+    """Wrap pre-rendered callout Markdown in the standard callout structure."""
     t = callout["type"]
     fold = callout["fold_state"]
-    title = callout["title"]
-    content = callout["content"]
+    title = title_html if title_html is not None else escape(callout["title"])
+    content = content_html if content_html is not None else escape(callout["content"])
 
     icon_map: dict[str, str] = {
         "note": "✎", "abstract": "□", "info": "ℹ", "todo": "☐",
