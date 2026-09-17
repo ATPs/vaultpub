@@ -523,16 +523,141 @@ document.addEventListener("DOMContentLoaded", () => {
       await hydrateWindow(note); deck.sync(); deck.slide(note, Math.min(local, Math.max(0, (noteSlot(note)?.children.length || 1) - 1))); buildNavigation(); updateNavigation();
     };
     const pageWith = (page: HTMLElement, candidate: HTMLElement): HTMLElement => { const trial = page.cloneNode(true) as HTMLElement; trial.querySelector<HTMLElement>(".vaultpub-slide-content")!.appendChild(candidate.cloneNode(true)); return trial; };
+    const mediaSelector = "img,video,iframe";
+    const isMedia = (node: Node): node is HTMLElement => node instanceof HTMLElement && node.matches(mediaSelector);
+    const trimBreaks = (nodes: Node[]): Node[] => {
+      const trimmed = [...nodes];
+      while (trimmed[0] instanceof HTMLElement && trimmed[0].tagName === "BR") trimmed.shift();
+      while (true) {
+        const last = trimmed.at(-1);
+        if (!(last instanceof HTMLElement) || last.tagName !== "BR") break;
+        trimmed.pop();
+      }
+      return trimmed;
+    };
+    const splitParagraphAtMedia = (paragraph: HTMLElement): HTMLElement[] => {
+      const parts: HTMLElement[] = []; let pending: Node[] = [];
+      const commit = (): void => {
+        const nodes = trimBreaks(pending); pending = [];
+        if (!nodes.length) return;
+        const fragment = paragraph.cloneNode(false) as HTMLElement;
+        fragment.append(...nodes);
+        parts.push(fragment);
+      };
+      Array.from(paragraph.childNodes).forEach((node) => {
+        pending.push(node.cloneNode(true));
+        if (isMedia(node)) commit();
+      });
+      commit();
+      return parts.length > 1 ? parts : [paragraph.cloneNode(true) as HTMLElement];
+    };
+    const splitListItemAtMedia = (item: HTMLElement): HTMLElement[] => {
+      const paragraphs = Array.from(item.children).filter((child): child is HTMLElement => child instanceof HTMLElement && child.tagName === "P" && child.querySelectorAll(mediaSelector).length > 1);
+      if (paragraphs.length !== 1) return [item.cloneNode(true) as HTMLElement];
+      const paragraph = paragraphs[0]; const parts = splitParagraphAtMedia(paragraph);
+      if (parts.length === 1) return [item.cloneNode(true) as HTMLElement];
+      const children = Array.from(item.children);
+      const paragraphIndex = children.indexOf(paragraph);
+      return parts.map((part, index) => {
+        const fragment = item.cloneNode(false) as HTMLElement;
+        if (index === 0) children.slice(0, paragraphIndex).forEach((child) => fragment.appendChild(child.cloneNode(true)));
+        fragment.appendChild(part);
+        if (index === parts.length - 1) children.slice(paragraphIndex + 1).forEach((child) => fragment.appendChild(child.cloneNode(true)));
+        if (index > 0) fragment.classList.add("slides-fit-list-continuation-item");
+        return fragment;
+      });
+    };
+    const splitList = (list: HTMLElement): HTMLElement[] => {
+      const units: HTMLElement[] = []; let nextNumber = Number(list.getAttribute("start") || 1);
+      Array.from(list.children).filter((child): child is HTMLElement => child instanceof HTMLElement && child.tagName === "LI").forEach((item) => {
+        const number = Number(item.getAttribute("value") || nextNumber);
+        splitListItemAtMedia(item).forEach((fragment, index) => {
+          const listFragment = list.cloneNode(false) as HTMLElement;
+          if (list.tagName === "OL") listFragment.setAttribute("start", String(number));
+          if (index > 0) listFragment.classList.add("slides-fit-list-continuation");
+          listFragment.appendChild(fragment);
+          units.push(listFragment);
+        });
+        nextNumber = number + 1;
+      });
+      return units.length ? units : [list.cloneNode(true) as HTMLElement];
+    };
+    const mediaOnlyHeading = (node: HTMLElement): boolean => {
+      if (!/^H[1-6]$/.test(node.tagName) || !node.querySelector(mediaSelector)) return false;
+      return Array.from(node.childNodes).every((child) => child.nodeType === Node.TEXT_NODE && !child.textContent?.trim()
+        || isMedia(child)
+        || child instanceof HTMLElement && (child.tagName === "BR" || child.matches(".heading-anchor")));
+    };
+    const fitUnits = (source: HTMLElement): HTMLElement[] => {
+      const raw: HTMLElement[] = [];
+      Array.from(source.querySelector<HTMLElement>(".vaultpub-slide-content")!.children).filter((node): node is HTMLElement => node instanceof HTMLElement).forEach((node) => {
+        if (node.matches("ol,ul")) { raw.push(...splitList(node)); return; }
+        if (mediaOnlyHeading(node)) {
+          node.querySelectorAll<HTMLElement>(mediaSelector).forEach((media) => {
+            const unit = document.createElement("div"); unit.className = "slides-fit-media-only"; unit.appendChild(media.cloneNode(true)); raw.push(unit);
+          });
+          return;
+        }
+        if (node.tagName === "P" && node.querySelectorAll(mediaSelector).length > 1) { raw.push(...splitParagraphAtMedia(node)); return; }
+        raw.push(node.cloneNode(true) as HTMLElement);
+      });
+      const grouped: HTMLElement[] = [];
+      for (let index = 0; index < raw.length; index += 1) {
+        const node = raw[index]; const next = raw[index + 1];
+        if (/^H[1-6]$/.test(node.tagName) && next) {
+          const group = document.createElement("div"); group.className = "slides-fit-heading-group"; group.append(node, next); grouped.push(group); index += 1;
+        } else grouped.push(node);
+      }
+      return grouped;
+    };
     const paginateFit = (): void => {
       if (!isFit()) return;
       const current = deck.getCurrentSlide() as HTMLElement | null; const currentPath = current?.dataset.sourcePath || ""; const currentNote = noteIndex(); const currentVertical = Number(deck.getIndices().v || 0); const sourceSlides = multiNote ? originalSlidesByNote.get(currentNote) || [] : singleOriginalSlides; const slideSize = deck.getComputedSlideSize(); const safeHeight = Math.max(260, slideSize.height - 36);
       if (!sourceSlides.length) return;
       const measure = document.createElement("div"); measure.className = "slides-fit-measure"; measure.style.width = `${Math.max(320, slideSize.width)}px`; measure.style.height = `${safeHeight}px`; document.body.appendChild(measure);
-      const fits = (page: HTMLElement, scale = 1): boolean => { const trial = page.cloneNode(true) as HTMLElement; trial.querySelector<HTMLElement>(".vaultpub-slide-content")!.style.setProperty("--vaultpub-fit-scale", String(scale)); measure.replaceChildren(trial); return measure.querySelector<HTMLElement>(".vaultpub-slide-content")!.scrollHeight <= safeHeight + 1; };
-      const makePage = (source: HTMLElement): HTMLElement => { const page = source.cloneNode(false) as HTMLElement; page.appendChild(source.querySelector<HTMLElement>(".vaultpub-slide-content")!.cloneNode(false)); return page; };
+      const mediaHeight = Math.max(96, safeHeight - 144);
+      const setMediaScale = (page: HTMLElement, scale: number): void => {
+        page.dataset.vaultpubFitMediaScale = String(scale);
+        page.querySelector<HTMLElement>(".vaultpub-slide-content")!.style.setProperty("--vaultpub-fit-media-max-height", `${Math.max(96, mediaHeight * scale)}px`);
+      };
+      const fits = (page: HTMLElement, scale = 1, mediaScale = Number(page.dataset.vaultpubFitMediaScale || 1)): boolean => {
+        const trial = page.cloneNode(true) as HTMLElement;
+        const trialContent = trial.querySelector<HTMLElement>(".vaultpub-slide-content")!;
+        trialContent.style.setProperty("--vaultpub-fit-scale", String(scale));
+        trialContent.style.setProperty("--vaultpub-fit-media-max-height", `${Math.max(96, mediaHeight * mediaScale)}px`);
+        measure.replaceChildren(trial);
+        return measure.querySelector<HTMLElement>(".vaultpub-slide-content")!.scrollHeight <= safeHeight + 1;
+      };
+      const makePage = (source: HTMLElement): HTMLElement => { const page = source.cloneNode(false) as HTMLElement; page.appendChild(source.querySelector<HTMLElement>(".vaultpub-slide-content")!.cloneNode(false)); setMediaScale(page, 1); return page; };
       const pages: HTMLElement[] = [];
       sourceSlides.forEach((source) => { let page = makePage(source); let content = page.querySelector<HTMLElement>(".vaultpub-slide-content")!; const commit = (): void => { if (content.childElementCount) pages.push(page); page = makePage(source); content = page.querySelector<HTMLElement>(".vaultpub-slide-content")!; };
-        for (const node of Array.from(source.querySelector<HTMLElement>(".vaultpub-slide-content")!.children)) { const candidate = node.cloneNode(true) as HTMLElement; if (fits(pageWith(page, candidate))) { content.appendChild(candidate); continue; } if (content.childElementCount) { commit(); if (fits(pageWith(page, candidate))) { content.appendChild(candidate); continue; } } if (candidate.tagName === "P" && !candidate.children.length) { const words = (candidate.textContent || "").match(/\S+\s*/g) || []; let start = 0; while (start < words.length) { let low = start + 1; let high = words.length; let best = start; while (low <= high) { const middle = Math.floor((low + high) / 2); const fragment = candidate.cloneNode(false) as HTMLElement; fragment.textContent = words.slice(start, middle).join(""); if (fits(pageWith(page, fragment))) { best = middle; low = middle + 1; } else high = middle - 1; } if (best === start) { candidate.classList.add("slides-fit-overflow"); content.appendChild(candidate); break; } const fragment = candidate.cloneNode(false) as HTMLElement; fragment.textContent = words.slice(start, best).join(""); content.appendChild(fragment); start = best; if (start < words.length) commit(); } } else { candidate.classList.add("slides-fit-overflow"); content.appendChild(candidate); commit(); } }
+        for (const candidate of fitUnits(source)) {
+          if (fits(pageWith(page, candidate))) { content.appendChild(candidate); continue; }
+          if (content.childElementCount) { commit(); if (fits(pageWith(page, candidate))) { content.appendChild(candidate); continue; } }
+          if (candidate.tagName === "P" && !candidate.children.length) {
+            const words = (candidate.textContent || "").match(/\S+\s*/g) || []; let start = 0;
+            while (start < words.length) {
+              let low = start + 1; let high = words.length; let best = start;
+              while (low <= high) {
+                const middle = Math.floor((low + high) / 2); const fragment = candidate.cloneNode(false) as HTMLElement; fragment.textContent = words.slice(start, middle).join("");
+                if (fits(pageWith(page, fragment))) { best = middle; low = middle + 1; } else high = middle - 1;
+              }
+              if (best === start) { candidate.classList.add("slides-fit-overflow"); content.appendChild(candidate); break; }
+              const fragment = candidate.cloneNode(false) as HTMLElement; fragment.textContent = words.slice(start, best).join(""); content.appendChild(fragment); start = best;
+              if (start < words.length) commit();
+            }
+            continue;
+          }
+          if (candidate.querySelector(mediaSelector)) {
+            let low = .2; let high = 1; let best = 0;
+            for (let index = 0; index < 8; index += 1) {
+              const middle = (low + high) / 2;
+              if (fits(pageWith(page, candidate), 1, middle)) { best = middle; low = middle; } else high = middle;
+            }
+            if (best) { setMediaScale(page, best); content.appendChild(candidate); commit(); continue; }
+          }
+          candidate.classList.add("slides-fit-overflow"); content.appendChild(candidate); commit();
+        }
         commit();
       });
       pages.forEach((page) => { if (!fits(page)) return; let low = 1; let high = 1.6; for (let index = 0; index < 5; index += 1) { const middle = (low + high) / 2; if (fits(page, middle)) low = middle; else high = middle; } page.querySelector<HTMLElement>(".vaultpub-slide-content")!.style.setProperty("--vaultpub-fit-scale", low.toFixed(3)); });
