@@ -295,6 +295,8 @@ def test_frontend_static_assets(client) -> None:
     assert "@media(max-width:1180px)" in css_response.text
     assert "--sidebar-left-width" in css_response.text
     assert ".sidebar-resizer" in css_response.text
+    assert ".sidebar-right-drawer-open" in css_response.text
+    assert ".sidebar-drawer-backdrop" in css_response.text
 
     js_response = client.get("/static/vaultpub/app.js")
     assert js_response.status_code == 200
@@ -302,6 +304,7 @@ def test_frontend_static_assets(client) -> None:
     assert "scrollIntoView" not in js_response.text
     assert "scrollTop" in js_response.text
     assert 'data-setting="font-size"' in js_response.text
+    assert "Close page sidebar" in js_response.text
 
     slides_response = client.get("/static/vaultpub/slides.js")
     assert slides_response.status_code == 200

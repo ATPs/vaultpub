@@ -19,6 +19,7 @@ const NAV_TREE_STATE_KEY = "vaultpub.navTreeState";
 const DEFAULT_SIDEBAR_WIDTH = 270;
 const MIN_SIDEBAR_WIDTH = 220;
 const MIN_CONTENT_WIDTH = 420;
+const COMPACT_RIGHT_SIDEBAR_QUERY = "(max-width: 1180px)";
 
 function readJson<T extends object>(key: string): T {
   try {
@@ -185,6 +186,12 @@ function setCollapsed(layout: HTMLElement, side: SidebarSide, collapsed: boolean
   layout.classList.toggle(sidebarClass(side, "collapsed"), collapsed);
   layout.classList.remove(sidebarClass(side, "peeking"));
 
+  if (side === "right" && !isCompactRightSidebar()) {
+    const sidebar = document.querySelector<HTMLElement>(".sidebar-right")!;
+    sidebar.inert = collapsed;
+    sidebar.setAttribute("aria-hidden", String(collapsed));
+  }
+
   const state = readJson<SidebarState>(SIDEBAR_STATE_KEY);
   if (side === "left") state.leftCollapsed = collapsed;
   if (side === "right") state.rightCollapsed = collapsed;
@@ -195,16 +202,32 @@ function setCollapsed(layout: HTMLElement, side: SidebarSide, collapsed: boolean
     button.setAttribute("aria-expanded", String(!collapsed));
     button.setAttribute("aria-label", collapsed ? `Show ${side} sidebar` : `Hide ${side} sidebar`);
   }
+  if (side === "right") {
+    const trigger = layout.querySelector<HTMLButtonElement>(".sidebar-peek-right");
+    if (trigger) {
+      trigger.setAttribute("aria-expanded", String(!collapsed));
+      trigger.setAttribute("aria-label", "Open page sidebar");
+    }
+  }
 }
 
 function setPeeking(layout: HTMLElement, side: SidebarSide, peeking: boolean): void {
   if (!layout.classList.contains(sidebarClass(side, "collapsed"))) return;
   layout.classList.toggle(sidebarClass(side, "peeking"), peeking);
+  if (side === "right" && !isCompactRightSidebar()) {
+    const sidebar = document.querySelector<HTMLElement>(".sidebar-right")!;
+    sidebar.inert = !peeking;
+    sidebar.setAttribute("aria-hidden", String(!peeking));
+  }
 }
 
-function addPeekButton(layout: HTMLElement, sidebar: HTMLElement, side: SidebarSide): void {
-  const existing = document.querySelector(`.sidebar-peek-${side}`);
-  if (existing) return;
+function isCompactRightSidebar(): boolean {
+  return window.matchMedia(COMPACT_RIGHT_SIDEBAR_QUERY).matches;
+}
+
+function addPeekButton(layout: HTMLElement, sidebar: HTMLElement, side: SidebarSide): HTMLButtonElement {
+  const existing = layout.querySelector<HTMLButtonElement>(`.sidebar-peek-${side}`);
+  if (existing) return existing;
 
   const button = document.createElement("button");
   button.type = "button";
@@ -214,10 +237,12 @@ function addPeekButton(layout: HTMLElement, sidebar: HTMLElement, side: SidebarS
 
   let hideTimer: number | undefined;
   const show = () => {
+    if (side === "right" && isCompactRightSidebar()) return;
     if (hideTimer !== undefined) window.clearTimeout(hideTimer);
     setPeeking(layout, side, true);
   };
   const hide = () => {
+    if (side === "right" && isCompactRightSidebar()) return;
     hideTimer = window.setTimeout(() => {
       if (button.matches(":hover") || sidebar.matches(":hover")) return;
       setPeeking(layout, side, false);
@@ -228,11 +253,74 @@ function addPeekButton(layout: HTMLElement, sidebar: HTMLElement, side: SidebarS
   button.addEventListener("focus", show);
   button.addEventListener("mouseleave", hide);
   button.addEventListener("blur", hide);
-  button.addEventListener("click", () => setCollapsed(layout, side, false));
+  button.addEventListener("click", () => {
+    if (side === "right" && isCompactRightSidebar()) return;
+    setCollapsed(layout, side, false);
+  });
   sidebar.addEventListener("mouseenter", show);
   sidebar.addEventListener("mouseleave", hide);
 
   layout.appendChild(button);
+  return button;
+}
+
+function initResponsiveRightDrawer(
+  layout: HTMLElement,
+  sidebar: HTMLElement,
+  trigger: HTMLButtonElement,
+): void {
+  const media = window.matchMedia(COMPACT_RIGHT_SIDEBAR_QUERY);
+  const headerToggle = document.querySelector<HTMLButtonElement>('[data-sidebar-toggle="right"]');
+  const backdrop = document.createElement("button");
+  backdrop.type = "button";
+  backdrop.className = "sidebar-drawer-backdrop";
+  backdrop.hidden = true;
+  backdrop.setAttribute("aria-label", "Close page sidebar");
+  sidebar.id ||= "vaultpub-page-sidebar";
+  trigger.setAttribute("aria-controls", sidebar.id);
+  layout.appendChild(backdrop);
+
+  let open = false;
+  const apply = (restoreFocus = false): void => {
+    const compact = media.matches;
+    const collapsed = layout.classList.contains("sidebar-right-collapsed");
+    const peeking = layout.classList.contains("sidebar-right-peeking");
+    layout.classList.toggle("sidebar-right-drawer-open", compact && open);
+    backdrop.hidden = !compact || !open;
+    sidebar.inert = compact ? !open : collapsed && !peeking;
+    sidebar.setAttribute("aria-hidden", String(compact ? !open : collapsed && !peeking));
+    trigger.setAttribute("aria-expanded", String(compact ? open : !collapsed));
+    trigger.setAttribute("aria-label", compact && open ? "Close page sidebar" : "Open page sidebar");
+    if (headerToggle && compact) {
+      headerToggle.setAttribute("aria-expanded", String(open));
+      headerToggle.setAttribute("aria-label", "Close page sidebar");
+    }
+    if (restoreFocus && compact) trigger.focus();
+  };
+
+  const close = (restoreFocus = false): void => {
+    open = false;
+    apply(restoreFocus);
+  };
+
+  trigger.addEventListener("click", () => {
+    if (!media.matches) return;
+    open = !open;
+    apply();
+  });
+  backdrop.addEventListener("click", () => close(true));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && media.matches && open) close(true);
+  });
+  sidebar.addEventListener("click", (event) => {
+    if (media.matches && (event.target as Element).closest("a")) close(false);
+  });
+  media.addEventListener("change", () => {
+    open = false;
+    apply(false);
+  });
+
+  apply();
 }
 
 function addResizer(layout: HTMLElement, sidebar: HTMLElement, side: SidebarSide): void {
@@ -280,17 +368,23 @@ function initSidebar(layout: HTMLElement, side: SidebarSide): void {
   const state = readJson<SidebarState>(SIDEBAR_STATE_KEY);
   const collapsed = side === "left" ? state.leftCollapsed === true : state.rightCollapsed === true;
   layout.classList.toggle(sidebarClass(side, "collapsed"), collapsed);
+  if (side === "right" && collapsed && !isCompactRightSidebar()) {
+    sidebar.inert = true;
+    sidebar.setAttribute("aria-hidden", "true");
+  }
 
   const button = document.querySelector<HTMLButtonElement>(`[data-sidebar-toggle="${side}"]`);
   if (button) {
     button.setAttribute("aria-expanded", String(!collapsed));
     button.addEventListener("click", () => {
+      if (side === "right" && isCompactRightSidebar()) return;
       const nextCollapsed = !layout.classList.contains(sidebarClass(side, "collapsed"));
       setCollapsed(layout, side, nextCollapsed);
     });
   }
 
-  addPeekButton(layout, sidebar, side);
+  const peekButton = addPeekButton(layout, sidebar, side);
+  if (side === "right") initResponsiveRightDrawer(layout, sidebar, peekButton);
   addResizer(layout, sidebar, side);
 }
 

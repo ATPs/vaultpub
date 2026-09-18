@@ -989,7 +989,7 @@ Callouts with `-` (collapsed) start hidden. Click the title bar to toggle.
 Responsive design with:
 
 - Collapsible left sidebar (hamburger menu)
-- Right sidebar becomes bottom tabs
+- Right page sidebar stays inline on wide screens and opens from a Page button as an overlay drawer on narrower screens
 - Search becomes full-screen overlay
 - Hover preview becomes click-to-open on touch devices
 

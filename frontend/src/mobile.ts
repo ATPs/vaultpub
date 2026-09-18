@@ -39,19 +39,10 @@ export function initMobileDrawer(): void {
     }
   });
 
-  // Right sidebar: bottom tabs on mobile
-  const sidebarRight = document.querySelector<HTMLElement>(".sidebar-right");
-  if (sidebarRight && window.innerWidth <= 768) {
-    sidebarRight.classList.add("mobile-tabs");
-  }
-
   // Handle window resize
   window.addEventListener("resize", () => {
     if (window.innerWidth > 768) {
       sidebarLeft.classList.remove("open");
-      sidebarRight?.classList.remove("mobile-tabs");
-    } else {
-      sidebarRight?.classList.add("mobile-tabs");
     }
   });
 }
