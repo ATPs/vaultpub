@@ -6,6 +6,8 @@ import { initCalloutFold } from "./stacked-pages";
 import { initMath } from "./math-init";
 import { initMermaid } from "./mermaid-init";
 import { initIcons } from "./icons";
+import { fitUnits, mediaSelector } from "./slides-fit-content";
+import { installSlideWheelNavigation } from "./slides-wheel";
 
 type RevealConfig = Record<string, boolean | number | string>;
 type SplitPolicy = "auto" | "chapters" | "sections" | "detail" | "fit" | "explicit" | "single";
@@ -160,7 +162,7 @@ function buildInterface(defaults: SlideSettings, preferences: StoredPreferences)
     <section class="slides-panel slides-picker-panel" hidden aria-label="Slide chooser" tabindex="-1"><header><strong>Jump to slide</strong><button data-action="close" aria-label="Close slide chooser">×</button></header><input data-action="search" type="search" placeholder="Search slide titles"><div class="slides-picker-list" role="listbox"></div></section>
     <section class="slides-panel slides-timer-panel" hidden aria-label="Presentation timer" tabindex="-1"><header><strong>Timer</strong><button data-action="close" aria-label="Close timer">×</button></header><div class="slides-segmented"><button type="button" data-timer-mode="countdown" class="${timer.mode === "countdown" ? "is-selected" : ""}" aria-pressed="${timer.mode === "countdown"}">Countdown</button><button type="button" data-timer-mode="countup" class="${timer.mode === "countup" ? "is-selected" : ""}" aria-pressed="${timer.mode === "countup"}">Count up</button></div><label>Duration<select data-timer-preset>${[5, 10, 15, 20, 30, 45, 60].map((minutes) => `<option value="${minutes}"${timer.durationMinutes === minutes ? " selected" : ""}>${minutes} minutes</option>`).join("")}<option value="custom"${[5, 10, 15, 20, 30, 45, 60].includes(timer.durationMinutes) ? "" : " selected"}>Custom</option></select></label><div class="slides-timer-custom"${[5, 10, 15, 20, 30, 45, 60].includes(timer.durationMinutes) ? " hidden" : ""}><label>Hours<input data-timer-hours type="number" min="0" max="23" value="${Math.floor(timer.durationMinutes / 60)}"></label><label>Minutes<input data-timer-minutes type="number" min="0" max="59" value="${timer.durationMinutes % 60}"></label></div><div class="slides-timer-alerts"><label>Amber at <input data-timer-warning type="number" min="0" max="1440" value="${timer.warningMinutes}"> min</label><label>Red at <input data-timer-urgent type="number" min="0" max="1440" value="${timer.urgentMinutes}"> min</label></div><div class="slides-clock"></div><div class="slides-panel-row"><button data-action="timer-start">Start</button><button data-action="timer-pause">Pause</button><button data-action="timer-reset">Reset</button></div><div class="slides-panel-row"><button data-action="timer-show-popup">Show timer</button><button data-action="timer-hide-popup">Hide timer</button></div></section>
     <output class="slides-timer-popup" hidden aria-label="Presentation timer">20:00</output>
-    <section class="slides-panel slides-help-panel" hidden aria-label="Keyboard shortcuts" tabindex="-1"><header><strong>Keyboard shortcuts</strong><button data-action="close" aria-label="Close keyboard shortcuts">×</button></header><p>Arrows/Space navigate. G chooser. F fullscreen. L laser. Z magnify. +/− magnify. T timer. D draw. B blackout. Esc closes a panel or tool.</p></section>
+    <section class="slides-panel slides-help-panel" hidden aria-label="Keyboard shortcuts" tabindex="-1"><header><strong>Keyboard shortcuts</strong><button data-action="close" aria-label="Close keyboard shortcuts">×</button></header><p>Arrows/Space navigate. Mouse wheel changes pages after content reaches its edge. G chooser. F fullscreen. L laser. Z magnify. +/− magnify. T timer. D draw. B blackout. Esc closes a panel or tool.</p></section>
     <section class="slides-grid" hidden aria-label="Slide grid" tabindex="-1"><header><strong>Slide grid</strong><button data-action="close" aria-label="Close slide grid">×</button></header><div class="slides-grid-list"></div></section>`;
   const returnControl = root.querySelector<HTMLAnchorElement>("[data-return-control]")!;
   returnControl.href = document.body.dataset.returnUrl || "/";
@@ -174,6 +176,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const revealElement = document.querySelector<HTMLElement>(".reveal");
   if (!revealElement) return;
   const defaults = readJson<SlideSettings>("vaultpub-slide-settings", { theme: "light", codeWrap: true, split: "auto" });
+  document.body.dataset.slideSplit = defaults.split;
   const manifest = readManifest();
   const multiNote = document.body.dataset.vaultpubMultiNote === "true" && manifest.length > 0;
   const singlePage = document.body.dataset.slideLayout === "single" && !multiNote;
@@ -270,9 +273,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const noteIndex = (): number => Math.max(0, Number(deck.getIndices().h || 0));
     const noteSlot = (index: number): HTMLElement | null => noteSlots[index] || null;
     const activeSlot = (): HTMLElement | null => multiNote ? noteSlot(noteIndex()) : null;
-    const enrich = (root: ParentNode): void => {
-      initCalloutFold(root); initMermaid(root); initMath(root);
-      void import("./code-highlight?slides").then((module) => (module as unknown as typeof import("./code-highlight")).initCodeHighlight(root));
+    const enrich = async (root: ParentNode): Promise<void> => {
+      initCalloutFold(root);
+      const module = await import("./code-highlight?slides") as unknown as typeof import("./code-highlight");
+      await Promise.all([initMermaid(root), initMath(root), module.initCodeHighlight(root)]);
     };
     const createSlide = (note: SlideManifestNote, slide: SlidePayload["slides"][number]): HTMLElement => {
       const section = document.createElement("section");
@@ -523,150 +527,108 @@ document.addEventListener("DOMContentLoaded", () => {
       await hydrateWindow(note); deck.sync(); deck.slide(note, Math.min(local, Math.max(0, (noteSlot(note)?.children.length || 1) - 1))); buildNavigation(); updateNavigation();
     };
     const pageWith = (page: HTMLElement, candidate: HTMLElement): HTMLElement => { const trial = page.cloneNode(true) as HTMLElement; trial.querySelector<HTMLElement>(".vaultpub-slide-content")!.appendChild(candidate.cloneNode(true)); return trial; };
-    const mediaSelector = "img,video,iframe";
-    const isMedia = (node: Node): node is HTMLElement => node instanceof HTMLElement && node.matches(mediaSelector);
-    const trimBreaks = (nodes: Node[]): Node[] => {
-      const trimmed = [...nodes];
-      while (trimmed[0] instanceof HTMLElement && trimmed[0].tagName === "BR") trimmed.shift();
-      while (true) {
-        const last = trimmed.at(-1);
-        if (!(last instanceof HTMLElement) || last.tagName !== "BR") break;
-        trimmed.pop();
+    const paragraphBoundaries = (paragraph: HTMLElement): Array<{ node: Text; offset: number }> => {
+      const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
+      const boundaries: Array<{ node: Text; offset: number }> = [];
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        const textNode = node as Text;
+        if (textNode.parentElement?.closest(".math")) continue;
+        const text = textNode.data;
+        const matched = text.match(/\S+\s*/gu) || [];
+        const tokens = matched.length === 1 && !/\s/u.test(text) ? Array.from(text) : matched.length ? matched : Array.from(text);
+        let offset = 0;
+        tokens.forEach((token) => { offset += token.length; boundaries.push({ node: textNode, offset }); });
       }
-      return trimmed;
+      return boundaries;
     };
-    const splitParagraphAtMedia = (paragraph: HTMLElement): HTMLElement[] => {
-      const parts: HTMLElement[] = []; let pending: Node[] = [];
-      const commit = (): void => {
-        const nodes = trimBreaks(pending); pending = [];
-        if (!nodes.length) return;
-        const fragment = paragraph.cloneNode(false) as HTMLElement;
-        fragment.append(...nodes);
-        parts.push(fragment);
-      };
-      Array.from(paragraph.childNodes).forEach((node) => {
-        pending.push(node.cloneNode(true));
-        if (isMedia(node)) commit();
-      });
-      commit();
-      return parts.length > 1 ? parts : [paragraph.cloneNode(true) as HTMLElement];
-    };
-    const splitListItemAtMedia = (item: HTMLElement): HTMLElement[] => {
-      const paragraphs = Array.from(item.children).filter((child): child is HTMLElement => child instanceof HTMLElement && child.tagName === "P" && child.querySelectorAll(mediaSelector).length > 1);
-      if (paragraphs.length !== 1) return [item.cloneNode(true) as HTMLElement];
-      const paragraph = paragraphs[0]; const parts = splitParagraphAtMedia(paragraph);
-      if (parts.length === 1) return [item.cloneNode(true) as HTMLElement];
-      const children = Array.from(item.children);
-      const paragraphIndex = children.indexOf(paragraph);
-      return parts.map((part, index) => {
-        const fragment = item.cloneNode(false) as HTMLElement;
-        if (index === 0) children.slice(0, paragraphIndex).forEach((child) => fragment.appendChild(child.cloneNode(true)));
-        fragment.appendChild(part);
-        if (index === parts.length - 1) children.slice(paragraphIndex + 1).forEach((child) => fragment.appendChild(child.cloneNode(true)));
-        if (index > 0) fragment.classList.add("slides-fit-list-continuation-item");
-        return fragment;
-      });
-    };
-    const splitList = (list: HTMLElement): HTMLElement[] => {
-      const units: HTMLElement[] = []; let nextNumber = Number(list.getAttribute("start") || 1);
-      Array.from(list.children).filter((child): child is HTMLElement => child instanceof HTMLElement && child.tagName === "LI").forEach((item) => {
-        const number = Number(item.getAttribute("value") || nextNumber);
-        splitListItemAtMedia(item).forEach((fragment, index) => {
-          const listFragment = list.cloneNode(false) as HTMLElement;
-          if (list.tagName === "OL") listFragment.setAttribute("start", String(number));
-          if (index > 0) listFragment.classList.add("slides-fit-list-continuation");
-          listFragment.appendChild(fragment);
-          units.push(listFragment);
-        });
-        nextNumber = number + 1;
-      });
-      return units.length ? units : [list.cloneNode(true) as HTMLElement];
-    };
-    const mediaOnlyHeading = (node: HTMLElement): boolean => {
-      if (!/^H[1-6]$/.test(node.tagName) || !node.querySelector(mediaSelector)) return false;
-      return Array.from(node.childNodes).every((child) => child.nodeType === Node.TEXT_NODE && !child.textContent?.trim()
-        || isMedia(child)
-        || child instanceof HTMLElement && (child.tagName === "BR" || child.matches(".heading-anchor")));
-    };
-    const fitUnits = (source: HTMLElement): HTMLElement[] => {
-      const raw: HTMLElement[] = [];
-      Array.from(source.querySelector<HTMLElement>(".vaultpub-slide-content")!.children).filter((node): node is HTMLElement => node instanceof HTMLElement).forEach((node) => {
-        if (node.matches("ol,ul")) { raw.push(...splitList(node)); return; }
-        if (mediaOnlyHeading(node)) {
-          node.querySelectorAll<HTMLElement>(mediaSelector).forEach((media) => {
-            const unit = document.createElement("div"); unit.className = "slides-fit-media-only"; unit.appendChild(media.cloneNode(true)); raw.push(unit);
-          });
-          return;
-        }
-        if (node.tagName === "P" && node.querySelectorAll(mediaSelector).length > 1) { raw.push(...splitParagraphAtMedia(node)); return; }
-        raw.push(node.cloneNode(true) as HTMLElement);
-      });
-      const grouped: HTMLElement[] = [];
-      for (let index = 0; index < raw.length; index += 1) {
-        const node = raw[index]; const next = raw[index + 1];
-        if (/^H[1-6]$/.test(node.tagName) && next) {
-          const group = document.createElement("div"); group.className = "slides-fit-heading-group"; group.append(node, next); grouped.push(group); index += 1;
-        } else grouped.push(node);
-      }
-      return grouped;
+    const paragraphFragment = (paragraph: HTMLElement, start: { node: Text; offset: number }, end: { node: Text; offset: number }): HTMLElement => {
+      const range = document.createRange(); range.setStart(start.node, start.offset); range.setEnd(end.node, end.offset);
+      const fragment = paragraph.cloneNode(false) as HTMLElement; fragment.append(range.cloneContents()); return fragment;
     };
     const paginateFit = (): void => {
       if (!isFit()) return;
-      const current = deck.getCurrentSlide() as HTMLElement | null; const currentPath = current?.dataset.sourcePath || ""; const currentNote = noteIndex(); const currentVertical = Number(deck.getIndices().v || 0); const sourceSlides = multiNote ? originalSlidesByNote.get(currentNote) || [] : singleOriginalSlides; const slideSize = deck.getComputedSlideSize(); const safeHeight = Math.max(260, slideSize.height - 36);
+      const currentNote = noteIndex(); const currentIndex = multiNote ? Number(deck.getIndices().v || 0) : Math.max(0, (deck.getSlides() as HTMLElement[]).indexOf(deck.getCurrentSlide()));
+      const sourceSlides = multiNote ? originalSlidesByNote.get(currentNote) || [] : singleOriginalSlides; const slideSize = deck.getComputedSlideSize(); const safeHeight = Math.max(1, slideSize.height - 36);
       if (!sourceSlides.length) return;
-      const measure = document.createElement("div"); measure.className = "slides-fit-measure"; measure.style.width = `${Math.max(320, slideSize.width)}px`; measure.style.height = `${safeHeight}px`; document.body.appendChild(measure);
-      const mediaHeight = Math.max(96, safeHeight - 144);
-      const setMediaScale = (page: HTMLElement, scale: number): void => {
-        page.dataset.vaultpubFitMediaScale = String(scale);
-        page.querySelector<HTMLElement>(".vaultpub-slide-content")!.style.setProperty("--vaultpub-fit-media-max-height", `${Math.max(96, mediaHeight * scale)}px`);
+      const measureHost = document.createElement("div"); measureHost.className = "vaultpub-slides slides-fit-measure"; measureHost.setAttribute("aria-hidden", "true"); measureHost.inert = true;
+      const measure = document.createElement("div"); measure.className = "reveal"; measure.style.width = `${slideSize.width}px`; measure.style.height = `${safeHeight}px`;
+      const measureSlides = document.createElement("div"); measureSlides.className = "slides"; measure.append(measureSlides); measureHost.append(measure); document.body.appendChild(measureHost);
+      const mediaHeight = Math.max(1, safeHeight - 144);
+      const setScale = (page: HTMLElement, scale: number): void => { const content = page.querySelector<HTMLElement>(".vaultpub-slide-content")!; content.style.setProperty("--vaultpub-fit-scale", scale.toFixed(3)); content.style.setProperty("--vaultpub-fit-media-max-height", `${mediaHeight * scale}px`); };
+      const fits = (page: HTMLElement, scale = 1): boolean => { const trial = page.cloneNode(true) as HTMLElement; trial.classList.add("present"); setScale(trial, scale); measureSlides.replaceChildren(trial); return measureSlides.querySelector<HTMLElement>(".vaultpub-slide-content")!.scrollHeight <= safeHeight + 1; };
+      const minimumFitScale = .85;
+      const bestScale = (page: HTMLElement): number | null => {
+        if (fits(page)) return 1;
+        if (!fits(page, minimumFitScale)) return null;
+        let low = minimumFitScale; let high = 1;
+        for (let index = 0; index < 8; index += 1) { const middle = (low + high) / 2; if (fits(page, middle)) low = middle; else high = middle; }
+        return low;
       };
-      const fits = (page: HTMLElement, scale = 1, mediaScale = Number(page.dataset.vaultpubFitMediaScale || 1)): boolean => {
-        const trial = page.cloneNode(true) as HTMLElement;
-        const trialContent = trial.querySelector<HTMLElement>(".vaultpub-slide-content")!;
-        trialContent.style.setProperty("--vaultpub-fit-scale", String(scale));
-        trialContent.style.setProperty("--vaultpub-fit-media-max-height", `${Math.max(96, mediaHeight * mediaScale)}px`);
-        measure.replaceChildren(trial);
-        return measure.querySelector<HTMLElement>(".vaultpub-slide-content")!.scrollHeight <= safeHeight + 1;
-      };
-      const makePage = (source: HTMLElement): HTMLElement => { const page = source.cloneNode(false) as HTMLElement; page.appendChild(source.querySelector<HTMLElement>(".vaultpub-slide-content")!.cloneNode(false)); setMediaScale(page, 1); return page; };
+      const makePage = (source: HTMLElement): HTMLElement => { const page = source.cloneNode(false) as HTMLElement; page.appendChild(source.querySelector<HTMLElement>(".vaultpub-slide-content")!.cloneNode(false)); setScale(page, 1); return page; };
       const pages: HTMLElement[] = [];
-      sourceSlides.forEach((source) => { let page = makePage(source); let content = page.querySelector<HTMLElement>(".vaultpub-slide-content")!; const commit = (): void => { if (content.childElementCount) pages.push(page); page = makePage(source); content = page.querySelector<HTMLElement>(".vaultpub-slide-content")!; };
+      sourceSlides.forEach((source) => {
+        let page = makePage(source); let content = page.querySelector<HTMLElement>(".vaultpub-slide-content")!;
+        const commit = (): void => { if (content.childElementCount) { pages.push(page); page = makePage(source); content = page.querySelector<HTMLElement>(".vaultpub-slide-content")!; } };
+        const append = (candidate: HTMLElement): boolean => { const scale = bestScale(pageWith(page, candidate)); if (scale === null) return false; content.append(candidate); setScale(page, scale); return true; };
+        const appendParagraph = (candidate: HTMLElement): boolean => {
+          const boundaries = paragraphBoundaries(candidate); if (!boundaries.length) return false;
+          let start = { node: boundaries[0].node, offset: 0 }; let index = 0;
+          while (index < boundaries.length) {
+            let low = index; let high = boundaries.length - 1; let best = -1;
+            while (low <= high) { const middle = Math.floor((low + high) / 2); if (bestScale(pageWith(page, paragraphFragment(candidate, start, boundaries[middle]))) !== null) { best = middle; low = middle + 1; } else high = middle - 1; }
+            if (best < index) return false;
+            const fragment = paragraphFragment(candidate, start, boundaries[best]);
+            if (!append(fragment)) return false;
+            index = best + 1; start = boundaries[best]; if (index < boundaries.length) commit();
+          }
+          return true;
+        };
+        const appendTableRows = (table: HTMLElement): boolean => {
+          const body = table.querySelector<HTMLElement>(":scope > tbody");
+          const rows = body ? Array.from(body.querySelectorAll<HTMLElement>(":scope > tr")) : [];
+          if (!body || !rows.length) return false;
+          const tablePart = (): { table: HTMLElement; body: HTMLElement } => {
+            const tableCopy = table.cloneNode(false) as HTMLElement;
+            Array.from(table.children).filter((child) => child.tagName !== "TBODY" && child.tagName !== "TFOOT").forEach((child) => tableCopy.append(child.cloneNode(true)));
+            const bodyCopy = body.cloneNode(false) as HTMLElement; tableCopy.append(bodyCopy); return { table: tableCopy, body: bodyCopy };
+          };
+          let part = tablePart();
+          for (const row of rows) {
+            part.body.append(row.cloneNode(true));
+            if (bestScale(pageWith(page, part.table)) !== null) continue;
+            part.body.lastElementChild?.remove();
+            if (part.body.childElementCount) {
+              if (!append(part.table)) return false;
+              commit(); part = tablePart(); part.body.append(row.cloneNode(true));
+              if (bestScale(pageWith(page, part.table)) !== null) continue;
+            }
+            return false;
+          }
+          return append(part.table);
+        };
         for (const candidate of fitUnits(source)) {
-          if (fits(pageWith(page, candidate))) { content.appendChild(candidate); continue; }
-          if (content.childElementCount) { commit(); if (fits(pageWith(page, candidate))) { content.appendChild(candidate); continue; } }
-          if (candidate.tagName === "P" && !candidate.children.length) {
-            const words = (candidate.textContent || "").match(/\S+\s*/g) || []; let start = 0;
-            while (start < words.length) {
-              let low = start + 1; let high = words.length; let best = start;
-              while (low <= high) {
-                const middle = Math.floor((low + high) / 2); const fragment = candidate.cloneNode(false) as HTMLElement; fragment.textContent = words.slice(start, middle).join("");
-                if (fits(pageWith(page, fragment))) { best = middle; low = middle + 1; } else high = middle - 1;
-              }
-              if (best === start) { candidate.classList.add("slides-fit-overflow"); content.appendChild(candidate); break; }
-              const fragment = candidate.cloneNode(false) as HTMLElement; fragment.textContent = words.slice(start, best).join(""); content.appendChild(fragment); start = best;
-              if (start < words.length) commit();
-            }
-            continue;
-          }
+          if (append(candidate)) continue;
+          if (content.childElementCount) { commit(); if (append(candidate)) continue; }
+          if (candidate.tagName === "TABLE" && appendTableRows(candidate)) continue;
+          if ((candidate.tagName === "P" || candidate.tagName === "BLOCKQUOTE") && appendParagraph(candidate)) continue;
           if (candidate.querySelector(mediaSelector)) {
-            let low = .2; let high = 1; let best = 0;
-            for (let index = 0; index < 8; index += 1) {
-              const middle = (low + high) / 2;
-              if (fits(pageWith(page, candidate), 1, middle)) { best = middle; low = middle; } else high = middle;
-            }
-            if (best) { setMediaScale(page, best); content.appendChild(candidate); commit(); continue; }
+            const contentNode = candidate.cloneNode(true) as HTMLElement;
+            const mediaContent = contentNode.querySelector<HTMLElement>(".vaultpub-slide-content, p");
+            if (mediaContent) mediaContent.style.setProperty("--vaultpub-fit-media-max-height", `${Math.max(96, mediaHeight * .55)}px`);
+            content.append(contentNode); setScale(page, minimumFitScale); if (mediaContent) mediaContent.style.setProperty("--vaultpub-fit-media-max-height", `${Math.max(96, mediaHeight * .55)}px`); commit(); continue;
           }
-          candidate.classList.add("slides-fit-overflow"); content.appendChild(candidate); commit();
+          const overflow = candidate.cloneNode(true) as HTMLElement; overflow.classList.add("slides-fit-overflow"); overflow.dataset.fitOverflowReason = "indivisible-content"; content.append(overflow); commit();
         }
         commit();
       });
-      pages.forEach((page) => { if (!fits(page)) return; let low = 1; let high = 1.6; for (let index = 0; index < 5; index += 1) { const middle = (low + high) / 2; if (fits(page, middle)) low = middle; else high = middle; } page.querySelector<HTMLElement>(".vaultpub-slide-content")!.style.setProperty("--vaultpub-fit-scale", low.toFixed(3)); });
-      measure.remove();
+      pages.forEach((page, index) => page.dataset.fitPage = String(index));
+      measureHost.remove();
       if (multiNote) {
         const slot = noteSlot(currentNote); if (!slot) return;
-        slot.replaceChildren(...pages); deck.sync(); deck.slide(currentNote, Math.min(currentVertical, Math.max(0, pages.length - 1))); enrich(slot); buildNavigation();
+        slot.replaceChildren(...pages); deck.sync(); deck.slide(currentNote, Math.min(currentIndex, Math.max(0, pages.length - 1))); void enrich(slot); buildNavigation();
       } else {
-        revealElement.querySelector<HTMLElement>(".slides")!.replaceChildren(...pages); deck.sync(); const slides = deck.getSlides() as HTMLElement[]; deck.slide(Math.max(0, slides.findIndex((slide) => slide.dataset.sourcePath === currentPath))); enrich(revealElement); buildNavigation();
+        revealElement.querySelector<HTMLElement>(".slides")!.replaceChildren(...pages); deck.sync(); deck.slide(Math.min(currentIndex, Math.max(0, pages.length - 1))); void enrich(revealElement); buildNavigation();
       }
     };
     const apply = (): void => { const preference = saved(); const html = document.documentElement; html.classList.remove(...Array.from(html.classList).filter((name) => name.startsWith("theme-"))); html.classList.add(`theme-${preference.theme || defaults.theme}`); html.style.setProperty("--vaultpub-slide-scale", String((preference.textScale || 100) / 100)); document.body.classList.toggle("slides-code-wrap", preference.codeWrap ?? defaults.codeWrap); document.body.classList.toggle("slides-center-content", preference.center ?? Boolean(defaults.center)); const reduced = preference.reducedMotion ?? matchMedia("(prefers-reduced-motion: reduce)").matches; document.body.classList.toggle("slides-reduced-motion", reduced); const size = dimensions(); deck.configure({ controls: false, transition: reduced ? "none" : (preference.transition || defaults.transition), progress: preference.progress ?? defaults.progress, ...(singlePage ? { margin: 0, slideNumber: false } : { slideNumber: preference.slideNumber ?? defaults.slideNumber }), center: preference.center ?? defaults.center, width: size.width, height: size.height }); requestAnimationFrame(() => { deck.layout(); sizeCanvas(); requestAnimationFrame(() => { paginateFit(); scheduleSlideChrome(); refreshLensMirror(); positionLens(); }); }); };
@@ -681,6 +643,14 @@ document.addEventListener("DOMContentLoaded", () => {
       restoreTimerSession(); apply(); buildNavigation(); sizeCanvas(); renderTimer(); if (timerSession.popupVisible) setTimerPopupVisible(true); setInterval(renderTimer, 1000); wake();
     };
     void start();
+    installSlideWheelNavigation({
+      root: revealElement,
+      currentSlide: activeScrollableSlide,
+      enabled: () => !singlePage,
+      blocked: (target) => activePanel !== null || tool !== null || ui.contains(target as Node) || target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement || target instanceof HTMLButtonElement,
+      previous: () => deck.prev(),
+      next: () => deck.next(),
+    });
     dock.addEventListener("pointerenter", () => { clearTimeout(idle); document.body.classList.remove("slides-ui-idle"); }); dock.addEventListener("pointerleave", wake);
     dock.addEventListener("click", (event) => { const target = (event.target as HTMLElement).closest<HTMLElement>("[data-action],[data-tool]"); if (!target) return; const action = target.dataset.action; if (target.dataset.tool) { setTool(target.dataset.tool as Exclude<Tool, null>); return; } if (action === "previous") deck.prev(); else if (action === "next") deck.next(); else if (action === "picker") panelOpen("picker", target); else if (action === "overview") panelOpen("grid", target); else if (action === "settings") panelOpen("settings", target); else if (action === "timer") panelOpen("timer", target); else if (action === "help") panelOpen("help", target); else if (action === "blackout") { deck.togglePause(); target.classList.toggle("is-active"); } else if (action === "fullscreen") { if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen?.().catch(() => say("Fullscreen is unavailable")); } wake(); });
     ui.addEventListener("click", (event) => {
@@ -734,7 +704,7 @@ document.addEventListener("DOMContentLoaded", () => {
     revealElement.addEventListener("pointermove", (event) => { wake(); if (tool === "laser") { laser.style.left = `${event.clientX}px`; laser.style.top = `${event.clientY}px`; laser.classList.add("is-visible"); } if (tool === "magnify" && magnifierMode === "full" && magnified) { document.documentElement.style.setProperty("--slides-zoom-x", `${event.clientX}px`); document.documentElement.style.setProperty("--slides-zoom-y", `${event.clientY}px`); } if (tool === "magnify" && magnifierMode === "lens" && (!lensPinned || event.pointerType === "touch")) { lensPoint = { x: event.clientX, y: event.clientY }; positionLens(true); } });
     revealElement.addEventListener("pointerdown", (event) => { if (!ui.contains(event.target as Node) && activePanel) panelClose(); if (tool !== "magnify") return; if (magnifierMode === "full") { if (magnified) { clearMagnification(); return; } magnified = true; document.documentElement.style.setProperty("--slides-zoom-x", `${event.clientX}px`); document.documentElement.style.setProperty("--slides-zoom-y", `${event.clientY}px`); document.documentElement.style.setProperty("--slides-magnification", String(magnifierZoom)); document.body.classList.add("slides-magnified"); event.preventDefault(); return; } lensPoint = { x: event.clientX, y: event.clientY }; lensPinned = !lensPinned; positionLens(true); event.preventDefault(); });
     const scheduleApply = (): void => { clearTimeout(resizeTimer); resizeTimer = window.setTimeout(apply, 180); };
-    deck.on("slidechanged", () => { clearMagnification(); updateNavigation(); scheduleSlideChrome(); const commandRequestId = pendingCommandRequestId; pendingCommandRequestId = undefined; if (embedReady) sendEmbedSlideChanged(commandRequestId); if (multiNote) void hydrateWindow(noteIndex()).then(() => { buildNavigation(); updateNavigation(); scheduleApply(); }).catch(() => say("This file could not be loaded. Select it again to retry.")); else { refreshLensMirror(); positionLens(); } }); window.addEventListener("resize", scheduleApply); revealElement.querySelectorAll("img,video,iframe").forEach((media) => media.addEventListener("load", scheduleApply)); window.setTimeout(scheduleApply, 500); document.addEventListener("pointermove", wake, { passive: true }); document.addEventListener("keydown", (event) => { const updateMagnifierZoom = (change: number): void => { if (tool !== "magnify") return; magnifierZoom = Math.max(1.25, Math.min(4, magnifierZoom + change)); ui.querySelector<HTMLInputElement>("[data-magnifier-setting=zoom]")!.value = String(magnifierZoom); ui.querySelector<HTMLOutputElement>("[data-output=magnifierZoom]")!.textContent = `${magnifierZoom.toFixed(2)}×`; const preference = saved(); preference.magnifierZoom = magnifierZoom; saveStored(preference); if (magnifierMode === "full" && magnified) document.documentElement.style.setProperty("--slides-magnification", String(magnifierZoom)); else positionLens(); }; if (event.key === "Escape") { if (activePanel) panelClose(); else if (tool) setTool(null); return; } if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return; if (event.key === "?") panelOpen("help", dock.querySelector("[data-action=help]")!); else if (event.key.toLowerCase() === "g") panelOpen("picker", dock.querySelector("[data-action=picker]")!); else if (event.key.toLowerCase() === "t") panelOpen("timer", dock.querySelector("[data-action=timer]")!); else if (event.key === "+" || event.key === "=") updateMagnifierZoom(.25); else if (event.key === "-") updateMagnifierZoom(-.25); else if (event.key.toLowerCase() === "f") { if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen?.().catch(() => say("Fullscreen is unavailable")); } else if (event.key.toLowerCase() === "l") setTool("laser"); else if (event.key.toLowerCase() === "z") setTool("magnify"); else if (event.key.toLowerCase() === "d") setTool("pen"); else if (event.key.toLowerCase() === "b") deck.togglePause(); });
+    deck.on("slidechanged", () => { clearMagnification(); updateNavigation(); scheduleSlideChrome(); const commandRequestId = pendingCommandRequestId; pendingCommandRequestId = undefined; if (embedReady) sendEmbedSlideChanged(commandRequestId); if (multiNote) void hydrateWindow(noteIndex()).then(() => { buildNavigation(); updateNavigation(); scheduleApply(); }).catch(() => say("This file could not be loaded. Select it again to retry.")); else { refreshLensMirror(); positionLens(); } }); window.addEventListener("resize", scheduleApply); void document.fonts?.ready.then(scheduleApply); window.setTimeout(scheduleApply, 500); document.addEventListener("pointermove", wake, { passive: true }); document.addEventListener("keydown", (event) => { const updateMagnifierZoom = (change: number): void => { if (tool !== "magnify") return; magnifierZoom = Math.max(1.25, Math.min(4, magnifierZoom + change)); ui.querySelector<HTMLInputElement>("[data-magnifier-setting=zoom]")!.value = String(magnifierZoom); ui.querySelector<HTMLOutputElement>("[data-output=magnifierZoom]")!.textContent = `${magnifierZoom.toFixed(2)}×`; const preference = saved(); preference.magnifierZoom = magnifierZoom; saveStored(preference); if (magnifierMode === "full" && magnified) document.documentElement.style.setProperty("--slides-magnification", String(magnifierZoom)); else positionLens(); }; if (event.key === "Escape") { if (activePanel) panelClose(); else if (tool) setTool(null); return; } if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return; if (event.key === "?") panelOpen("help", dock.querySelector("[data-action=help]")!); else if (event.key.toLowerCase() === "g") panelOpen("picker", dock.querySelector("[data-action=picker]")!); else if (event.key.toLowerCase() === "t") panelOpen("timer", dock.querySelector("[data-action=timer]")!); else if (event.key === "+" || event.key === "=") updateMagnifierZoom(.25); else if (event.key === "-") updateMagnifierZoom(-.25); else if (event.key.toLowerCase() === "f") { if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen?.().catch(() => say("Fullscreen is unavailable")); } else if (event.key.toLowerCase() === "l") setTool("laser"); else if (event.key.toLowerCase() === "z") setTool("magnify"); else if (event.key.toLowerCase() === "d") setTool("pen"); else if (event.key.toLowerCase() === "b") deck.togglePause(); });
     if (embedMode) { embedReady = true; if (handshakeReceived) sendEmbedReady(handshakeRequestId); }
   }).catch(() => { if (embedMode) sendEmbedError("initialization_failed", "Slide View could not be initialized"); });
 });

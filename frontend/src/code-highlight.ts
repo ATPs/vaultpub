@@ -91,15 +91,15 @@ function decorateCodeBlock(codeBlock: HTMLElement): void {
   codeBlock.dataset.lineNumbersReady = "true";
 }
 
-export function initCodeHighlight(root: ParentNode = document): void {
+export async function initCodeHighlight(root: ParentNode = document): Promise<void> {
   const codeBlocks = Array.from(root.querySelectorAll<HTMLElement>("pre code"));
   if (codeBlocks.length === 0) return;
-
-  import("highlight.js").then((hljs) => {
-    hljs.default.configure({ ignoreUnescapedHTML: true });
-    for (const codeBlock of codeBlocks) {
-      if (!codeBlock.dataset.highlighted) hljs.default.highlightElement(codeBlock);
-      decorateCodeBlock(codeBlock);
-    }
-  });
+  const hljs = await import("highlight.js");
+  hljs.default.configure({ ignoreUnescapedHTML: true });
+  for (const codeBlock of codeBlocks) {
+    if (codeBlock.dataset.highlightReady === "true") continue;
+    if (!codeBlock.dataset.highlighted) hljs.default.highlightElement(codeBlock);
+    decorateCodeBlock(codeBlock);
+    codeBlock.dataset.highlightReady = "true";
+  }
 }
