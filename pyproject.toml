@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vaultpub"
-version = "1.0.1"
+version = "1.0.2"
 description = "Publish a local Obsidian vault as a browsable, searchable web site"
 readme = "README.md"
 license = {text = "MIT"}
