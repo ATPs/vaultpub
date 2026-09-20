@@ -24,6 +24,25 @@ def test_render_note_basic(vault_basic) -> None:
     assert "README" in html or "Welcome" in html
 
 
+def test_render_note_hides_comments_and_preserves_task_checkboxes(tmp_path: Path) -> None:
+    (tmp_path / "README.md").write_text(
+        "<!-- teacher-only note -->\n\n- [ ] Open task\n- [x] Completed task\n",
+        encoding="utf-8",
+    )
+    config = PublisherConfig(vault_path=tmp_path)
+    vault_index = VaultIndexer(config).build()
+    renderer = Renderer(config, vault_index)
+    note = vault_index.notes_by_id[vault_index.notes_by_path["README.md"]]
+
+    html = renderer.render_note(note)
+
+    assert "teacher-only note" not in html
+    assert html.count('class="task-list-item-checkbox"') == 2
+    assert html.count('type="checkbox"') == 2
+    assert "checked" in html
+    assert "disabled" not in html
+
+
 def test_render_page_html_has_backlinks(vault_basic) -> None:
     config = PublisherConfig(vault_path=vault_basic)
     indexer = VaultIndexer(config)

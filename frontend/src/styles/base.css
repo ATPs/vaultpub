@@ -81,6 +81,26 @@ p { margin: 0.75em 0; }
   overflow-wrap: anywhere;
 }
 
+/* Markdown task lists */
+.markdown-body ul.contains-task-list,
+.markdown-body ol.contains-task-list {
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.markdown-body .task-list-item {
+  list-style: none;
+}
+
+.markdown-body .task-list-item-checkbox {
+  width: 1em;
+  height: 1em;
+  margin: 0 0.55em 0 0;
+  vertical-align: -0.1em;
+  accent-color: var(--link-color);
+  cursor: pointer;
+}
+
 /* Inline code */
 code {
   font-family: var(--font-mono);

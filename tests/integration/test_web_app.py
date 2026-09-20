@@ -305,10 +305,12 @@ def test_frontend_static_assets(client) -> None:
     assert "scrollTop" in js_response.text
     assert 'data-setting="font-size"' in js_response.text
     assert "Close page sidebar" in js_response.text
+    assert "assets/task-lists-" in js_response.text
 
     slides_response = client.get("/static/vaultpub/slides.js")
     assert slides_response.status_code == 200
     assert "vaultpub.slide" in slides_response.text
+    assert "assets/task-lists-" in slides_response.text
     slides_css_response = client.get("/static/vaultpub/slides.css")
     assert slides_css_response.status_code == 200
     assert "data-vaultpub-embed" in slides_css_response.text

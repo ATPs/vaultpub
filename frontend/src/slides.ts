@@ -8,6 +8,7 @@ import { initMermaid } from "./mermaid-init";
 import { initIcons } from "./icons";
 import { fitUnits, mediaSelector } from "./slides-fit-content";
 import { installSlideWheelNavigation } from "./slides-wheel";
+import { initTaskLists } from "./task-lists";
 
 type RevealConfig = Record<string, boolean | number | string>;
 type SplitPolicy = "auto" | "chapters" | "sections" | "detail" | "fit" | "explicit" | "single";
@@ -175,6 +176,7 @@ function buildInterface(defaults: SlideSettings, preferences: StoredPreferences)
 document.addEventListener("DOMContentLoaded", () => {
   const revealElement = document.querySelector<HTMLElement>(".reveal");
   if (!revealElement) return;
+  initTaskLists();
   const defaults = readJson<SlideSettings>("vaultpub-slide-settings", { theme: "light", codeWrap: true, split: "auto" });
   document.body.dataset.slideSplit = defaults.split;
   const manifest = readManifest();

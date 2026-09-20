@@ -36,3 +36,11 @@ def test_sanitize_preserves_download_attr() -> None:
     html = '<a href="/__assets__/archive.pin.gz" download="archive.pin.gz">Archive</a>'
     result = sanitize_html(html)
     assert 'download="archive.pin.gz"' in result
+
+
+def test_sanitize_preserves_task_list_checkbox() -> None:
+    html = '<input class="task-list-item-checkbox" checked="checked" type="checkbox">'
+    result = sanitize_html(html)
+    assert 'class="task-list-item-checkbox"' in result
+    assert 'type="checkbox"' in result
+    assert "checked" in result

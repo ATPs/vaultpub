@@ -19,6 +19,7 @@ import { initCodeHighlight } from "./code-highlight";
 import { initTopbarContext } from "./topbar-context";
 import { initSlideLaunch } from "./slide-launch";
 import { initOrderEditor } from "./order-editor";
+import { initTaskLists } from "./task-lists";
 
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
@@ -31,6 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initMermaid();
   initMath();
   initCodeHighlight();
+  initTaskLists();
   initRealtime();
   initMobileDrawer();
   initSidebars();

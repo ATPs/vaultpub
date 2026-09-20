@@ -10,7 +10,7 @@ ALLOWED_TAGS = [
     "kbd", "li", "mark", "nav", "ol", "p", "pre", "q", "rp", "rt", "ruby",
     "s", "samp", "section", "small", "span", "strong", "sub", "summary", "sup",
     "table", "tbody", "td", "tfoot", "th", "thead", "time", "tr", "u", "ul", "var",
-    "button",
+    "button", "input",
     # Mermaid / math
     "div", "span",
     # Embeds
@@ -26,6 +26,7 @@ ALLOWED_ATTRS: dict[str, list[str]] = {
     ],
     "a": ["href", "title", "target", "rel", "data-target", "download"],
     "button": ["type", "aria-pressed", "data-code-action"],
+    "input": ["type", "checked"],
     "img": ["src", "alt", "title", "width", "height", "loading"],
     "audio": ["src", "controls", "preload"],
     "video": ["src", "controls", "width", "height", "preload", "poster"],
